@@ -2,7 +2,10 @@ import type { MetadataRoute } from "next"
 import { prisma } from "@/lib/prisma"
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = process.env.NEXTAUTH_URL || "https://lankhub.com"
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXTAUTH_URL ||
+    "http://localhost:3000"
 
   const articles = await prisma.article.findMany({
     where: { published: true },

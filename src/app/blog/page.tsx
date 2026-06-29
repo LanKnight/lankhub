@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import ArticleCard from "@/components/blog/ArticleCard"
 import Pagination from "@/components/blog/Pagination"
+import { prisma } from "@/lib/prisma"
 import { formatDate } from "@/lib/utils"
 
 export const metadata: Metadata = {
@@ -9,17 +10,35 @@ export const metadata: Metadata = {
 }
 
 async function getArticles(page: number) {
-  try {
-    const baseUrl =
-      process.env.NEXTAUTH_URL || "http://localhost:3000"
-    const res = await fetch(
-      `${baseUrl}/api/articles?page=${page}&limit=10`,
-      { cache: "no-store" }
-    )
-    if (!res.ok) return { articles: [], total: 0, totalPages: 0 }
-    return res.json()
-  } catch {
-    return { articles: [], total: 0, totalPages: 0 }
+  const limit = 10
+  const skip = (page - 1) * limit
+
+  const [articles, total] = await Promise.all([
+    prisma.article.findMany({
+      where: { published: true },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        summary: true,
+        coverImage: true,
+        viewCount: true,
+        createdAt: true,
+        author: {
+          select: { id: true, name: true, avatar: true },
+        },
+      },
+    }),
+    prisma.article.count({ where: { published: true } }),
+  ])
+
+  return {
+    articles,
+    total,
+    totalPages: Math.ceil(total / limit),
   }
 }
 

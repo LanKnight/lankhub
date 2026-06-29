@@ -6,6 +6,8 @@ import bcrypt from "bcryptjs"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
+  // 信任反向代理的 host header（Nginx 等），生产环境必须
+  trustHost: true,
   providers: [
     Credentials({
       name: "credentials",

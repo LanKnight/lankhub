@@ -2,33 +2,59 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import ArticleContent from "@/components/blog/ArticleContent"
 import CommentSection from "@/components/comment/CommentSection"
+import { prisma } from "@/lib/prisma"
 import { formatDate, estimateReadTime } from "@/lib/utils"
 
 async function getArticle(slug: string) {
-  try {
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000"
-    const res = await fetch(`${baseUrl}/api/articles/${slug}`, {
-      cache: "no-store",
-    })
-    if (!res.ok) return null
-    return res.json()
-  } catch {
-    return null
-  }
+  const article = await prisma.article.findFirst({
+    where: { slug, published: true },
+    include: {
+      author: {
+        select: { id: true, name: true, avatar: true, bio: true },
+      },
+    },
+  })
+
+  if (!article) return null
+
+  // Increment view count
+  await prisma.article.update({
+    where: { id: article.id },
+    data: { viewCount: { increment: 1 } },
+  })
+
+  return { ...article, viewCount: article.viewCount + 1 }
 }
 
 async function getComments(articleId: number) {
-  try {
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000"
-    const res = await fetch(
-      `${baseUrl}/api/articles/${articleId}/comments`,
-      { cache: "no-store" }
-    )
-    if (!res.ok) return []
-    return res.json()
-  } catch {
-    return []
-  }
+  const comments = await prisma.comment.findMany({
+    where: { articleId },
+    orderBy: { createdAt: "asc" },
+    include: {
+      author: {
+        select: { id: true, name: true, avatar: true },
+      },
+    },
+  })
+
+  // Build nested comment tree
+  const commentMap = new Map<number, any>()
+  const rootComments: any[] = []
+
+  comments.forEach((comment) => {
+    commentMap.set(comment.id, { ...comment, replies: [] })
+  })
+
+  comments.forEach((comment) => {
+    const mapped = commentMap.get(comment.id)!
+    if (comment.parentId && commentMap.has(comment.parentId)) {
+      commentMap.get(comment.parentId)!.replies.push(mapped)
+    } else {
+      rootComments.push(mapped)
+    }
+  })
+
+  return rootComments
 }
 
 export async function generateMetadata({
@@ -45,7 +71,7 @@ export async function generateMetadata({
     description: article.summary || article.title,
     openGraph: {
       title: article.title,
-      description: article.summary,
+      description: article.summary ?? undefined,
       type: "article",
     },
   }
