@@ -13,21 +13,20 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await req.json()
-    const { title, summary, content, coverImage, published, collectionId } = body
+    const { name, description, coverImage, sortOrder } = body
 
-    const existing = await prisma.article.findUnique({
+    const existing = await prisma.collection.findUnique({
       where: { id: parseInt(id) },
     })
 
     if (!existing) {
-      return NextResponse.json({ error: "文章不存在" }, { status: 404 })
+      return NextResponse.json({ error: "合集不存在" }, { status: 404 })
     }
 
-    // Update slug if title changed
     let slug = existing.slug
-    if (title && title !== existing.title) {
-      slug = generateSlug(title)
-      const duplicate = await prisma.article.findFirst({
+    if (name && name !== existing.name) {
+      slug = generateSlug(name)
+      const duplicate = await prisma.collection.findFirst({
         where: { slug, id: { not: parseInt(id) } },
       })
       if (duplicate) {
@@ -35,24 +34,22 @@ export async function PUT(
       }
     }
 
-    const article = await prisma.article.update({
+    const collection = await prisma.collection.update({
       where: { id: parseInt(id) },
       data: {
-        title: title ?? existing.title,
+        name: name ?? existing.name,
         slug,
-        summary: summary ?? existing.summary,
-        content: content ?? existing.content,
+        description: description ?? existing.description,
         coverImage: coverImage ?? existing.coverImage,
-        published: published ?? existing.published,
-        collectionId: collectionId !== undefined ? collectionId : existing.collectionId,
+        sortOrder: sortOrder ?? existing.sortOrder,
       },
     })
 
-    return NextResponse.json(article)
+    return NextResponse.json(collection)
   } catch (error) {
-    console.error("Update article error:", error)
+    console.error("Update collection error:", error)
     return NextResponse.json(
-      { error: "更新文章失败" },
+      { error: "更新合集失败" },
       { status: 500 }
     )
   }
@@ -68,23 +65,23 @@ export async function DELETE(
   try {
     const { id } = await params
 
-    const existing = await prisma.article.findUnique({
+    const existing = await prisma.collection.findUnique({
       where: { id: parseInt(id) },
     })
 
     if (!existing) {
-      return NextResponse.json({ error: "文章不存在" }, { status: 404 })
+      return NextResponse.json({ error: "合集不存在" }, { status: 404 })
     }
 
-    await prisma.article.delete({
+    await prisma.collection.delete({
       where: { id: parseInt(id) },
     })
 
-    return NextResponse.json({ message: "文章已删除" })
+    return NextResponse.json({ message: "合集已删除" })
   } catch (error) {
-    console.error("Delete article error:", error)
+    console.error("Delete collection error:", error)
     return NextResponse.json(
-      { error: "删除文章失败" },
+      { error: "删除合集失败" },
       { status: 500 }
     )
   }

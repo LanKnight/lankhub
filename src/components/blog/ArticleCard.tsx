@@ -24,7 +24,7 @@ export default function ArticleCard({
   return (
     <Link
       href={`/blog/${slug}`}
-      className="group block bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
+      className="group block bg-paper border border-gray-200 overflow-hidden hover:border-gray-400 transition-all duration-200"
     >
       <article className="p-6 space-y-4">
         <h2 className="text-xl font-bold text-gray-900 group-hover:text-accent transition-colors line-clamp-2">

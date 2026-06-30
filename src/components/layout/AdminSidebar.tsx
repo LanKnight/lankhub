@@ -6,7 +6,9 @@ import { signOut } from "next-auth/react"
 import {
   LayoutDashboard,
   FileText,
+  FolderOpen,
   MessageSquare,
+  FileUser,
   LogOut,
   Home,
 } from "lucide-react"
@@ -14,7 +16,9 @@ import {
 const links = [
   { href: "/admin", label: "仪表盘", icon: LayoutDashboard },
   { href: "/admin/articles", label: "文章管理", icon: FileText },
+  { href: "/admin/collections", label: "合集管理", icon: FolderOpen },
   { href: "/admin/comments", label: "评论管理", icon: MessageSquare },
+  { href: "/admin/resume", label: "简历编辑", icon: FileUser },
 ]
 
 export default function AdminSidebar() {

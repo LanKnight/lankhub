@@ -57,22 +57,39 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+model Collection {
+  id          Int       @id @default(autoincrement())
+  name        String
+  slug        String    @unique
+  description String?
+  coverImage  String?
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  articles    Article[]
+
+  @@index([sortOrder])
+}
+
 model Article {
-  id         Int       @id @default(autoincrement())
-  title      String
-  slug       String    @unique
-  summary    String?
-  content    String
-  coverImage String?
-  published  Boolean   @default(false)
-  viewCount  Int       @default(0)
-  authorId   Int
-  author     User      @relation(fields: [authorId], references: [id])
-  comments   Comment[]
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id           Int         @id @default(autoincrement())
+  title        String
+  slug         String      @unique
+  summary      String?
+  content      String
+  coverImage   String?
+  published    Boolean     @default(false)
+  viewCount    Int         @default(0)
+  authorId     Int
+  author       User        @relation(fields: [authorId], references: [id])
+  collectionId Int?
+  collection   Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  comments     Comment[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 
   @@index([published, createdAt])
+  @@index([collectionId])
 }
 
 model Comment {
@@ -89,4 +106,52 @@ model Comment {
   updatedAt DateTime  @updatedAt
 
   @@index([articleId, createdAt])
+}
+
+model ResumeProfile {
+  id             Int               @id @default(autoincrement())
+  name           String            @default("")
+  title          String            @default("")
+  email          String            @default("")
+  phone          String            @default("")
+  location       String            @default("")
+  avatar         String?
+  birthDate      String            @default("")
+  birthplace     String            @default("")
+  degree         String            @default("")
+  political      String            @default("")
+  selfEvaluation String            @default("")
+  jobTarget      String            @default("")
+  jobSummary     String            @default("")
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  skills         ResumeSkill[]
+  experiences    ResumeExperience[]
+}
+
+model ResumeSkill {
+  id        Int           @id @default(autoincrement())
+  name      String
+  level     Int           @default(0)
+  sortOrder Int           @default(0)
+  profileId Int
+  profile   ResumeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model ResumeExperience {
+  id          Int           @id @default(autoincrement())
+  type        String
+  title       String
+  subtitle    String?
+  startDate   String?
+  endDate     String?
+  description String?
+  techStack   String?
+  sortOrder   Int           @default(0)
+  profileId   Int
+  profile     ResumeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, type])
 }

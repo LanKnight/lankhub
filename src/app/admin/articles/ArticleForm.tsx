@@ -25,14 +25,19 @@ interface ArticleFormProps {
     summary: string
     content: string
     published: boolean
+    collectionId?: number | null
   }
+  collections?: { id: number; name: string }[]
 }
 
-export default function ArticleForm({ initialData }: ArticleFormProps) {
+export default function ArticleForm({ initialData, collections }: ArticleFormProps) {
   const router = useRouter()
   const [title, setTitle] = useState(initialData?.title || "")
   const [summary, setSummary] = useState(initialData?.summary || "")
   const [content, setContent] = useState(initialData?.content || "")
+  const [collectionId, setCollectionId] = useState<number | null>(
+    initialData?.collectionId ?? null
+  )
   const [published, setPublished] = useState(
     initialData?.published || false
   )
@@ -65,7 +70,7 @@ export default function ArticleForm({ initialData }: ArticleFormProps) {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, summary, content, published }),
+        body: JSON.stringify({ title, summary, content, published, collectionId }),
       })
 
       if (!res.ok) {
@@ -112,6 +117,29 @@ export default function ArticleForm({ initialData }: ArticleFormProps) {
           className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition-all text-sm resize-none"
         />
       </div>
+
+      {/* Collection */}
+      {collections && collections.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            所属合集（可选）
+          </label>
+          <select
+            value={collectionId ?? ""}
+            onChange={(e) =>
+              setCollectionId(e.target.value ? parseInt(e.target.value) : null)
+            }
+            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition-all text-sm bg-white"
+          >
+            <option value="">无合集</option>
+            {collections.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Editor */}
       <RichTextEditor

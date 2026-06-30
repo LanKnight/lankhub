@@ -13,17 +13,18 @@ export default function Navbar() {
   const navLinks = [
     { href: "/", label: "首页" },
     { href: "/blog", label: "博客" },
+    { href: "/blog/collections", label: "合集" },
     { href: "/resume", label: "简历" },
   ]
 
   return (
-    <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
+    <header className="sticky top-0 z-50 bg-paper/90 backdrop-blur-md border-b border-gray-200">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link
             href="/"
-            className="text-xl font-bold text-gray-900 hover:text-accent transition-colors"
+            className="text-xl font-bold text-gray-900 hover:text-gray-600 transition-colors"
           >
             lankHub
           </Link>
@@ -34,7 +35,7 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-sm text-gray-600 hover:text-accent transition-colors"
+                className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
               >
                 {link.label}
               </Link>
@@ -45,7 +46,7 @@ export default function Navbar() {
                 {user.role === "OWNER" && (
                   <Link
                     href="/admin"
-                    className="flex items-center gap-1 text-sm text-gray-600 hover:text-accent transition-colors"
+                    className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors"
                   >
                     <PenLine size={14} />
                     管理
@@ -62,7 +63,7 @@ export default function Navbar() {
             ) : (
               <Link
                 href="/auth/login"
-                className="flex items-center gap-1 text-sm px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                className="flex items-center gap-1 text-sm px-4 py-2 bg-gray-900 text-paper rounded-sm hover:bg-gray-800 transition-colors"
               >
                 <User size={14} />
                 登录
@@ -89,7 +90,7 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="block text-sm text-gray-600 hover:text-accent transition-colors"
+                className="block text-sm text-gray-600 hover:text-gray-900 transition-colors"
                 onClick={() => setMenuOpen(false)}
               >
                 {link.label}
@@ -101,7 +102,7 @@ export default function Navbar() {
                 {user.role === "OWNER" && (
                   <Link
                     href="/admin"
-                    className="block text-sm text-gray-600 hover:text-accent"
+                    className="block text-sm text-gray-600 hover:text-gray-900"
                     onClick={() => setMenuOpen(false)}
                   >
                     管理后台

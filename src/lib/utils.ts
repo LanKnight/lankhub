@@ -1,11 +1,16 @@
 import slugifyLib from "slugify"
 
 export function generateSlug(title: string): string {
-  return slugifyLib(title, {
+  const slug = slugifyLib(title, {
     lower: true,
     strict: true,
     locale: "zh",
   })
+  // Fallback for titles that produce empty slugs (e.g., pure Chinese characters)
+  if (!slug) {
+    return `post-${Date.now()}`
+  }
+  return slug
 }
 
 export function formatDate(date: Date | string, format: string = "YYYY-MM-DD"): string {

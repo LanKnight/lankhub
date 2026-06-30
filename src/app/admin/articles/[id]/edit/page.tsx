@@ -13,9 +13,16 @@ export default async function EditArticlePage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const article = await prisma.article.findUnique({
-    where: { id: parseInt(id) },
-  })
+
+  const [article, collections] = await Promise.all([
+    prisma.article.findUnique({
+      where: { id: parseInt(id) },
+    }),
+    prisma.collection.findMany({
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true },
+    }),
+  ])
 
   if (!article) {
     notFound()
@@ -32,7 +39,9 @@ export default async function EditArticlePage({
           summary: article.summary || "",
           content: article.content,
           published: article.published,
+          collectionId: article.collectionId,
         }}
+        collections={collections}
       />
     </div>
   )

@@ -26,19 +26,19 @@ export default function Footer() {
           <div className="flex items-center gap-6">
             <Link
               href="/"
-              className="text-sm text-gray-500 hover:text-accent transition-colors"
+              className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
             >
               首页
             </Link>
             <Link
               href="/blog"
-              className="text-sm text-gray-500 hover:text-accent transition-colors"
+              className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
             >
               博客
             </Link>
             <Link
               href="/resume"
-              className="text-sm text-gray-500 hover:text-accent transition-colors"
+              className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
             >
               简历
             </Link>
