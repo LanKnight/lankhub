@@ -5,6 +5,8 @@ import LeftColumn from "@/components/resume/LeftColumn"
 import RightColumn from "@/components/resume/RightColumn"
 import ResumeFooter from "@/components/resume/ResumeFooter"
 
+export const dynamic = "force-dynamic"
+
 export const metadata: Metadata = {
   title: "简历",
 }

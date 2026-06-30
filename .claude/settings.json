@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m 'fix: 修复登录 CSRF 问题 — 改用 Server Action 登录 *)",
+      "Bash(git commit -m 'docs: 更新 README — 新功能使用指南、合集/简历编辑说明、水墨风格介绍 *)",
+      "Bash(git commit -m 'fix: 简历页和合集页改为动态渲染 *)"
+    ]
+  }
+}

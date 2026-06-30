@@ -3,6 +3,8 @@ import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { FolderOpen, FileText } from "lucide-react"
 
+export const dynamic = "force-dynamic"
+
 export const metadata: Metadata = {
   title: "文章合集 - lankHub",
   description: "按主题浏览博客文章合集",
