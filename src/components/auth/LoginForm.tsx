@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Loader2, LogIn } from "lucide-react"
+import { loginAction } from "@/lib/auth-actions"
 
 export default function LoginForm() {
   const router = useRouter()
@@ -19,18 +19,15 @@ export default function LoginForm() {
     setLoading(true)
 
     try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      })
+      const result = await loginAction(email, password)
 
-      if (result?.error) {
-        setError("邮箱或密码错误")
+      if (!result.success) {
+        setError(result.error || "邮箱或密码错误")
         setLoading(false)
         return
       }
 
+      // 刷新页面以更新 session 状态
       router.push("/")
       router.refresh()
     } catch {
