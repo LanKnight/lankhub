@@ -82,21 +82,101 @@ npm run dev
 
 ## 生产部署
 
-### 一键初始化（服务器首次部署）
+以下是在 Linux 服务器上从零部署的完整流程。
+
+### 环境要求
+
+- **Node.js** 18+ 
+- **npm** 9+
+- **Git**
+- **Nginx**（用于反向代理）
+- **PM2**（用于进程守护）
+
+### 1. 克隆项目
+
+```bash
+git clone https://github.com/LanKnight/lankhub.git
+cd lankhub
+```
+
+### 2. 配置环境变量
+
+```bash
+cp .env.example .env
+nano .env  # 编辑以下内容：
+```
+
+| 变量 | 说明 | 填写示例 |
+|------|------|---------|
+| `DATABASE_URL` | SQLite 数据库路径 | `file:./dev.db` |
+| `AUTH_SECRET` | JWT 加密密钥 | `openssl rand -base64 32` 生成 |
+| `NEXTAUTH_URL` | 网站域名（Auth.js 用） | `https://你的域名.com` |
+| `NEXT_PUBLIC_SITE_URL` | 公开网站 URL | `https://你的域名.com` |
+
+### 3. 一键初始化
 
 ```bash
 bash scripts/setup.sh
 ```
 
-脚本会自动：检查 `.env` → 安装依赖 → 初始化数据库 → 构建生产版本。
+脚本会自动：检查 Node.js → 安装依赖 → 初始化数据库（建表 + 种子数据）→ 生产构建。
 
-### 手动部署
+### 4. 启动服务（PM2 常驻后台）
 
 ```bash
-npm install              # 安装依赖 + 自动生成 Prisma 客户端
-npm run setup            # 初始化数据库 + 种子数据
-npm run build            # 生产构建
-npm start -- -H 0.0.0.0  # 启动服务（监听所有网卡）
+# 安装 PM2
+npm install -g pm2
+
+# 启动（生产模式下 Next.js 默认监听 localhost:3000）
+pm2 start npm --name lankhub -- start
+
+# 设置开机自启
+pm2 save
+pm2 startup
+```
+
+### 5. Nginx 反向代理
+
+```bash
+sudo nano /etc/nginx/sites-available/lankhub
+```
+
+```nginx
+server {
+    listen 80;
+    server_name 你的域名.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+```bash
+# 启用站点
+sudo ln -s /etc/nginx/sites-available/lankhub /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### 6. 配置 SSL（Let's Encrypt）
+
+```bash
+# 安装 certbot
+sudo apt install certbot python3-certbot-nginx
+
+# 申请证书（自动修改 Nginx 配置）
+sudo certbot --nginx -d 你的域名.com
+
+# 设置自动续期
+sudo certbot renew --dry-run
 ```
 
 ### 更新部署
@@ -110,14 +190,15 @@ npm run build               # 重新构建
 pm2 restart lankhub         # 重启服务
 ```
 
-### PM2 常驻后台
+### PM2 常用命令
 
-```bash
-npm install -g pm2
-pm2 start npm --name lankhub -- start
-pm2 save
-pm2 startup
-```
+| 命令 | 说明 |
+|------|------|
+| `pm2 status` | 查看所有服务状态 |
+| `pm2 logs lankhub` | 查看实时日志 |
+| `pm2 restart lankhub` | 重启服务 |
+| `pm2 stop lankhub` | 停止服务 |
+| `pm2 delete lankhub` | 删除服务 |
 
 ## 可用命令
 

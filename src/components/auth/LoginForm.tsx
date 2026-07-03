@@ -1,13 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Loader2, LogIn } from "lucide-react"
 import { loginAction } from "@/lib/auth-actions"
 
 export default function LoginForm() {
-  const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
@@ -27,9 +25,8 @@ export default function LoginForm() {
         return
       }
 
-      // 刷新页面以更新 session 状态
-      router.push("/")
-      router.refresh()
+      // 硬导航确保 session cookie 被所有组件正确加载
+      window.location.href = "/"
     } catch {
       setError("登录失败，请稍后重试")
       setLoading(false)
