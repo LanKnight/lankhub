@@ -1,11 +1,21 @@
-import "dotenv/config"
+import { config as dotenvConfig } from "dotenv"
 import path from "path"
+
+// Next.js 生产环境用 .env.local，开发用 .env，两者都加载
+dotenvConfig({ path: path.resolve(__dirname, "..", ".env.local"), override: false })
+dotenvConfig({ path: path.resolve(__dirname, "..", ".env"), override: false })
+
 import { PrismaClient } from "../src/generated/prisma/client"
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3"
 import bcrypt from "bcryptjs"
 import * as readline from "readline"
 
-const rawDbUrl = process.env.DATABASE_URL || "file:./prisma/dev.db"
+if (!process.env.DATABASE_URL) {
+  console.error("❌ 未找到 DATABASE_URL，请在 .env 或 .env.local 中配置")
+  process.exit(1)
+}
+
+const rawDbUrl = process.env.DATABASE_URL
 const dbUrl = path.resolve(rawDbUrl.replace("file:", ""))
 const adapter = new PrismaBetterSqlite3({ url: dbUrl })
 const prisma = new PrismaClient({ adapter })
