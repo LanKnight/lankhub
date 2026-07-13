@@ -206,7 +206,9 @@ npm run update              # 一键更新：拉取 → 安装 → 推送DB → 
 | `npm run setup` | 一键初始化数据库（生成 + 推送 + 种子） |
 | `npm run db:generate` | 重新生成 Prisma 客户端 |
 | `npm run db:push` | 同步数据库 Schema |
-| `npm run db:seed` | 运行种子脚本 |
+| `npm run db:seed` | 运行种子脚本，设置站长账号 |
+| `sqlite3 dev.db "SELECT id, email, name, role FROM User;"` | 查询账号 |
+
 
 ## 环境变量
 
