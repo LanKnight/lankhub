@@ -12,7 +12,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
-    "reset-password": "tsx prisma/reset-password.ts"
+    "reset-password": "tsx prisma/reset-password.ts",
+    "update": "git pull && npm install && npm run db:push && npm run build && pm2 restart lankhub"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",

@@ -182,12 +182,7 @@ sudo certbot renew --dry-run
 ### 更新部署
 
 ```bash
-git pull                    # 拉取最新代码
-npm install                 # 安装可能的新依赖
-npm run db:generate         # 重新生成 Prisma 客户端
-npm run db:push             # 同步数据库结构变更
-npm run build               # 重新构建
-pm2 restart lankhub         # 重启服务
+npm run update              # 一键更新：拉取 → 安装 → 推送DB → 构建 → 重启
 ```
 
 ### PM2 常用命令
@@ -207,6 +202,7 @@ pm2 restart lankhub         # 重启服务
 | `npm run dev` | 启动开发服务器 |
 | `npm run build` | 生产构建（含 Prisma 生成） |
 | `npm start` | 启动生产服务 |
+| `npm run update` | 服务器一键更新部署 |
 | `npm run setup` | 一键初始化数据库（生成 + 推送 + 种子） |
 | `npm run db:generate` | 重新生成 Prisma 客户端 |
 | `npm run db:push` | 同步数据库 Schema |
