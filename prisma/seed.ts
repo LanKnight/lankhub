@@ -38,8 +38,13 @@ async function main() {
   console.log("Owner user created:", owner.email)
 
   // Create a sample collection
-  const collection = await prisma.collection.create({
-    data: {
+  const collection = await prisma.collection.upsert({
+    where: { slug: "getting-started" },
+    update: {
+      name: "入门指南",
+      description: "帮助你快速上手 lankHub 的文章合集",
+    },
+    create: {
       name: "入门指南",
       slug: "getting-started",
       description: "帮助你快速上手 lankHub 的文章合集",
@@ -50,8 +55,29 @@ async function main() {
   console.log("Sample collection created:", collection.name)
 
   // Create a sample article
-  await prisma.article.create({
-    data: {
+  await prisma.article.upsert({
+    where: { slug: "welcome-to-lankhub" },
+    update: {
+      title: "欢迎来到 lankHub",
+      summary: "这是我的第一篇博客文章，欢迎来访！",
+      content: JSON.stringify({
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "text",
+                text: "欢迎来到 lankHub！这是我的个人博客，在这里我会分享技术心得、生活感悟和各种有趣的内容。",
+              },
+            ],
+          },
+        ],
+      }),
+      published: true,
+      collectionId: collection.id,
+    },
+    create: {
       title: "欢迎来到 lankHub",
       slug: "welcome-to-lankhub",
       summary: "这是我的第一篇博客文章，欢迎来访！",
@@ -76,6 +102,11 @@ async function main() {
   })
 
   console.log("Sample article created")
+
+  // Clear existing resume data (cascade deletes skills & experiences)
+  await prisma.resumeExperience.deleteMany({})
+  await prisma.resumeSkill.deleteMany({})
+  await prisma.resumeProfile.deleteMany({})
 
   // Create resume data
   const profile = await prisma.resumeProfile.create({
