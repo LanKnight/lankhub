@@ -33,13 +33,13 @@ function ask(question: string): Promise<string> {
 async function main() {
   console.log("=== lankHub 重置站长密码 ===\n")
 
-  // 查找 OWNER 账号
+  // 查找站长账号（默认邮箱 admin@lankhub.com）
   const owner = await prisma.user.findFirst({
-    where: { role: "OWNER" },
+    where: { email: "admin@lankhub.com" },
   })
 
   if (!owner) {
-    console.log("❌ 没有找到站长账号（role=OWNER）")
+    console.log("❌ 没有找到站长账号（admin@lankhub.com）")
     process.exit(1)
   }
 

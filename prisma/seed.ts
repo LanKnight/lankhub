@@ -25,7 +25,11 @@ async function main() {
 
   const owner = await prisma.user.upsert({
     where: { email: "admin@lankhub.com" },
-    update: {},
+    update: {
+      name: "站长",
+      role: "OWNER",
+      bio: "lankHub 博客站长",
+    },
     create: {
       email: "admin@lankhub.com",
       password: hashedPassword,
