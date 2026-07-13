@@ -128,7 +128,7 @@ bash scripts/setup.sh
 npm install -g pm2
 
 # 启动（生产模式下 Next.js 默认监听 localhost:3000）
-pm2 start npm --name lankhub -- start
+pm2 start npm --name next-app -- start
 
 # 设置开机自启
 pm2 save
@@ -190,10 +190,10 @@ npm run update              # 一键更新：拉取 → 安装 → 推送DB → 
 | 命令 | 说明 |
 |------|------|
 | `pm2 status` | 查看所有服务状态 |
-| `pm2 logs lankhub` | 查看实时日志 |
-| `pm2 restart lankhub` | 重启服务 |
-| `pm2 stop lankhub` | 停止服务 |
-| `pm2 delete lankhub` | 删除服务 |
+| `pm2 logs next-app` | 查看实时日志 |
+| `pm2 restart next-app` | 重启服务 |
+| `pm2 stop next-app` | 停止服务 |
+| `pm2 delete next-app` | 删除服务 |
 
 ## 可用命令
 
