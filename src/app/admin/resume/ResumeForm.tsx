@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, Save, Plus, Trash2, ChevronDown, ChevronUp } from "lucide-react"
+import { Loader2, Save, Plus, Trash2, ChevronDown, ChevronUp, Upload } from "lucide-react"
 
 interface SkillItem {
   name: string
@@ -32,6 +32,8 @@ interface ProfileData {
   selfEvaluation: string
   jobTarget: string
   jobSummary: string
+  hobbies: string
+  resumePdf: string
 }
 
 interface ResumeFormProps {
@@ -51,6 +53,7 @@ type SectionKey =
   | "skills"
   | "certificates"
   | "selfEval"
+  | "hobbies"
   | "education"
   | "campus"
   | "projects"
@@ -64,6 +67,7 @@ const SECTION_LABELS: Record<SectionKey, string> = {
   skills: "专业技能",
   certificates: "证书",
   selfEval: "自我评价",
+  hobbies: "兴趣爱好",
   education: "教育经历",
   campus: "校园经历",
   projects: "项目经历",
@@ -87,6 +91,8 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
     selfEvaluation: initialData?.profile?.selfEvaluation || "",
     jobTarget: initialData?.profile?.jobTarget || "",
     jobSummary: initialData?.profile?.jobSummary || "",
+    hobbies: initialData?.profile?.hobbies || "",
+    resumePdf: initialData?.profile?.resumePdf || "",
   })
 
   const [skills, setSkills] = useState<SkillItem[]>(
@@ -134,6 +140,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
     skills: false,
     certificates: false,
     selfEval: false,
+    hobbies: false,
     education: false,
     campus: false,
     projects: false,
@@ -148,6 +155,10 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [pdfFile, setPdfFile] = useState<string | null>(
+    initialData?.profile?.resumePdf || null
+  )
 
   const toggleSection = (section: SectionKey) => {
     setExpanded((prev) => ({ ...prev, [section]: !prev[section] }))
@@ -179,7 +190,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          profile,
+          profile: { ...profile, resumePdf: pdfFile },
           skills: skills.map((s, i) => ({
             name: s.name,
             level: s.level,
@@ -203,6 +214,63 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
     } catch {
       setError("网络错误")
       setLoading(false)
+    }
+  }
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.type !== "application/pdf") {
+      setError("仅支持 PDF 格式")
+      return
+    }
+
+    setUploading(true)
+    const formData = new FormData()
+    formData.append("file", file)
+
+    try {
+      const res = await fetch("/api/admin/resume/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.error || "上传失败")
+        setUploading(false)
+        return
+      }
+
+      const data = await res.json()
+      setPdfFile(data.filePath)
+      setUploading(false)
+    } catch {
+      setError("网络错误")
+      setUploading(false)
+    }
+  }
+
+  const handlePdfDelete = async () => {
+    if (!pdfFile) return
+
+    try {
+      const res = await fetch("/api/admin/resume/upload", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filePath: pdfFile }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        setError(data.error || "删除失败")
+        return
+      }
+
+      setPdfFile(null)
+    } catch {
+      setError("网络错误")
     }
   }
 
@@ -380,6 +448,20 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
         </div>
       )}
 
+      {/* Hobbies */}
+      <SectionHeader section="hobbies" />
+      {expanded.hobbies && (
+        <div className="p-4 bg-white rounded-xl border border-gray-100">
+          <textarea
+            value={profile.hobbies}
+            onChange={(e) => updateProfile("hobbies", e.target.value)}
+            placeholder="你的兴趣爱好，每行一个..."
+            rows={4}
+            className={`${inputClass} resize-none`}
+          />
+        </div>
+      )}
+
       {/* Education */}
       <SectionHeader section="education" />
       {expanded.education && (
@@ -395,6 +477,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
           ]}
           emptyLabel="添加教育经历"
           grid
+          textareaKeys={["description"]}
         />
       )}
 
@@ -411,6 +494,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
             { key: "description", label: "描述", placeholder: "工作内容..." },
           ]}
           emptyLabel="添加校园经历"
+          textareaKeys={["description"]}
         />
       )}
 
@@ -428,6 +512,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
             { key: "techStack", label: "技术栈", placeholder: "Next.js, TypeScript, SQLite" },
           ]}
           emptyLabel="添加项目经历"
+          textareaKeys={["description"]}
         />
       )}
 
@@ -445,6 +530,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
             { key: "description", label: "描述", placeholder: "工作内容..." },
           ]}
           emptyLabel="添加实践经历"
+          textareaKeys={["description"]}
         />
       )}
 
@@ -489,6 +575,37 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
         </div>
       )}
 
+      {/* PDF Resume Upload */}
+      <div className="p-4 bg-white rounded-xl border border-gray-100 space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700">完整简历下载</h3>
+        {pdfFile ? (
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">已上传简历文件</span>
+            <button
+              type="button"
+              onClick={handlePdfDelete}
+              className="px-3 py-1.5 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+            >
+              删除
+            </button>
+          </div>
+        ) : (
+          <div>
+            <label className="flex items-center gap-2 px-4 py-2 border border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-accent transition-colors text-sm text-gray-500">
+              <Upload size={16} />
+              {uploading ? "上传中..." : "选择 PDF 文件上传"}
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={handlePdfUpload}
+                className="hidden"
+                disabled={uploading}
+              />
+            </label>
+          </div>
+        )}
+      </div>
+
       {/* Save Button */}
       <div className="flex items-center gap-3 pt-4 border-t border-gray-100 sticky bottom-0 bg-gray-50/95 py-4 -mx-1 px-1">
         <button
@@ -515,12 +632,14 @@ function DynamicList({
   fields,
   emptyLabel,
   grid,
+  textareaKeys,
 }: {
   items: ExperienceItem[]
   onChange: (items: ExperienceItem[]) => void
   fields: { key: string; label: string; placeholder: string }[]
   emptyLabel: string
   grid?: boolean
+  textareaKeys?: string[]
 }) {
   const inputClass =
     "w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition-all text-sm"
@@ -542,17 +661,31 @@ function DynamicList({
                 <label className="block text-xs font-medium text-gray-500 mb-0.5">
                   {f.label}
                 </label>
-                <input
-                  type="text"
-                  value={(item as any)[f.key] || ""}
-                  onChange={(e) => {
-                    const next = [...items]
-                    next[i] = { ...next[i], [f.key]: e.target.value }
-                    onChange(next)
-                  }}
-                  placeholder={f.placeholder}
-                  className={inputClass}
-                />
+                {textareaKeys?.includes(f.key) ? (
+                  <textarea
+                    value={(item as any)[f.key] || ""}
+                    onChange={(e) => {
+                      const next = [...items]
+                      next[i] = { ...next[i], [f.key]: e.target.value }
+                      onChange(next)
+                    }}
+                    placeholder={f.placeholder}
+                    rows={3}
+                    className={`${inputClass} resize-none`}
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={(item as any)[f.key] || ""}
+                    onChange={(e) => {
+                      const next = [...items]
+                      next[i] = { ...next[i], [f.key]: e.target.value }
+                      onChange(next)
+                    }}
+                    placeholder={f.placeholder}
+                    className={inputClass}
+                  />
+                )}
               </div>
             ))}
           </div>

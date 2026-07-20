@@ -34,6 +34,8 @@ export interface ResumeProfileData {
   selfEvaluation: string
   jobTarget: string
   jobSummary: string
+  hobbies: string
+  resumePdf: string
 }
 
 export interface ResumeFullData {
@@ -74,6 +76,8 @@ export async function getResumeData(): Promise<ResumeFullData> {
       selfEvaluation: profile.selfEvaluation,
       jobTarget: profile.jobTarget,
       jobSummary: profile.jobSummary,
+      hobbies: profile.hobbies,
+      resumePdf: profile.resumePdf || "",
     },
     skills: profile.skills.map((s) => ({
       id: s.id,

@@ -123,6 +123,8 @@ model ResumeProfile {
   selfEvaluation String            @default("")
   jobTarget      String            @default("")
   jobSummary     String            @default("")
+  hobbies        String            @default("")
+  resumePdf      String?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
   skills         ResumeSkill[]

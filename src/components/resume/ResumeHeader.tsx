@@ -1,9 +1,12 @@
 import type { ResumeProfileData } from "@/lib/resume-helpers"
+import DownloadResumeButton from "./DownloadResumeButton"
 
 export default function ResumeHeader({
   profile,
+  resumePdf,
 }: {
   profile: ResumeProfileData | null
+  resumePdf?: string | null
 }) {
   return (
     <section className="py-16 px-4 bg-gradient-to-r from-brand-navy to-gray-800 text-white">
@@ -19,6 +22,11 @@ export default function ResumeHeader({
           <span>📱 {profile?.phone || "未设置电话"}</span>
           <span>📍 {profile?.location || "未设置所在地"}</span>
         </div>
+        {resumePdf && (
+          <div className="pt-4">
+            <DownloadResumeButton />
+          </div>
+        )}
       </div>
     </section>
   )

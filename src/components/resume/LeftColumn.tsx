@@ -83,10 +83,22 @@ export default function LeftColumn({ profile, skills, experiences }: LeftColumnP
         <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
           自我评价
         </h3>
-        <div className="bg-white rounded-xl border border-gray-100 p-5 text-sm text-gray-600 leading-relaxed">
+        <div className="bg-white rounded-xl border border-gray-100 p-5 text-sm text-gray-600 leading-relaxed whitespace-pre-line">
           {profile?.selfEvaluation || "暂无自我评价"}
         </div>
       </section>
+
+      {/* Hobbies */}
+      {profile?.hobbies ? (
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">
+            兴趣爱好
+          </h3>
+          <div className="bg-white rounded-xl border border-gray-100 p-5 text-sm text-gray-600 leading-relaxed whitespace-pre-line">
+            {profile.hobbies}
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 }

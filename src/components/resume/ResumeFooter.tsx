@@ -18,7 +18,7 @@ export default function ResumeFooter({
           </p>
         )}
         {profile.jobSummary && (
-          <p className="text-sm text-gray-500 max-w-lg mx-auto leading-relaxed">
+          <p className="text-sm text-gray-500 max-w-lg mx-auto leading-relaxed whitespace-pre-line">
             {profile.jobSummary}
           </p>
         )}

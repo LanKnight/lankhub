@@ -62,6 +62,8 @@ export async function PUT(req: NextRequest) {
         selfEvaluation: profileData.selfEvaluation || "",
         jobTarget: profileData.jobTarget || "",
         jobSummary: profileData.jobSummary || "",
+        hobbies: profileData.hobbies || "",
+        resumePdf: profileData.resumePdf || null,
       }
 
       if (profile) {

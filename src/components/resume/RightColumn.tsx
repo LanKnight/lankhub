@@ -28,7 +28,7 @@ export default function RightColumn({
                     <p className="text-sm text-gray-500 mt-0.5">{edu.subtitle}</p>
                   )}
                   {edu.description && (
-                    <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+                    <p className="text-sm text-gray-600 mt-2 leading-relaxed whitespace-pre-line">
                       {edu.description}
                     </p>
                   )}
@@ -98,7 +98,7 @@ export default function RightColumn({
                     <p className="text-sm text-gray-500 mt-0.5">{item.subtitle}</p>
                   )}
                   {item.description && (
-                    <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+                    <p className="text-sm text-gray-600 mt-2 leading-relaxed whitespace-pre-line">
                       {item.description}
                     </p>
                   )}
@@ -157,7 +157,7 @@ function TimelineItem({
         )}
       </div>
       {description && (
-        <p className="text-sm text-gray-600 mt-1.5 leading-relaxed">{description}</p>
+        <p className="text-sm text-gray-600 mt-1.5 leading-relaxed whitespace-pre-line">{description}</p>
       )}
       {tech && (
         <p className="text-xs text-gray-400 mt-1.5 font-mono">{tech}</p>

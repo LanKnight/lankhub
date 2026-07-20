@@ -48,3 +48,4 @@ next-env.d.ts
 
 # user uploads
 public/images/uploads/
+data/uploads/

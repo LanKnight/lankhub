@@ -16,7 +16,7 @@ export default async function ResumePage() {
 
   return (
     <div className="min-h-[70vh]">
-      <ResumeHeader profile={data.profile} />
+      <ResumeHeader profile={data.profile} resumePdf={data.profile?.resumePdf} />
       <div className="max-w-5xl mx-auto px-4 py-10">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <LeftColumn
