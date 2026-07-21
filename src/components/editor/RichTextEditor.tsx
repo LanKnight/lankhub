@@ -65,12 +65,19 @@ export default function RichTextEditor({
           method: "POST",
           body: formData,
         })
+
         const data = await res.json()
+
+        if (!res.ok) {
+          alert(data.error || `上传失败 (${res.status})`)
+          return
+        }
+
         if (data.url) {
           editor.chain().focus().setImage({ src: data.url }).run()
         }
       } catch {
-        alert("图片上传失败")
+        alert("网络错误：图片上传失败，请检查网络连接后重试")
       }
     }
     input.click()

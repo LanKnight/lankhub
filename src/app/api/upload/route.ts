@@ -27,12 +27,21 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // 文件大小限制 10MB
+    const MAX_SIZE = 10 * 1024 * 1024
+    if (file.size > MAX_SIZE) {
+      return NextResponse.json(
+        { error: "图片大小不能超过 10MB" },
+        { status: 400 }
+      )
+    }
+
     // Generate unique filename
     const ext = file.name.split(".").pop() || "jpg"
     const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
 
     // Ensure upload directory exists
-    const uploadDir = path.join(process.cwd(), "public", "images", "uploads")
+    const uploadDir = path.join(process.cwd(), "data", "uploads", "images")
     await mkdir(uploadDir, { recursive: true })
 
     // Write file
@@ -40,7 +49,7 @@ export async function POST(req: NextRequest) {
     const filePath = path.join(uploadDir, filename)
     await writeFile(filePath, buffer)
 
-    const url = `/images/uploads/${filename}`
+    const url = `/api/images/${filename}`
 
     return NextResponse.json({ url }, { status: 201 })
   } catch (error) {

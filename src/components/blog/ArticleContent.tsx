@@ -4,13 +4,25 @@ import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import ImageExtension from "@tiptap/extension-image"
 import LinkExtension from "@tiptap/extension-link"
-import { useEffect } from "react"
+import { useMemo } from "react"
 
 interface ArticleContentProps {
   content: string // TipTap JSON string
 }
 
+function parseContent(content: string) {
+  try {
+    const parsed = JSON.parse(content)
+    if (parsed && typeof parsed === "object") return parsed
+  } catch {
+    // Plain text / HTML
+  }
+  return content
+}
+
 export default function ArticleContent({ content }: ArticleContentProps) {
+  const initialContent = useMemo(() => parseContent(content), [content])
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -23,6 +35,7 @@ export default function ArticleContent({ content }: ArticleContentProps) {
         },
       }),
     ],
+    content: initialContent,
     editable: false,
     editorProps: {
       attributes: {
@@ -30,18 +43,6 @@ export default function ArticleContent({ content }: ArticleContentProps) {
       },
     },
   })
-
-  useEffect(() => {
-    if (editor && content) {
-      try {
-        const json = JSON.parse(content)
-        editor.commands.setContent(json)
-      } catch {
-        // If content is plain HTML/text, set it directly
-        editor.commands.setContent(content)
-      }
-    }
-  }, [editor, content])
 
   if (!editor) {
     return <div className="animate-pulse h-40 bg-gray-100 rounded-xl" />
