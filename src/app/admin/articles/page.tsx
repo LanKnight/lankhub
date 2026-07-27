@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { Plus, Edit, Trash2 } from "lucide-react"
+import { Plus, Edit, Trash2, Pin } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { formatDate } from "@/lib/utils"
 import DeleteButton from "./DeleteButton"
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default async function AdminArticlesPage() {
   const articles = await prisma.article.findMany({
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
     include: {
       _count: { select: { comments: true } },
     },
@@ -43,6 +43,7 @@ export default async function AdminArticlesPage() {
                   标题
                 </th>
                 <th className="text-left px-5 py-3 font-medium">状态</th>
+                <th className="text-center px-5 py-3 font-medium w-[60px]">置顶</th>
                 <th className="text-left px-5 py-3 font-medium">评论</th>
                 <th className="text-left px-5 py-3 font-medium">日期</th>
                 <th className="text-right px-5 py-3 font-medium">操作</th>
@@ -66,6 +67,13 @@ export default async function AdminArticlesPage() {
                     >
                       {article.published ? "已发布" : "草稿"}
                     </span>
+                  </td>
+                  <td className="px-5 py-3 text-center">
+                    {article.pinned ? (
+                      <Pin size={14} className="text-amber-500 inline" />
+                    ) : (
+                      <span className="text-gray-300">-</span>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-gray-500">
                     {article._count.comments}

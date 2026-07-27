@@ -39,6 +39,7 @@ export default async function EditArticlePage({
           summary: article.summary || "",
           content: article.content,
           published: article.published,
+          pinned: article.pinned,
           collectionId: article.collectionId,
         }}
         collections={collections}

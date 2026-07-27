@@ -47,7 +47,7 @@ export default async function CollectionDetailPage({ params, searchParams }: Pro
         collectionId: collection.id,
         published: true,
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
       skip,
       take: limit,
       select: {
@@ -56,6 +56,7 @@ export default async function CollectionDetailPage({ params, searchParams }: Pro
         slug: true,
         summary: true,
         coverImage: true,
+        pinned: true,
         viewCount: true,
         createdAt: true,
         author: {
@@ -107,6 +108,7 @@ export default async function CollectionDetailPage({ params, searchParams }: Pro
                 coverImage={article.coverImage}
                 viewCount={article.viewCount}
                 createdAt={formatDate(article.createdAt)}
+                pinned={article.pinned}
                 author={article.author}
               />
             ))}

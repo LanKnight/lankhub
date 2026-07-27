@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const [articles, total] = await Promise.all([
     prisma.article.findMany({
       where: { published: true },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
       skip,
       take: limit,
       select: {
@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
         slug: true,
         summary: true,
         coverImage: true,
+        pinned: true,
         viewCount: true,
         createdAt: true,
         author: {

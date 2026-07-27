@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Calendar, Eye } from "lucide-react"
+import { Calendar, Eye, Pin } from "lucide-react"
 
 interface ArticleCardProps {
   title: string
@@ -8,6 +8,7 @@ interface ArticleCardProps {
   coverImage?: string | null
   viewCount: number
   createdAt: string
+  pinned?: boolean
   author: {
     name: string
   }
@@ -19,6 +20,7 @@ export default function ArticleCard({
   summary,
   viewCount,
   createdAt,
+  pinned,
   author,
 }: ArticleCardProps) {
   return (
@@ -28,6 +30,11 @@ export default function ArticleCard({
     >
       <article className="p-6 space-y-4">
         <h2 className="text-xl font-bold text-gray-900 group-hover:text-accent transition-colors line-clamp-2">
+          {pinned && (
+            <span className="inline-flex items-center mr-1.5 text-amber-500 align-middle">
+              <Pin size={16} className="fill-amber-500" />
+            </span>
+          )}
           {title}
         </h2>
         {summary && (

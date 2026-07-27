@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   const [articles, total] = await Promise.all([
     prisma.article.findMany({
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
       skip,
       take: limit,
       include: {
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { title, summary, content, coverImage, published, collectionId } = body
+    const { title, summary, content, coverImage, published, pinned, collectionId } = body
 
     if (!title || !content) {
       return NextResponse.json(
@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
         content,
         coverImage: coverImage || "",
         published: published || false,
+        pinned: pinned || false,
         authorId: (await getOwnerId())!,
         collectionId: collectionId || null,
       },

@@ -16,7 +16,7 @@ async function getArticles(page: number) {
   const [articles, total] = await Promise.all([
     prisma.article.findMany({
       where: { published: true },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
       skip,
       take: limit,
       select: {
@@ -25,6 +25,7 @@ async function getArticles(page: number) {
         slug: true,
         summary: true,
         coverImage: true,
+        pinned: true,
         viewCount: true,
         createdAt: true,
         author: {
@@ -74,6 +75,7 @@ export default async function BlogListPage({
               coverImage={article.coverImage}
               viewCount={article.viewCount}
               createdAt={formatDate(article.createdAt)}
+              pinned={article.pinned}
               author={article.author}
             />
           ))}

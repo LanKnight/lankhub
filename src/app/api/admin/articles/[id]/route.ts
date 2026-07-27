@@ -13,7 +13,7 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await req.json()
-    const { title, summary, content, coverImage, published, collectionId } = body
+    const { title, summary, content, coverImage, published, pinned, collectionId } = body
 
     const existing = await prisma.article.findUnique({
       where: { id: parseInt(id) },
@@ -44,6 +44,7 @@ export async function PUT(
         content: content ?? existing.content,
         coverImage: coverImage ?? existing.coverImage,
         published: published ?? existing.published,
+        pinned: pinned ?? existing.pinned,
         collectionId: collectionId !== undefined ? collectionId : existing.collectionId,
       },
     })

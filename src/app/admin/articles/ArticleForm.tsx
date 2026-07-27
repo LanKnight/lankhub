@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
-import { Loader2, Save, Eye, EyeOff } from "lucide-react"
+import { Loader2, Save, Eye, EyeOff, Pin, PinOff } from "lucide-react"
 
 const RichTextEditor = dynamic(
   () => import("@/components/editor/RichTextEditor"),
@@ -25,6 +25,7 @@ interface ArticleFormProps {
     summary: string
     content: string
     published: boolean
+    pinned: boolean
     collectionId?: number | null
   }
   collections?: { id: number; name: string }[]
@@ -40,6 +41,9 @@ export default function ArticleForm({ initialData, collections }: ArticleFormPro
   )
   const [published, setPublished] = useState(
     initialData?.published || false
+  )
+  const [pinned, setPinned] = useState(
+    initialData?.pinned || false
   )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -70,7 +74,7 @@ export default function ArticleForm({ initialData, collections }: ArticleFormPro
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, summary, content, published, collectionId }),
+        body: JSON.stringify({ title, summary, content, published, pinned, collectionId }),
       })
 
       if (!res.ok) {
@@ -173,6 +177,19 @@ export default function ArticleForm({ initialData, collections }: ArticleFormPro
         >
           {published ? <Eye size={16} /> : <EyeOff size={16} />}
           {published ? "已发布" : "存为草稿"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setPinned(!pinned)}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border transition-colors text-sm ${
+            pinned
+              ? "border-amber-300 bg-amber-50 text-amber-700"
+              : "border-gray-200 text-gray-600 hover:bg-gray-50"
+          }`}
+        >
+          {pinned ? <Pin size={16} /> : <PinOff size={16} />}
+          {pinned ? "已置顶" : "置顶文章"}
         </button>
       </div>
     </form>
