@@ -159,3 +159,20 @@ model ResumeExperience {
 
   @@index([profileId, type])
 }
+
+model Photo {
+  id          Int      @id @default(autoincrement())
+  filename    String   @unique
+  url         String
+  category    String
+  title       String?
+  description String?
+  width       Int?
+  height      Int?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category, sortOrder])
+  @@index([category, createdAt])
+}
