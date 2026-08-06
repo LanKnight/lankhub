@@ -97,6 +97,24 @@ export default function PhotoManager({ initialPhotos }: PhotoManagerProps) {
       })
   }
 
+  // Safely parse JSON from a response, falling back to a readable error
+  async function safeJson(res: Response) {
+    const contentType = res.headers.get("content-type") || ""
+    if (!contentType.includes("application/json")) {
+      // Server returned non-JSON (e.g. HTML error page from Nginx)
+      const text = await res.text().catch(() => "")
+      if (res.status === 413) {
+        throw new Error("图片太大，服务器拒绝接收（最大支持约 1MB）。请压缩图片后重试。")
+      }
+      throw new Error(`服务器错误 (${res.status})，请稍后重试`)
+    }
+    try {
+      return await res.json()
+    } catch {
+      throw new Error("服务器返回了无效数据，请稍后重试")
+    }
+  }
+
   async function handleUpload() {
     if (!selectedFile) return
 
@@ -114,11 +132,11 @@ export default function PhotoManager({ initialPhotos }: PhotoManagerProps) {
       })
 
       if (!uploadRes.ok) {
-        const data = await uploadRes.json()
+        const data = await safeJson(uploadRes)
         throw new Error(data.error || "上传失败")
       }
 
-      const { url } = await uploadRes.json()
+      const { url } = await safeJson(uploadRes)
       const filename = url.split("/").pop()
 
       // Step 2: Register in database
@@ -137,11 +155,11 @@ export default function PhotoManager({ initialPhotos }: PhotoManagerProps) {
       })
 
       if (!photoRes.ok) {
-        const data = await photoRes.json()
+        const data = await safeJson(photoRes)
         throw new Error(data.error || "注册照片失败")
       }
 
-      const newPhoto = await photoRes.json()
+      const newPhoto = await safeJson(photoRes)
 
       // Reset form
       setSelectedFile(null)

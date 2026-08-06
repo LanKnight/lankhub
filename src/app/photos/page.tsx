@@ -3,6 +3,8 @@ import type { Metadata } from "next"
 import { prisma } from "@/lib/prisma"
 import { PHOTO_CATEGORIES, HOBBY_ICONS } from "@/lib/photo-categories"
 
+export const dynamic = "force-dynamic"
+
 export const metadata: Metadata = {
   title: "生活相册 | lankHub",
 }
