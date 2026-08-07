@@ -13,7 +13,7 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "reset-password": "tsx prisma/reset-password.ts",
-    "update": "cp dev.db \"dev.db.bak.$(date +%Y%m%d%H%M%S)\" && git pull && npm install && npm run db:push && npm run build && pm2 restart next-app"
+    "update": "cp dev.db \"dev.db.bak.$(date +%Y%m%d%H%M%S)\" && git checkout -- package-lock.json && git pull && npm install && npm run db:push && npm run build && pm2 restart next-app"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
