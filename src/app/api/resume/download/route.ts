@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server"
-import { requireAuth } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import { readFile } from "fs/promises"
 import path from "path"
 
+// 简历下载公开（简历页面本身就是公开的，PDF 内容一致）
 export async function GET() {
-  const authUser = await requireAuth()
-  if (authUser instanceof NextResponse) return authUser
-
   try {
     const profile = await prisma.resumeProfile.findFirst()
     if (!profile?.resumePdf) {

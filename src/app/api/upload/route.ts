@@ -2,10 +2,23 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireOwner } from "@/lib/auth-helpers"
 import { writeFile, mkdir } from "fs/promises"
 import path from "path"
+import crypto from "crypto"
+import { rateLimit, getClientIp } from "@/lib/rate-limit"
+import { isAllowedImage } from "@/lib/file-type"
 
 export async function POST(req: NextRequest) {
   const authError = await requireOwner()
   if (authError) return authError
+
+  // 频率限制：每用户每分钟最多 10 次上传
+  const ip = getClientIp(req)
+  const limitResult = rateLimit(`upload:${ip}`, 10, 60 * 1000)
+  if (!limitResult.allowed) {
+    return NextResponse.json(
+      { error: "上传过于频繁，请稍后再试" },
+      { status: 429 }
+    )
+  }
 
   try {
     const formData = await req.formData()
@@ -18,7 +31,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Validate file type
+    // Validate file type (client claim, as first pass)
     const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"]
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
@@ -36,16 +49,24 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Generate unique filename
-    const ext = file.name.split(".").pop() || "jpg"
-    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    // 读取文件内容并进行 magic byte 校验
+    const buffer = Buffer.from(await file.arrayBuffer())
+    const detected = isAllowedImage(buffer)
+    if (!detected) {
+      return NextResponse.json(
+        { error: "文件内容与声称的类型不匹配" },
+        { status: 400 }
+      )
+    }
+
+    // 使用安全的扩展名和文件名
+    const filename = `${Date.now()}-${crypto.randomUUID()}.${detected.ext}`
 
     // Ensure upload directory exists
     const uploadDir = path.join(process.cwd(), "data", "uploads", "images")
     await mkdir(uploadDir, { recursive: true })
 
     // Write file
-    const buffer = Buffer.from(await file.arrayBuffer())
     const filePath = path.join(uploadDir, filename)
     await writeFile(filePath, buffer)
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+import { cookies } from "next/headers"
 import ArticleContent from "@/components/blog/ArticleContent"
 import CommentSection from "@/components/comment/CommentSection"
 import { prisma } from "@/lib/prisma"
@@ -17,13 +18,25 @@ async function getArticle(slug: string) {
 
   if (!article) return null
 
-  // Increment view count
-  await prisma.article.update({
-    where: { id: article.id },
-    data: { viewCount: { increment: 1 } },
-  })
+  // 基于 cookie 的查看计数去重（同一浏览器 24h 内不重复计数）
+  const cookieStore = await cookies()
+  const viewedKey = `viewed_${article.id}`
+  const alreadyViewed = cookieStore.get(viewedKey)
 
-  return { ...article, viewCount: article.viewCount + 1 }
+  if (!alreadyViewed) {
+    await prisma.article.update({
+      where: { id: article.id },
+      data: { viewCount: { increment: 1 } },
+    })
+    cookieStore.set(viewedKey, "1", {
+      maxAge: 86400,
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+    })
+  }
+
+  return { ...article, viewCount: article.viewCount + (alreadyViewed ? 0 : 1) }
 }
 
 async function getComments(articleId: number) {

@@ -146,6 +146,9 @@ server {
     listen 80;
     server_name 你的域名.com;
 
+    # 上传文件大小限制（与应用的 10MB 限制一致，留 2MB 余量）
+    client_max_body_size 12m;
+
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
@@ -221,14 +224,12 @@ npm run update              # 一键更新：拉取 → 安装 → 推送DB → 
 | `NEXTAUTH_URL` | 网站域名（Auth.js 用） | `https://lankhub.com` |
 | `NEXT_PUBLIC_SITE_URL` | 公开网站 URL（sitemap/robots） | `https://lankhub.com` |
 
-## 默认管理员
+## 管理员账号
 
-| 字段 | 值 |
-|------|-----|
-| 邮箱 | `admin@lankhub.com` |
-| 密码 | `admin123` |
+- 邮箱: `admin@lankhub.com`（可通过 `SEED_ADMIN_EMAIL` 环境变量自定义）
+- 初始密码由 `prisma/seed.ts` 随机生成并仅打印一次，也可通过 `npm run reset-password` 修改
 
-> ⚠️ 部署到服务器后请立即通过 `.env` 修改密钥，并在后台修改管理员密码。
+> ⚠️ 部署到服务器后请立即修改 `.env` 中的密钥，并更改管理员密码。
 
 ## 目录结构
 

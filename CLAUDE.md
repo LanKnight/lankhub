@@ -23,8 +23,8 @@
 - `npm run db:seed` — 种子管理员账号
 
 ## 管理员
-- 邮箱: admin@lankhub.com
-- 密码: admin123（通过 seed 脚本可修改）
+- 邮箱: admin@lankhub.com（可通过 `SEED_ADMIN_EMAIL` 环境变量自定义）
+- 初始密码由 `prisma/seed.ts` 随机生成并仅打印一次，也可通过 `npm run reset-password` 修改
 
 ## Prisma 7 注意事项
 - PrismaClient 需要通过 adapter 初始化（`PrismaBetterSqlite3`）

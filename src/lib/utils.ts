@@ -13,6 +13,22 @@ export function generateSlug(title: string): string {
   return slug
 }
 
+/**
+ * 安全 URL 检查：仅允许 http、https、mailto 和相对路径
+ * 阻断 javascript:、data:、vbscript: 等危险协议
+ */
+export function isSafeUrl(url: string): boolean {
+  if (!url) return false
+  // 相对路径或绝对路径（以 / 开头）
+  if (url.startsWith("/") || url.startsWith("#")) return true
+  try {
+    const parsed = new URL(url, "http://local")
+    return ["http:", "https:", "mailto:"].includes(parsed.protocol)
+  } catch {
+    return false
+  }
+}
+
 export function formatDate(date: Date | string, format: string = "YYYY-MM-DD"): string {
   const d = new Date(date)
   const year = d.getFullYear()

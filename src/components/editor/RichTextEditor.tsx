@@ -7,6 +7,7 @@ import LinkExtension from "@tiptap/extension-link"
 import Placeholder from "@tiptap/extension-placeholder"
 import EditorToolbar from "./EditorToolbar"
 import { useCallback } from "react"
+import { isSafeUrl } from "@/lib/utils"
 
 interface RichTextEditorProps {
   content?: string
@@ -27,6 +28,7 @@ export default function RichTextEditor({
       ImageExtension,
       LinkExtension.configure({
         openOnClick: false,
+        validate: (href) => isSafeUrl(href),
         HTMLAttributes: {
           target: "_blank",
           rel: "noopener noreferrer",
@@ -66,14 +68,14 @@ export default function RichTextEditor({
           body: formData,
         })
 
-        const data = await res.json()
+        const data = await safeJson(res)
 
         if (!res.ok) {
-          alert(data.error || `上传失败 (${res.status})`)
+          alert(data?.error || `上传失败 (${res.status})`)
           return
         }
 
-        if (data.url) {
+        if (data?.url) {
           editor.chain().focus().setImage({ src: data.url }).run()
         }
       } catch {
@@ -87,6 +89,10 @@ export default function RichTextEditor({
     if (!editor) return
     const url = prompt("请输入链接地址：")
     if (url) {
+      if (!isSafeUrl(url)) {
+        alert("仅支持 http/https 链接或相对路径")
+        return
+      }
       editor
         .chain()
         .focus()
@@ -118,7 +124,19 @@ function tryParseContent(content: string) {
     const parsed = JSON.parse(content)
     if (parsed && typeof parsed === "object") return parsed
   } catch {
-    // Plain text
+    // 非 JSON 内容不再回退为 HTML（安全考虑）
   }
-  return content
+  // 返回空文档，不渲染原始字符串
+  return { type: "doc", content: [] }
+}
+
+/**
+ * 安全解析 JSON 响应，处理 Nginx 413 等非 JSON 响应
+ */
+async function safeJson(res: Response) {
+  const contentType = res.headers.get("content-type") || ""
+  if (!contentType.includes("application/json")) {
+    throw new Error(`Unexpected content type: ${contentType}`)
+  }
+  return res.json()
 }

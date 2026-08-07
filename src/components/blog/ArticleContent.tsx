@@ -5,6 +5,7 @@ import StarterKit from "@tiptap/starter-kit"
 import ImageExtension from "@tiptap/extension-image"
 import LinkExtension from "@tiptap/extension-link"
 import { useMemo } from "react"
+import { isSafeUrl } from "@/lib/utils"
 
 interface ArticleContentProps {
   content: string // TipTap JSON string
@@ -15,9 +16,10 @@ function parseContent(content: string) {
     const parsed = JSON.parse(content)
     if (parsed && typeof parsed === "object") return parsed
   } catch {
-    // Plain text / HTML
+    // 非 JSON 内容不回退为 HTML 渲染（防止存储型 XSS）
   }
-  return content
+  // 安全回退：显示为空文档
+  return { type: "doc", content: [] }
 }
 
 export default function ArticleContent({ content }: ArticleContentProps) {
@@ -29,6 +31,7 @@ export default function ArticleContent({ content }: ArticleContentProps) {
       ImageExtension,
       LinkExtension.configure({
         openOnClick: true,
+        validate: (href) => isSafeUrl(href),
         HTMLAttributes: {
           target: "_blank",
           rel: "noopener noreferrer",

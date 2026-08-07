@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
+import { rateLimit, getClientIp } from "@/lib/rate-limit"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -15,18 +16,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         if (!credentials?.email || !credentials?.password) {
+          return null
+        }
+
+        const email = credentials.email as string
+
+        // 频率限制：每个邮箱+IP 每分钟最多 5 次登录尝试
+        const ip = getClientIp(request as unknown as Request)
+        const limitResult = rateLimit(`login:${email}:${ip}`, 5, 60 * 1000)
+        if (!limitResult.allowed) {
+          console.log("[auth] login rate limited")
           return null
         }
 
         try {
           const user = await prisma.user.findUnique({
-            where: { email: credentials.email as string },
+            where: { email },
           })
 
           if (!user) {
-            console.log("[auth] no user found for:", credentials.email)
+            console.log("[auth] login failed: user not found")
             return null
           }
 
@@ -36,7 +47,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           )
 
           if (!isValid) {
-            console.log("[auth] invalid password for:", credentials.email)
+            console.log("[auth] login failed: invalid password")
             return null
           }
 
