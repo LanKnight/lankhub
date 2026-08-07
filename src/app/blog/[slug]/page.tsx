@@ -18,7 +18,7 @@ async function getArticle(slug: string) {
 
   if (!article) return null
 
-  // 基于 cookie 的查看计数去重（同一浏览器 24h 内不重复计数）
+  // 查看计数去重（读取 API 路由设置的 cookie，避免 SSR 重复计数）
   const cookieStore = await cookies()
   const viewedKey = `viewed_${article.id}`
   const alreadyViewed = cookieStore.get(viewedKey)
@@ -28,12 +28,7 @@ async function getArticle(slug: string) {
       where: { id: article.id },
       data: { viewCount: { increment: 1 } },
     })
-    cookieStore.set(viewedKey, "1", {
-      maxAge: 86400,
-      path: "/",
-      httpOnly: true,
-      sameSite: "lax",
-    })
+    // 注意：Server Component 无法设置 cookie，由 API 路由 /api/articles/[id] 负责设置
   }
 
   return { ...article, viewCount: article.viewCount + (alreadyViewed ? 0 : 1) }
