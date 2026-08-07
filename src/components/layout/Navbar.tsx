@@ -53,7 +53,7 @@ export default function Navbar() {
                   </Link>
                 )}
                 <button
-                  onClick={() => signOut({ callbackUrl: "/" })}
+                  onClick={() => signOut({ callbackUrl: window.location.origin + "/" })}
                   className="flex items-center gap-1 text-sm text-gray-500 hover:text-red-500 transition-colors"
                 >
                   <LogOut size={14} />
@@ -110,7 +110,7 @@ export default function Navbar() {
                 )}
                 <button
                   onClick={() => {
-                    signOut({ callbackUrl: "/" })
+                    signOut({ callbackUrl: window.location.origin + "/" })
                     setMenuOpen(false)
                   }}
                   className="block text-sm text-red-500"

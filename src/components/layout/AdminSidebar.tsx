@@ -61,7 +61,7 @@ export default function AdminSidebar() {
           回首页
         </Link>
         <button
-          onClick={() => signOut({ callbackUrl: "/" })}
+          onClick={() => signOut({ callbackUrl: window.location.origin + "/" })}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-red-400 hover:bg-white/5 transition-colors"
         >
           <LogOut size={18} />
