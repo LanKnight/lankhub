@@ -43,6 +43,18 @@ export async function PUT(req: NextRequest) {
       )
     }
 
+    // 安全校验：resumePdf 必须是合法路径格式（防止路径穿越写入，移到 transaction 外避免 TS 类型问题）
+    const resumePdf = profileData.resumePdf || null
+    if (resumePdf) {
+      const safePattern = /^\/uploads\/resume-[A-Za-z0-9-]+\.pdf$/
+      if (!safePattern.test(resumePdf)) {
+        return NextResponse.json(
+          { error: "简历文件路径无效" },
+          { status: 400 }
+        )
+      }
+    }
+
     // Use transaction for atomicity
     const result = await prisma.$transaction(async (tx) => {
       // Find or create profile
@@ -63,7 +75,7 @@ export async function PUT(req: NextRequest) {
         jobTarget: profileData.jobTarget || "",
         jobSummary: profileData.jobSummary || "",
         hobbies: profileData.hobbies || "",
-        resumePdf: profileData.resumePdf || null,
+        resumePdf,
       }
 
       if (profile) {

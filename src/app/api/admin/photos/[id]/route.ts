@@ -77,8 +77,13 @@ export async function DELETE(
 
     // Delete file from disk (tolerant of missing file)
     try {
-      const filePath = path.join(process.cwd(), "data", "uploads", "images", existing.filename)
-      await unlink(filePath)
+      // 安全校验：拒绝路径穿越
+      if (existing.filename.includes("..") || existing.filename.includes("/") || existing.filename.includes("\\")) {
+        console.error("[photos delete] unsafe filename:", existing.filename)
+      } else {
+        const filePath = path.join(process.cwd(), "data", "uploads", "images", existing.filename)
+        await unlink(filePath)
+      }
     } catch {
       // File may already be gone — that's fine
     }

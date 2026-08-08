@@ -19,8 +19,9 @@ export function generateSlug(title: string): string {
  */
 export function isSafeUrl(url: string): boolean {
   if (!url) return false
-  // 相对路径或绝对路径（以 / 开头）
-  if (url.startsWith("/") || url.startsWith("#")) return true
+  // 相对路径或锚链接（以 / 或 # 开头，但拒绝 // 协议相对 URL）
+  if (url.startsWith("#")) return true
+  if (url.startsWith("/") && !url.startsWith("//")) return true
   try {
     const parsed = new URL(url, "http://local")
     return ["http:", "https:", "mailto:"].includes(parsed.protocol)

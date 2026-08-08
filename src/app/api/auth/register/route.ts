@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     if (existingUser) {
       console.log("[register] duplicate email attempt")
       return NextResponse.json(
-        { message: "注册成功，请查看邮箱" }, // 模糊提示，不暴露邮箱是否已注册
+        { message: "注册成功" }, // 统一返回 shape，不暴露邮箱是否已注册
         { status: 201 }
       )
     }
