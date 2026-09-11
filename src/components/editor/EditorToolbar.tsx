@@ -17,6 +17,7 @@ import {
   Heading2,
   Heading3,
   Pilcrow,
+  SquareCode,
 } from "lucide-react"
 
 interface EditorToolbarProps {
@@ -135,6 +136,13 @@ export default function EditorToolbar({
           onClick={() => editor.chain().focus().toggleCode().run()}
         >
           <Code size={16} />
+        </ToolButton>
+        <ToolButton
+          title="代码块"
+          active={editor.isActive("codeBlock")}
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+        >
+          <SquareCode size={16} />
         </ToolButton>
       </div>
 
