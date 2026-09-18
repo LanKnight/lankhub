@@ -44,6 +44,9 @@ async function getArticles(page: number, q?: string) {
         author: {
           select: { id: true, name: true, avatar: true },
         },
+        collection: {
+          select: { name: true, slug: true },
+        },
       },
     }),
     prisma.article.count({ where }),
@@ -115,6 +118,7 @@ export default async function BlogListPage({
                 createdAt={formatDate(article.createdAt)}
                 pinned={article.pinned}
                 author={article.author}
+                collection={article.collection}
               />
             ))}
           </div>

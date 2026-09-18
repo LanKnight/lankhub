@@ -12,10 +12,16 @@ export default function DeleteConfirmButton({
   apiPath,
   iconTitle = "删除",
   confirmLabel = "确认",
+  warning,
+  onSuccess,
 }: {
   apiPath: string
   iconTitle?: string
   confirmLabel?: string
+  /** 确认态下显示的前置说明（例如「该合集下 3 篇文章将移入未分类」） */
+  warning?: string
+  /** 删除成功后的回调，参数是服务端返回的 JSON（可能为 null） */
+  onSuccess?: (data: unknown) => void
 }) {
   const router = useRouter()
   const [confirming, setConfirming] = useState(false)
@@ -29,15 +35,16 @@ export default function DeleteConfirmButton({
       const res = await fetch(apiPath, {
         method: "DELETE",
       })
+      const data = await res.json().catch(() => null)
 
       if (!res.ok) {
-        const data = await res.json().catch(() => null)
         setError(data?.error || `删除失败 (${res.status})`)
         setLoading(false)
         // 停留在确认态，让用户看到错误原因
         return
       }
 
+      onSuccess?.(data)
       router.refresh()
     } catch {
       setError("网络错误，请稍后重试")
@@ -48,6 +55,11 @@ export default function DeleteConfirmButton({
   if (confirming) {
     return (
       <div className="flex flex-col items-end gap-1">
+        {warning && !error && (
+          <p className="text-xs text-gray-400 text-right max-w-[220px]">
+            {warning}
+          </p>
+        )}
         <div className="flex items-center gap-1">
           <button
             onClick={handleDelete}

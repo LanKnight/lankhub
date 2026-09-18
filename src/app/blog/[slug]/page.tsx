@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import { ViewTransition } from "react"
 import { notFound } from "next/navigation"
+import Link from "next/link"
+import { FolderOpen } from "lucide-react"
 import ArticleContent from "@/components/blog/ArticleContent"
 import ArticleViewTracker from "@/components/blog/ArticleViewTracker"
 import ReadingProgress from "@/components/blog/ReadingProgress"
@@ -14,6 +16,9 @@ async function getArticle(slug: string) {
     include: {
       author: {
         select: { id: true, name: true, avatar: true, bio: true },
+      },
+      collection: {
+        select: { name: true, slug: true },
       },
     },
   })
@@ -96,6 +101,15 @@ export default async function BlogDetailPage({
       <article className="max-w-3xl mx-auto px-4 py-16">
         {/* Header */}
         <header className="mb-10 space-y-4">
+          {article.collection && (
+            <Link
+              href={`/blog/collections/${article.collection.slug}`}
+              className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-accent transition-colors"
+            >
+              <FolderOpen size={13} />
+              {article.collection.name}
+            </Link>
+          )}
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
             {article.title}
           </h1>

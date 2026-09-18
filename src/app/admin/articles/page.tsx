@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { Plus, Edit, Pin } from "lucide-react"
+import { Plus, Edit, Pin, FolderOpen } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser } from "@/lib/auth-helpers"
 import { formatDate } from "@/lib/utils"
@@ -34,6 +34,7 @@ export default async function AdminArticlesPage({
       take: PAGE_SIZE,
       include: {
         author: { select: { id: true, name: true } },
+        collection: { select: { name: true, slug: true } },
         _count: { select: { comments: true } },
       },
     }),
@@ -66,9 +67,10 @@ export default async function AdminArticlesPage({
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500">
                 <tr>
-                  <th className="text-left px-5 py-3 font-medium w-[35%]">
+                  <th className="text-left px-5 py-3 font-medium w-[30%]">
                     标题
                   </th>
+                  <th className="text-left px-5 py-3 font-medium">合集</th>
                   <th className="text-left px-5 py-3 font-medium">作者</th>
                   <th className="text-left px-5 py-3 font-medium">状态</th>
                   <th className="text-center px-5 py-3 font-medium w-[60px]">置顶</th>
@@ -84,6 +86,25 @@ export default async function AdminArticlesPage({
                       <span className="text-gray-800 line-clamp-1">
                         {article.title}
                       </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      {article.collection ? (
+                        <span className="text-xs text-gray-500 inline-flex items-center gap-1">
+                          <FolderOpen size={12} />
+                          {article.collection.name}
+                        </span>
+                      ) : (
+                        // 已发布却没合集 = 违反「发布必有合集」的约定，标出来提醒补齐
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full ${
+                            article.published
+                              ? "bg-red-50 text-red-600"
+                              : "bg-gray-100 text-gray-400"
+                          }`}
+                        >
+                          {article.published ? "缺合集" : "未归类"}
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-3">
                       <span className="text-xs text-gray-500">

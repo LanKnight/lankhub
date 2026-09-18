@@ -12,6 +12,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
+    "db:backfill-collections": "tsx prisma/backfill-collections.ts",
     "reset-password": "tsx prisma/reset-password.ts",
     "update": "bash scripts/backup.sh && git checkout -- package-lock.json && git pull && export better_sqlite3_binary_host=https://npmmirror.com/mirrors/better-sqlite3 && export NODEJS_ORG_MIRROR=https://npmmirror.com/mirrors/node && export PRISMA_ENGINES_MIRROR=https://npmmirror.com/mirrors/prisma && npm ci --prefer-offline --ignore-scripts && npm rebuild better-sqlite3 --build-from-source && npm run db:push && npm run build && pm2 restart next-app",
     "backup": "bash scripts/backup.sh",

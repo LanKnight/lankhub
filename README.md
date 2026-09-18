@@ -189,6 +189,16 @@ sudo certbot renew --dry-run
 npm run update              # 一键更新：拉取 → 安装 → 推送DB → 构建 → 重启
 ```
 
+> 发布文章现在要求必须选择所属合集。如果升级前库里已有「已发布但没有合集」的文章，
+> 在服务器上执行一次下面的命令把它们归入「未分类」合集（幂等，可重复执行）：
+>
+> ```bash
+> npm run db:backfill-collections -- --dry-run   # 先预览会改哪些文章
+> npm run db:backfill-collections                # 确认后执行
+> ```
+>
+> 草稿不受影响 —— 草稿允许暂时不归类，等点击发布时会被要求选择合集。
+
 ### PM2 常用命令
 
 | 命令 | 说明 |
@@ -210,6 +220,7 @@ npm run update              # 一键更新：拉取 → 安装 → 推送DB → 
 | `npm run setup` | 一键初始化数据库（生成 + 推送 + 种子） |
 | `npm run db:generate` | 重新生成 Prisma 客户端 |
 | `npm run db:push` | 同步数据库 Schema |
+| `npm run db:backfill-collections` | 把「已发布但没有合集」的文章归入「未分类」（幂等，加 `-- --dry-run` 先预览） |
 | `npm run db:seed` | 运行种子脚本，设置站长账号 |
 | `sqlite3 dev.db "SELECT id, email, name, role FROM User;"` | 查询账号 |
 

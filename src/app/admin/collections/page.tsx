@@ -3,6 +3,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser } from "@/lib/auth-helpers"
+import { isUncategorizedCollection } from "@/lib/collections"
 import { Plus, Edit3 } from "lucide-react"
 import DeleteButton from "./DeleteButton"
 
@@ -99,7 +100,11 @@ export default async function AdminCollectionsPage() {
                       >
                         <Edit3 size={16} />
                       </Link>
-                      <DeleteButton collectionId={c.id} />
+                      <DeleteButton
+                        collectionId={c.id}
+                        articleCount={c._count.articles}
+                        isFallback={isUncategorizedCollection(c)}
+                      />
                     </div>
                   </td>
                 </tr>

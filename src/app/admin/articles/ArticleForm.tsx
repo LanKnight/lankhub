@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import dynamic from "next/dynamic"
 import {
   Loader2,
@@ -11,6 +12,7 @@ import {
   Pin,
   PinOff,
   ImageIcon,
+  FolderPlus,
   X,
 } from "lucide-react"
 import { useToast } from "@/components/ui/Toast"
@@ -44,9 +46,10 @@ interface ArticleFormProps {
   collections?: { id: number; name: string }[]
 }
 
-export default function ArticleForm({ initialData, collections }: ArticleFormProps) {
+export default function ArticleForm({ initialData, collections = [] }: ArticleFormProps) {
   const router = useRouter()
   const { toast } = useToast()
+  const hasCollections = collections.length > 0
   const [title, setTitle] = useState(initialData?.title || "")
   const [summary, setSummary] = useState(initialData?.summary || "")
   const [content, setContent] = useState(initialData?.content || "")
@@ -132,6 +135,15 @@ export default function ArticleForm({ initialData, collections }: ArticleFormPro
     // 空文校验：全删内容后 TipTap 序列化为 {"type":"doc","content":[]}，truthy 但无实际内容
     if (!hasArticleContent(finalContent)) {
       setError("请输入文章内容")
+      return
+    }
+    // 发布前置条件：已发布必须归属某个合集（与服务端 PublishRequirementSchema 一致）
+    if (published && !collectionId) {
+      setError(
+        hasCollections
+          ? "发布文章前请先选择所属合集"
+          : "还没有可选的合集，请先创建一个合集再发布"
+      )
       return
     }
 
@@ -265,27 +277,58 @@ export default function ArticleForm({ initialData, collections }: ArticleFormPro
       </div>
 
       {/* Collection */}
-      {collections && collections.length > 0 && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            所属合集（可选）
-          </label>
+      <div>
+        <label
+          htmlFor="article-collection"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
+          所属合集
+          {published ? (
+            <span className="text-red-500 ml-0.5" aria-hidden="true">
+              *
+            </span>
+          ) : (
+            <span className="ml-1 text-xs font-normal text-gray-400">
+              （草稿可暂不选择，发布前必须选）
+            </span>
+          )}
+        </label>
+
+        {hasCollections ? (
           <select
+            id="article-collection"
             value={collectionId ?? ""}
             onChange={(e) =>
               setCollectionId(e.target.value ? parseInt(e.target.value) : null)
             }
             className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition-all text-sm bg-white"
           >
-            <option value="">无合集</option>
+            <option value="">
+              {published ? "请选择合集" : "暂不归类"}
+            </option>
             {collections.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
           </select>
-        </div>
-      )}
+        ) : (
+          // 一个合集都没有时必须给出出口：否则「发布必须选合集」会让文章永远发不出去
+          <div className="flex items-start gap-2 px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-700">
+            <FolderPlus size={16} className="shrink-0 mt-0.5" />
+            <span>
+              还没有可选的合集，
+              <Link
+                href="/admin/collections/new"
+                className="font-medium underline hover:text-amber-900"
+              >
+                先去创建一个
+              </Link>
+              {published ? "，否则无法发布。" : "，发布前需要先创建。"}
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Editor */}
       <RichTextEditor
