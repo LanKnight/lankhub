@@ -67,6 +67,9 @@ export default async function AdminArticlesPage({
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500">
                 <tr>
+                  <th className="text-center px-3 py-3 font-medium w-[52px]">
+                    序号
+                  </th>
                   <th className="text-left px-5 py-3 font-medium w-[30%]">
                     标题
                   </th>
@@ -80,8 +83,15 @@ export default async function AdminArticlesPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {articles.map((article) => (
+                {articles.map((article, index) => (
                   <tr key={article.id} className="hover:bg-gray-50/50">
+                    {/*
+                      当前页的显示行号：跨页连续（第 2 页从 11 开始），
+                      不是文章 ID，也不是数据库字段 —— 置顶会改变它的位置
+                    */}
+                    <td className="px-3 py-3 text-center text-gray-400 tabular-nums">
+                      {skip + index + 1}
+                    </td>
                     <td className="px-5 py-3">
                       <span className="text-gray-800 line-clamp-1">
                         {article.title}
