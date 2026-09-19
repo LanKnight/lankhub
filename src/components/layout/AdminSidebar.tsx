@@ -17,6 +17,8 @@ import {
   Users,
 } from "lucide-react"
 
+import { resolveActiveHref } from "@/lib/nav"
+
 const links = [
   { href: "/admin", label: "仪表盘", icon: LayoutDashboard, perm: null },
   { href: "/admin/articles", label: "文章管理", icon: FileText, perm: "article" },
@@ -41,14 +43,19 @@ export default function AdminSidebar() {
     ? links
     : links.filter((link) => userPerms.includes(link.perm as string))
 
+  // 同 Navbar：取最长匹配。原来用 `link.href !== "/admin"` 特例绕开
+  // 「/admin 是所有后台页面的前缀」这个问题，现在统一交给同一套逻辑
+  const activeHref = resolveActiveHref(
+    pathname,
+    visibleLinks.map((link) => link.href)
+  )
+
   return (
     <aside className="w-full md:w-56 bg-gray-900 text-white md:min-h-[calc(100vh-4rem)] p-4 flex flex-col">
       {/* 移动端：横向滚动菜单；桌面端：纵向固定侧栏 */}
       <nav className="flex md:flex-col gap-1 flex-1 overflow-x-auto md:overflow-visible -mx-4 px-4 md:mx-0 md:px-0">
         {visibleLinks.map((link) => {
-          const isActive =
-            pathname === link.href ||
-            (link.href !== "/admin" && pathname.startsWith(link.href))
+          const isActive = link.href === activeHref
           return (
             <Link
               key={link.href}

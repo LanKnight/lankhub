@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
 import { Menu, X, LogOut, User, PenLine } from "lucide-react"
+import { resolveActiveHref } from "@/lib/nav"
 
 export default function Navbar() {
   const { data: session, status } = useSession()
@@ -19,8 +20,13 @@ export default function Navbar() {
     { href: "/resume", label: "简历" },
   ]
 
-  const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href)
+  // 只有最长匹配的那一项高亮：/blog 是 /blog/collections 的前缀，
+  // 逐项 startsWith 会让「博客」和「合集」同时亮起
+  const activeHref = resolveActiveHref(
+    pathname,
+    navLinks.map((link) => link.href)
+  )
+  const isActive = (href: string) => href === activeHref
 
   // 管理入口：站长 或 拥有任一内容权限（文章/相册/拾章）的授权读者
   const userPerms = (user?.permissions || "").split(",").map((p: string) => p.trim())

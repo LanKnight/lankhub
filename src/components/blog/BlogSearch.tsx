@@ -36,7 +36,10 @@ export default function BlogSearch() {
         onChange={(e) => setKeyword(e.target.value)}
         placeholder="搜索文章..."
         aria-label="搜索文章"
-        className="w-full pl-10 pr-9 py-2 rounded-full border border-gray-200 bg-white text-sm text-gray-700 placeholder:text-gray-400 focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition-all"
+        // 保留 type="search"（移动端键盘会显示搜索键），
+        // 但 Chrome/Edge/Safari 会为它自动渲染一个原生清除按钮，
+        // 和我们自己的清除按钮叠成两个叉号，用 CSS 干掉原生那个
+        className="w-full pl-10 pr-9 py-2 rounded-full border border-gray-200 bg-white text-sm text-gray-700 placeholder:text-gray-400 focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition-all [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
       />
       {keyword && (
         <button
