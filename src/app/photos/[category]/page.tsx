@@ -8,8 +8,7 @@ import {
   HOBBY_ICONS,
 } from "@/lib/photo-categories"
 import PhotoGrid from "./PhotoGrid"
-import Link from "next/link"
-import { ChevronLeft } from "lucide-react"
+import BackLink from "@/components/ui/BackLink"
 
 // 照片上传后需即时可见，与总览页保持一致（不做静态缓存）
 export const dynamic = "force-dynamic"
@@ -55,14 +54,7 @@ export default async function PhotoCategoryPage({ params }: Props) {
     <ViewTransition enter="auto" exit="auto" default="none">
       <div className="min-h-screen bg-white">
         <div className="max-w-7xl mx-auto px-4 py-12">
-          {/* Back link */}
-          <Link
-            href="/photos"
-            className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors mb-8"
-          >
-            <ChevronLeft size={16} />
-            返回相册总览
-          </Link>
+          <BackLink fallbackHref="/photos" className="mb-8" />
 
           {/* Header */}
           <div className="text-center mb-12">

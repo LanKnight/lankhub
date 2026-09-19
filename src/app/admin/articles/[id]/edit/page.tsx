@@ -2,6 +2,8 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser } from "@/lib/auth-helpers"
+import { pagedHref } from "@/lib/utils"
+import BackLink from "@/components/ui/BackLink"
 import ArticleForm from "../../ArticleForm"
 
 export const metadata: Metadata = {
@@ -10,10 +12,16 @@ export const metadata: Metadata = {
 
 export default async function EditArticlePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ page?: string }>
 }) {
   const { id } = await params
+  const search = await searchParams
+  const page = Math.max(1, parseInt(search.page || "1") || 1)
+  // 保存后回到来的那一页，而不是固定跳第 1 页
+  const returnTo = pagedHref("/admin/articles", page)
 
   const [article, collections] = await Promise.all([
     prisma.article.findUnique({
@@ -37,6 +45,7 @@ export default async function EditArticlePage({
 
   return (
     <div className="space-y-6">
+      <BackLink fallbackHref={returnTo} />
       <h1 className="text-2xl font-bold text-gray-900">编辑文章</h1>
       <ArticleForm
         initialData={{
@@ -51,6 +60,7 @@ export default async function EditArticlePage({
           collectionId: article.collectionId,
         }}
         collections={collections}
+        returnTo={returnTo}
       />
     </div>
   )

@@ -2,11 +2,10 @@ import type { Metadata } from "next"
 import { ViewTransition } from "react"
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
-import Link from "next/link"
 import ArticleCard from "@/components/blog/ArticleCard"
 import Pagination from "@/components/blog/Pagination"
+import BackLink from "@/components/ui/BackLink"
 import { formatDate } from "@/lib/utils"
-import { ChevronLeft } from "lucide-react"
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -78,13 +77,7 @@ export default async function CollectionDetailPage({ params, searchParams }: Pro
   return (
     <ViewTransition enter="auto" exit="auto" default="none">
       <div className="max-w-4xl mx-auto px-4 py-16">
-        <Link
-          href="/blog/collections"
-          className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-accent transition-colors mb-8"
-        >
-          <ChevronLeft size={16} />
-          返回合集列表
-        </Link>
+        <BackLink fallbackHref="/blog/collections" className="mb-8" />
 
         <div className="mb-10">
           {/* 合集封面横幅（可选） */}

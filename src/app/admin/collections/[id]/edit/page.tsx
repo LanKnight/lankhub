@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
+import BackLink from "@/components/ui/BackLink"
 import CollectionForm from "../../CollectionForm"
 
 export const metadata: Metadata = {
@@ -23,6 +24,7 @@ export default async function EditCollectionPage({
 
   return (
     <div className="space-y-6">
+      <BackLink fallbackHref="/admin/collections" />
       <h1 className="text-2xl font-bold text-gray-900">编辑合集</h1>
       <CollectionForm
         initialData={{

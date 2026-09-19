@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { ViewTransition } from "react"
 import { prisma } from "@/lib/prisma"
+import BackLink from "@/components/ui/BackLink"
 
 export const metadata: Metadata = {
   title: "拾章",
@@ -21,6 +22,8 @@ export default async function PoemsPage() {
   return (
     <ViewTransition enter="auto" exit="auto" default="none">
       <div className="max-w-5xl mx-auto px-4 py-16">
+        <BackLink fallbackHref="/" className="mb-8" />
+
         {/* Header */}
         <div className="text-center mb-14">
           <h1 className="text-4xl font-bold text-gray-900">拾章</h1>

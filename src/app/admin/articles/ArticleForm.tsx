@@ -44,9 +44,15 @@ interface ArticleFormProps {
     collectionId?: number | null
   }
   collections?: { id: number; name: string }[]
+  /** 保存成功后跳回的地址（默认文章列表第 1 页；从列表第 N 页进来时带上 ?page=N） */
+  returnTo?: string
 }
 
-export default function ArticleForm({ initialData, collections = [] }: ArticleFormProps) {
+export default function ArticleForm({
+  initialData,
+  collections = [],
+  returnTo = "/admin/articles",
+}: ArticleFormProps) {
   const router = useRouter()
   const { toast } = useToast()
   const hasCollections = collections.length > 0
@@ -177,7 +183,7 @@ export default function ArticleForm({ initialData, collections = [] }: ArticleFo
       }
 
       toast(isEditing ? "文章已更新" : "文章已保存", "success")
-      router.push("/admin/articles")
+      router.push(returnTo)
       router.refresh()
     } catch {
       setError("网络错误")

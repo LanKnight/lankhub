@@ -3,7 +3,7 @@ import Link from "next/link"
 import { Plus, Edit, Pin, FolderOpen } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser } from "@/lib/auth-helpers"
-import { formatDate } from "@/lib/utils"
+import { formatDate, pagedHref } from "@/lib/utils"
 import DeleteButton from "./DeleteButton"
 import Pagination from "@/components/blog/Pagination"
 
@@ -47,7 +47,7 @@ export default async function AdminArticlesPage({
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">文章管理</h1>
         <Link
-          href="/admin/articles/new"
+          href={pagedHref("/admin/articles/new", page)}
           className="flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
         >
           <Plus size={16} />
@@ -155,7 +155,10 @@ export default async function AdminArticlesPage({
                         {isOwner || article.authorId === myId ? (
                           <>
                             <Link
-                              href={`/admin/articles/${article.id}/edit`}
+                              href={pagedHref(
+                                `/admin/articles/${article.id}/edit`,
+                                page
+                              )}
                               className="p-1.5 text-gray-400 hover:text-accent transition-colors"
                               title="编辑"
                             >

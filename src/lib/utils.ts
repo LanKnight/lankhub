@@ -1,5 +1,10 @@
 import slugifyLib from "slugify"
 
+/** 带页码的列表地址：第 1 页省略 query，保持 URL 干净 */
+export function pagedHref(base: string, page: number): string {
+  return page > 1 ? `${base}?page=${page}` : base
+}
+
 export function generateSlug(title: string): string {
   const slug = slugifyLib(title, {
     lower: true,

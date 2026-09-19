@@ -4,6 +4,7 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { FolderOpen } from "lucide-react"
 import ArticleContent from "@/components/blog/ArticleContent"
+import BackLink from "@/components/ui/BackLink"
 import ArticleViewTracker from "@/components/blog/ArticleViewTracker"
 import ReadingProgress from "@/components/blog/ReadingProgress"
 import CommentSection from "@/components/comment/CommentSection"
@@ -99,6 +100,8 @@ export default async function BlogDetailPage({
     <ViewTransition enter="auto" exit="auto" default="none">
       <ReadingProgress />
       <article className="max-w-3xl mx-auto px-4 py-16">
+        <BackLink fallbackHref="/blog" className="mb-8" />
+
         {/* Header */}
         <header className="mb-10 space-y-4">
           {article.collection && (
