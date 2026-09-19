@@ -6,6 +6,20 @@ const nextConfig: NextConfig = {
   // 隐藏 X-Powered-By 头
   poweredByHeader: false,
 
+  // 旧地址重定向
+  async redirects() {
+    return [
+      {
+        // 相册总览页已删除（没有进入渠道，且首页「兴趣爱好」已承担入口职责）。
+        // 它曾被分类页的「返回相册总览」硬编码链接指向过，可能被搜索引擎收录，
+        // 因此保留 308 永久重定向，避免旧链接和收藏变成 404。
+        source: "/photos",
+        destination: "/",
+        permanent: true,
+      },
+    ];
+  },
+
   // 安全响应头
   async headers() {
     return [

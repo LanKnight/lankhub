@@ -54,7 +54,8 @@ export default async function PhotoCategoryPage({ params }: Props) {
     <ViewTransition enter="auto" exit="auto" default="none">
       <div className="min-h-screen bg-white">
         <div className="max-w-7xl mx-auto px-4 py-12">
-          <BackLink fallbackHref="/photos" className="mb-8" />
+          {/* 分类页的入口是首页「兴趣爱好」，相册总览页已删除，兜底指向首页 */}
+          <BackLink fallbackHref="/" className="mb-8" />
 
           {/* Header */}
           <div className="text-center mb-12">
