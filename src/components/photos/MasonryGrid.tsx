@@ -1,5 +1,7 @@
 import Image from "next/image"
 
+import { staggerDelay } from "@/lib/motion"
+
 interface PhotoItem {
   id: number
   url: string
@@ -25,7 +27,8 @@ export default function MasonryGrid({
       {photos.map((photo, index) => (
         <div
           key={photo.id}
-          className="mb-4 break-inside-avoid rounded-xl overflow-hidden bg-gray-100 cursor-pointer group relative"
+          className="mb-4 break-inside-avoid rounded-xl overflow-hidden bg-gray-100 cursor-pointer group relative animate-rise-in"
+          style={{ animationDelay: staggerDelay(index) }}
           onClick={() => onPhotoClick(index)}
         >
           {photo.width && photo.height ? (

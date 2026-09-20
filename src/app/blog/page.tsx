@@ -107,7 +107,7 @@ export default async function BlogListPage({
           </div>
         ) : (
           <div className="grid gap-6">
-            {data.articles.map((article: any) => (
+            {data.articles.map((article: any, index: number) => (
               <ArticleCard
                 key={article.id}
                 title={article.title}
@@ -119,6 +119,7 @@ export default async function BlogListPage({
                 pinned={article.pinned}
                 author={article.author}
                 collection={article.collection}
+                index={index}
               />
             ))}
           </div>

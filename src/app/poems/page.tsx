@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { ViewTransition } from "react"
 import { prisma } from "@/lib/prisma"
+import { staggerDelay } from "@/lib/motion"
 import BackLink from "@/components/ui/BackLink"
 
 export const metadata: Metadata = {
@@ -38,10 +39,11 @@ export default async function PoemsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {poems.map((poem) => (
+            {poems.map((poem, index) => (
               <div
                 key={poem.id}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7 flex flex-col justify-between hover:shadow-md transition-shadow duration-200"
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7 flex flex-col justify-between hover:shadow-md transition-shadow duration-200 animate-rise-in"
+                style={{ animationDelay: staggerDelay(index) }}
               >
                 {/* 诗句 */}
                 <p className="text-gray-800 leading-loose whitespace-pre-line">

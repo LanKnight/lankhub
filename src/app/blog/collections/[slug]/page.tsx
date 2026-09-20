@@ -105,7 +105,7 @@ export default async function CollectionDetailPage({ params, searchParams }: Pro
         ) : (
           <>
             <div className="space-y-6">
-              {articles.map((article) => (
+              {articles.map((article, index) => (
                 <ArticleCard
                   key={article.id}
                   title={article.title}
@@ -116,6 +116,7 @@ export default async function CollectionDetailPage({ params, searchParams }: Pro
                   createdAt={formatDate(article.createdAt)}
                   pinned={article.pinned}
                   author={article.author}
+                  index={index}
                 />
               ))}
             </div>

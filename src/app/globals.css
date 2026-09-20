@@ -86,6 +86,8 @@ html {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    /* 少了这条，错峰入场的 animation-delay 依然生效，用户还要白等几百毫秒 */
+    animation-delay: 0ms !important;
   }
   ::view-transition-old(*),
   ::view-transition-new(*),
@@ -142,6 +144,85 @@ html {
 }
 .animate-zoom-in {
   animation: zoom-in 240ms ease both;
+}
+
+/* -- 入场动效基调（全站统一）-- */
+/*
+ * 缓动 cubic-bezier(0.22, 1, 0.36, 1)：快进慢停，接近水墨「落笔即定」，没有回弹。
+ * 只做「淡入 + 上移 12px」，不缩放、不模糊 —— 这是守住简约风格的关键。
+ *
+ * fill-mode 必须是 backwards 而不是 both/forwards：
+ * 动画结束后不再锁定 transform，否则卡片上的 hover:-translate-y-0.5 会永久失效。
+ * backwards 同时能在延迟期间保持 0% 状态，不会先闪一下再动。
+ */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-rise-in {
+  animation: rise-in 620ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* -- Hero 副标题循环切换 -- */
+/*
+ * 每句的可见窗口固定为整轮的 25%，配合使用方内联的
+ *   animation-duration: 句数 × 停留时长
+ *   animation-delay:    序号 × 停留时长
+ * 就能按 0s / 3s / 6s / 9s… 依次出现，任意句数都成立，换文案不用改关键帧。
+ */
+@keyframes subtitle-cycle {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  4% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  21% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  25% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.hero-subtitle-cycle > * {
+  animation: subtitle-cycle var(--subtitle-cycle, 12s) ease-in-out infinite
+    backwards;
+  animation-delay: var(--subtitle-delay, 0s);
+}
+/* 悬停暂停（WCAG 2.2.2：自动播放的动效应可暂停） */
+.hero-subtitle-cycle:hover > * {
+  animation-play-state: paused;
+}
+
+/*
+ * 循环副标题的 reduced-motion 降级。
+ * 上面全局的 animation-iteration-count: 1 !important 会让无限动画跑完一轮就停在
+ * 最后一帧（opacity: 0），副标题会彻底消失 —— 这里显式改成「只静态显示第一句」。
+ * 必须写 !important 且放在基础规则之后。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .hero-subtitle-cycle > * {
+    animation: none !important;
+    opacity: 0;
+    transform: none;
+  }
+  .hero-subtitle-cycle > *:first-child {
+    opacity: 1;
+  }
 }
 
 /* -- 打印样式（简历页 Ctrl+P / 存 PDF）-- */

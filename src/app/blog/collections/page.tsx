@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { ViewTransition } from "react"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
+import { staggerDelay } from "@/lib/motion"
 import { FolderOpen, FileText } from "lucide-react"
 
 export const dynamic = "force-dynamic"
@@ -45,11 +46,12 @@ export default async function CollectionsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {visible.map((c) => (
+            {visible.map((c, index) => (
               <Link
                 key={c.id}
                 href={`/blog/collections/${c.slug}`}
-                className="group bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
+                className="group bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 animate-rise-in"
+                style={{ animationDelay: staggerDelay(index) }}
               >
                 {/* 合集封面（可选） */}
                 {c.coverImage ? (

@@ -2,6 +2,8 @@ import Link from "next/link"
 import Image from "next/image"
 import { Calendar, Eye, FolderOpen, Pin } from "lucide-react"
 
+import { staggerDelay } from "@/lib/motion"
+
 interface ArticleCardProps {
   title: string
   slug: string
@@ -18,6 +20,8 @@ interface ArticleCardProps {
     name: string
     slug: string
   } | null
+  /** 列表中的序号，用于错峰入场 */
+  index?: number
 }
 
 export default function ArticleCard({
@@ -30,6 +34,7 @@ export default function ArticleCard({
   pinned,
   author,
   collection,
+  index = 0,
 }: ArticleCardProps) {
   return (
     /*
@@ -38,7 +43,10 @@ export default function ArticleCard({
      * 改用 stretched link —— 标题链接的伪元素铺满整张卡，
      * 既保留「整卡可点」，又让合集标签能独立点击。
      */
-    <div className="group relative block bg-white border border-gray-200 shadow-sm overflow-hidden hover:border-gray-400 hover:shadow-md transition-all duration-200">
+    <div
+      className="group relative block bg-white border border-gray-200 shadow-sm overflow-hidden hover:border-gray-400 hover:shadow-md transition-all duration-200 animate-rise-in"
+      style={{ animationDelay: staggerDelay(index) }}
+    >
       {/* 封面图（有图时展示，3:1 横幅） */}
       {coverImage && (
         <div className="relative aspect-[3/1] bg-gray-100 overflow-hidden">
