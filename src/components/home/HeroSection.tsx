@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect } from "react"
 import { ChevronDown } from "lucide-react"
 
 import CyclingSubtitle from "./CyclingSubtitle"
@@ -9,25 +9,24 @@ import CyclingSubtitle from "./CyclingSubtitle"
 const ENTER_DELAY = { avatar: 0, title: 90, subtitle: 180, indicator: 320 }
 
 export default function HeroSection() {
-  const spotlightRef = useRef<HTMLDivElement>(null)
-  const [spotVisible, setSpotVisible] = useState(false)
-
   /**
-   * 光斑跟随鼠标。
+   * 暗色态挂在 <html> 上，而不是本组件的 state 上。
    *
-   * 坐标直接写进 CSS 变量，不走 React state —— 否则每秒几十次 mousemove
-   * 会触发同样次数的重渲染。只有「显示/隐藏」这个布尔量交给 state 管理，
-   * 它每次进出标题才变化一次。
+   * 两个原因：
+   * 1. 导航栏是另一个组件，只能靠根节点上的属性一起响应
+   * 2. 全程零 React 重渲染，只改一个属性；所有视觉变化都在 CSS 里完成
+   *
+   * dataset.inkDark 对应属性 data-ink-dark。
    */
-  const handleTitleMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    const layer = spotlightRef.current
-    if (!layer) return
-    // 用承载两层的网格容器算相对坐标：它的内容盒就是覆盖层的盒子，遮罩才对齐
-    const box = event.currentTarget.getBoundingClientRect()
-    layer.style.setProperty("--spot-x", `${event.clientX - box.left}px`)
-    layer.style.setProperty("--spot-y", `${event.clientY - box.top}px`)
-    setSpotVisible(true)
+  const enterDark = () => {
+    document.documentElement.dataset.inkDark = "true"
   }
+  const leaveDark = () => {
+    delete document.documentElement.dataset.inkDark
+  }
+
+  // 卸载时清掉，避免残留成「永远暗着」
+  useEffect(() => leaveDark, [])
 
   const scrollToAbout = () => {
     document
@@ -36,14 +35,14 @@ export default function HeroSection() {
   }
 
   return (
-    <section className="relative min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center text-center px-4">
+    <section className="hero-aura relative min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center text-center px-4">
       {/* Background gradient */}
       <div className="absolute inset-0 ink-wash-bg" />
 
       <div className="relative z-10 space-y-8">
         {/* Avatar placeholder */}
         <div
-          className="mx-auto w-28 h-28 rounded-full bg-gray-100 flex items-center justify-center ring-4 ring-gray-200 animate-rise-in"
+          className="hero-dimmable mx-auto w-28 h-28 rounded-full bg-gray-100 flex items-center justify-center ring-4 ring-gray-200 animate-rise-in"
           style={{ animationDelay: `${ENTER_DELAY.avatar}ms` }}
         >
           <span className="text-3xl font-bold text-brand-navy">L</span>
@@ -51,37 +50,32 @@ export default function HeroSection() {
 
         <div className="space-y-4">
           {/*
-            双层文字：两层落在同一个网格单元里，容器会按较宽的那层撑开，
-            这样遮罩坐标对两层才一致。
-              · 上层 h1 是真实标题，始终可见，从不被遮罩改动
-              · 下层覆盖层自带纸张底色 + 箴言，整体被圆形遮罩限制住
-            鼠标离开时只把覆盖层整层淡出，标题本身没有被挖洞，不存在「补不上洞」的风险。
+            两层文字落在同一个网格单元里：容器按较宽的那层撑开，
+            所以明暗切换时标题不会因为文字长度不同而抖动。
+              · 上层 h1 是真实标题，进入暗色态时淡出
+              · 下层箴言只在暗色态淡入，标 aria-hidden（装饰性，不打扰读屏）
+            鼠标进入即切暗、离开即复原；卸载时上面已清理。
           */}
           <div
             className="grid"
-            onMouseMove={handleTitleMove}
-            onMouseLeave={() => setSpotVisible(false)}
+            onMouseEnter={enterDark}
+            onMouseLeave={leaveDark}
           >
-            <h1
-              className="col-start-1 row-start-1 self-center justify-self-center text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 tracking-tight animate-rise-in"
-              style={{ animationDelay: `${ENTER_DELAY.title}ms` }}
-            >
+            <h1 className="hero-title-swap col-start-1 row-start-1 self-center justify-self-center text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 tracking-tight animate-rise-in">
               你好，我是 LanKnight
             </h1>
-
-            <div
-              ref={spotlightRef}
+            <p
               aria-hidden="true"
-              data-visible={spotVisible}
-              className="hero-spotlight col-start-1 row-start-1 flex items-center justify-center bg-paper"
+              className="hero-motto-swap col-start-1 row-start-1 self-center justify-self-center text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight"
             >
-              <span className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900">
-                天行健，君子以自强不息
-              </span>
-            </div>
+              天行健，君子以自强不息
+            </p>
           </div>
 
-          <CyclingSubtitle className="animate-rise-in" delay={ENTER_DELAY.subtitle} />
+          <CyclingSubtitle
+            className="hero-dimmable animate-rise-in"
+            delay={ENTER_DELAY.subtitle}
+          />
         </div>
       </div>
 
@@ -91,7 +85,7 @@ export default function HeroSection() {
         另外内层 button 单独承担 animate-bounce，避免两个 animation 简写互相覆盖。
       */}
       <div
-        className="absolute bottom-8 inset-x-0 flex justify-center animate-rise-in"
+        className="hero-dimmable absolute bottom-8 inset-x-0 flex justify-center animate-rise-in"
         style={{ animationDelay: `${ENTER_DELAY.indicator}ms` }}
       >
         <button

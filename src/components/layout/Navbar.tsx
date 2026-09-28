@@ -35,7 +35,7 @@ export default function Navbar() {
     ["article", "photo", "poem"].some((p) => userPerms.includes(p))
 
   return (
-    <header className="sticky top-0 z-50 bg-paper/90 backdrop-blur-md border-b border-gray-200">
+    <header className="site-navbar sticky top-0 z-50 bg-paper/90 backdrop-blur-md border-b border-gray-200">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}

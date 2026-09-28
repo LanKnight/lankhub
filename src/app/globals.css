@@ -225,31 +225,110 @@ html {
   }
 }
 
-/* -- 首页标题的「双层文字」透视层 -- */
+/* -- 首屏「入定」暗色态 -- */
 /*
- * --spot-x / --spot-y 由 HeroSection 在 mousemove 时直接写入 DOM，
- * 不走 React state。这里用柔和边缘的径向遮罩，边缘羽化，接近水墨洇开。
- * 默认 opacity: 0 —— 没有鼠标的设备上自然退化为普通标题。
- * pointer-events: none 让覆盖层永不吃掉鼠标事件，标题文字仍可正常选中。
+ * 触发：鼠标进入首页标题时，HeroSection 在 <html> 上打 data-ink-dark="true"，
+ * 离开即移除。放根节点是为了让 sticky 的导航栏也能一起响应，且全程零 React 重渲染。
+ *
+ * 为什么不需要全站暗色主题：效果只在标题可见时发生，而首屏高度是
+ * min-h-[calc(100vh-4rem)]，加上 4rem 导航栏正好铺满一屏 ——
+ * 也就是说效果发生时，视口里恰好只有「导航栏 + 首屏」。
+ * 滚轮一动鼠标就离开标题，效果立刻还原，页面下方不可能被看到暗色态。
  */
-.hero-spotlight {
-  --spot-x: 50%;
-  --spot-y: 50%;
-  --spot-r: clamp(80px, 12vw, 130px);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 320ms ease-out;
-  /* 只写标准属性：构建时 Lightning CSS 会按浏览器目标自动补 -webkit- 前缀。
-     手写前缀反而会被它再补一遍，产出 4 条重复声明。 */
-  mask-image: radial-gradient(
-    circle var(--spot-r) at var(--spot-x) var(--spot-y),
-    #000 0%,
-    #000 45%,
-    transparent 100%
-  );
+/* 暗色下「强调色」要反过来：它是水墨黑，在墨黑底上会完全看不见
+   （当前栏目的下划线用的就是它） */
+:root[data-ink-dark="true"] {
+  --accent: #f2efe8;
+  --accent-hover: #ffffff;
 }
-.hero-spotlight[data-visible="true"] {
+
+.hero-aura {
+  background-color: var(--bg-primary);
+  transition: background-color 420ms ease;
+}
+:root[data-ink-dark="true"] .hero-aura {
+  background-color: #1a1510;
+}
+
+/* 暗色态下淡出的首屏元素（头像 / 循环副标题 / 滚动指示器） */
+.hero-dimmable {
+  transition: opacity 420ms ease;
+}
+:root[data-ink-dark="true"] .hero-dimmable {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 标题与箴言的交叉淡入淡出。
+   箴言直接用亮色：它只在暗色态出现，不需要另一套浅色值。 */
+.hero-title-swap,
+.hero-motto-swap {
+  transition: opacity 420ms ease;
+}
+.hero-title-swap {
   opacity: 1;
+}
+.hero-motto-swap {
+  opacity: 0;
+  color: #f2efe8;
+}
+:root[data-ink-dark="true"] .hero-title-swap {
+  opacity: 0;
+}
+:root[data-ink-dark="true"] .hero-motto-swap {
+  opacity: 1;
+}
+
+/* -- 导航栏的暗色态 -- */
+/*
+ * 这些覆盖是必需的：导航栏在视口顶部，若保持浅色，「全页面变暗」会露出明显断层。
+ * 选择「改色」而不是「淡出」，是因为这是主题切换，导航能力与当前位置都应保留。
+ * 选择器优先级 0-2-0 以上，稳赢 Tailwind 工具类（0-1-0），无需 !important。
+ */
+.site-navbar {
+  transition:
+    background-color 420ms ease,
+    border-color 420ms ease;
+}
+:root[data-ink-dark="true"] .site-navbar {
+  background-color: rgba(26, 21, 16, 0.9);
+  border-bottom-color: #3d3730;
+}
+:root[data-ink-dark="true"] .site-navbar .text-gray-900,
+:root[data-ink-dark="true"] .site-navbar .text-gray-800 {
+  color: #f2efe8;
+}
+:root[data-ink-dark="true"] .site-navbar .text-gray-600,
+:root[data-ink-dark="true"] .site-navbar .text-gray-500 {
+  color: #aba49a;
+}
+:root[data-ink-dark="true"] .site-navbar .hover\:text-gray-900:hover {
+  color: #f2efe8;
+}
+:root[data-ink-dark="true"] .site-navbar .hover\:text-gray-600:hover {
+  color: #aba49a;
+}
+/* 主按钮（登录）在暗色下反转：亮底深字 */
+:root[data-ink-dark="true"] .site-navbar .bg-gray-900 {
+  background-color: #f2efe8;
+}
+:root[data-ink-dark="true"] .site-navbar .hover\:bg-gray-800:hover {
+  background-color: #d4cfc5;
+}
+:root[data-ink-dark="true"] .site-navbar .text-paper {
+  color: #1a1510;
+}
+:root[data-ink-dark="true"] .site-navbar .bg-gray-100 {
+  background-color: #2a241e;
+}
+:root[data-ink-dark="true"] .site-navbar .bg-white {
+  background-color: #1a1510;
+}
+:root[data-ink-dark="true"] .site-navbar .border-gray-100 {
+  border-color: #2a241e;
+}
+:root[data-ink-dark="true"] .site-navbar .border-accent {
+  border-color: #f2efe8;
 }
 
 /* -- 打印样式（简历页 Ctrl+P / 存 PDF）-- */
