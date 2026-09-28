@@ -225,6 +225,33 @@ html {
   }
 }
 
+/* -- 首页标题的「双层文字」透视层 -- */
+/*
+ * --spot-x / --spot-y 由 HeroSection 在 mousemove 时直接写入 DOM，
+ * 不走 React state。这里用柔和边缘的径向遮罩，边缘羽化，接近水墨洇开。
+ * 默认 opacity: 0 —— 没有鼠标的设备上自然退化为普通标题。
+ * pointer-events: none 让覆盖层永不吃掉鼠标事件，标题文字仍可正常选中。
+ */
+.hero-spotlight {
+  --spot-x: 50%;
+  --spot-y: 50%;
+  --spot-r: clamp(80px, 12vw, 130px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 320ms ease-out;
+  /* 只写标准属性：构建时 Lightning CSS 会按浏览器目标自动补 -webkit- 前缀。
+     手写前缀反而会被它再补一遍，产出 4 条重复声明。 */
+  mask-image: radial-gradient(
+    circle var(--spot-r) at var(--spot-x) var(--spot-y),
+    #000 0%,
+    #000 45%,
+    transparent 100%
+  );
+}
+.hero-spotlight[data-visible="true"] {
+  opacity: 1;
+}
+
 /* -- 打印样式（简历页 Ctrl+P / 存 PDF）-- */
 @media print {
   header,
