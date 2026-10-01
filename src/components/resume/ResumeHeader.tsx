@@ -1,5 +1,5 @@
 import type { ResumeProfileData } from "@/lib/resume-helpers"
-import DownloadResumeButton from "./DownloadResumeButton"
+import DownloadMenu from "./DownloadMenu"
 
 export default function ResumeHeader({
   profile,
@@ -31,9 +31,13 @@ export default function ResumeHeader({
           <span>📱 {profile?.phone || "未设置电话"}</span>
           <span>📍 {profile?.location || "未设置所在地"}</span>
         </div>
-        {resumePdf && (
+        {/*
+          下载入口。不再用 resumePdf 做门槛：完整版是实时从本页数据整理的，
+          没有上传 PDF 时它也照常可用（菜单里只隐去「一页版」那一项）。
+        */}
+        {profile && (
           <div className="pt-4 no-print">
-            <DownloadResumeButton />
+            <DownloadMenu hasPdf={Boolean(resumePdf)} />
           </div>
         )}
       </div>

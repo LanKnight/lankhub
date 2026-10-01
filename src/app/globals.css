@@ -331,6 +331,76 @@ html {
   border-color: #f2efe8;
 }
 
+/* -- 简历打印视图（/resume/print）-- */
+/*
+ * 单栏 A4 排版。屏幕上模拟一张纸，打印时把页边距交给 @page。
+ * 刻意不复用 /resume 的卡片样式：A4 上去掉边框与底色更好读。
+ */
+.resume-print {
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 14mm 16mm 18mm;
+  background: #fff;
+  color: #1a1510;
+}
+.resume-print .print-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 2px solid #1a1510;
+}
+.resume-print .print-avatar {
+  width: 68px;
+  height: 68px;
+  border-radius: 9999px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.resume-print .print-section {
+  margin-top: 1.4rem;
+}
+.resume-print .print-heading {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #5c554d;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid #d4cfc5;
+  margin-bottom: 0.7rem;
+}
+.resume-print .print-item + .print-item {
+  margin-top: 0.9rem;
+}
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  /*
+   * 收窄全局那条 `article, section, div { break-inside: avoid-page }`：
+   * 它会把每个区块都钉死不分页，长简历会留大片空白。
+   * 这里只在「条目」内部禁止断开，区块之间允许翻页。
+   * 选择器是 0-1-1，稳赢全局的 0-0-1，所以不必 !important，也不会波及博客打印。
+   */
+  .resume-print,
+  .resume-print section,
+  .resume-print div,
+  .resume-print p {
+    break-inside: auto;
+  }
+  .resume-print .print-item {
+    break-inside: avoid;
+  }
+  .resume-print .print-heading {
+    break-after: avoid;
+  }
+  .resume-print {
+    max-width: none;
+    padding: 0;
+  }
+}
+
 /* -- 打印样式（简历页 Ctrl+P / 存 PDF）-- */
 @media print {
   header,

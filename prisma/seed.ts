@@ -214,24 +214,6 @@ async function main() {
         profileId: profile.id,
       },
       {
-        type: "award",
-        title: "2023 年全国大学生计算机设计大赛 三等奖",
-        sortOrder: 0,
-        profileId: profile.id,
-      },
-      {
-        type: "award",
-        title: "2022 年 ACM 校赛 二等奖",
-        sortOrder: 1,
-        profileId: profile.id,
-      },
-      {
-        type: "award",
-        title: "2020-2023 连续三年校级奖学金",
-        sortOrder: 2,
-        profileId: profile.id,
-      },
-      {
         type: "certificate",
         title: "CET-6 英语六级",
         sortOrder: 0,
