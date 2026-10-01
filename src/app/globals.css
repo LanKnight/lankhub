@@ -403,8 +403,16 @@ html {
 
 /* -- 打印样式（简历页 Ctrl+P / 存 PDF）-- */
 @media print {
-  header,
-  footer,
+  /*
+   * 只隐藏真正的站点外壳，绝不按标签名一刀切。
+   *
+   * 原先写的是 `header, footer { display: none !important }`，本意只是藏掉
+   * 导航栏和页脚，但简历打印视图（.print-header）与博客文章页（文章标题+日期）
+   * 也用 <header> 承载顶部信息，于是它们连同整块内容一起在打印时消失了。
+   * 这里改用类选择器精确定位，上面两处自然恢复。
+   */
+  .site-navbar,
+  .site-footer,
   .no-print {
     display: none !important;
   }

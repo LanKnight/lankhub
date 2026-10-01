@@ -6,6 +6,15 @@ import { ChevronDown, Download, FileText, Loader2, Printer } from "lucide-react"
 import { useToast } from "@/components/ui/Toast"
 
 /**
+ * 两个菜单项共用同一套 class，避免样式漂移。
+ *
+ * 必须显式写 text-left：<button> 带浏览器默认的 text-align: center，
+ * 而 <a> 用的是继承来的 text-left —— 不统一就会出现一项居中、一项靠左。
+ */
+const ITEM_CLASS =
+  "w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+
+/**
  * 简历下载下拉菜单：一页版（站长上传的 PDF）与完整版（打印视图另存为 PDF）。
  *
  * 之所以对「一页版」用 fetch + blob 而不是直接 <a download>：
@@ -99,7 +108,7 @@ export default function DownloadMenu({ hasPdf }: { hasPdf: boolean }) {
               type="button"
               role="menuitem"
               onClick={downloadOnePage}
-              className="w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
+              className={ITEM_CLASS}
             >
               <FileText size={18} className="mt-0.5 shrink-0 text-gray-400" />
               <span className="min-w-0">
@@ -117,9 +126,7 @@ export default function DownloadMenu({ hasPdf }: { hasPdf: boolean }) {
             href="/resume/print"
             role="menuitem"
             onClick={() => setOpen(false)}
-            className={`w-full flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors ${
-              hasPdf ? "border-t border-gray-100" : ""
-            }`}
+            className={`${ITEM_CLASS} ${hasPdf ? "border-t border-gray-100" : ""}`}
           >
             <Printer size={18} className="mt-0.5 shrink-0 text-gray-400" />
             <span className="min-w-0">
