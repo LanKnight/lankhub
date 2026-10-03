@@ -77,6 +77,42 @@ const SECTION_LABELS: Record<SectionKey, string> = {
   footer: "求职意向",
 }
 
+/**
+ * 折叠区标题。
+ *
+ * 必须定义在组件外部：写在 ResumeForm 内部的话，每次渲染都会产生一个新的
+ * 组件类型，React 会当成不同组件而卸载重建 —— 而简历表单里任何一个输入框
+ * 敲字都会触发 ResumeForm 重渲染，等于每敲一个字就重建 11 个标题按钮。
+ *
+ * 它原本闭包引用了组件内的 toggle 与 expanded，改为通过 onToggle / isOpen 传入。
+ */
+function SectionHeader({
+  section,
+  isOpen,
+  onToggle,
+}: {
+  section: SectionKey
+  isOpen: boolean
+  onToggle: (key: SectionKey) => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(section)}
+      className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+    >
+      <span className="text-sm font-semibold text-gray-700">
+        {SECTION_LABELS[section]}
+      </span>
+      {isOpen ? (
+        <ChevronUp size={16} className="text-gray-400" />
+      ) : (
+        <ChevronDown size={16} className="text-gray-400" />
+      )}
+    </button>
+  )
+}
+
 export default function ResumeForm({ initialData }: ResumeFormProps) {
   const router = useRouter()
   const [profile, setProfile] = useState<ProfileData>({
@@ -171,10 +207,6 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
       if (successTimer.current) clearTimeout(successTimer.current)
     }
   }, [])
-
-  const toggleSection = (section: SectionKey) => {
-    setExpanded((prev) => ({ ...prev, [section]: !prev[section] }))
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -348,27 +380,6 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
     "w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-accent/20 focus:border-accent outline-none transition-all text-sm"
   const labelClass = "block text-sm font-medium text-gray-700 mb-1"
 
-  const SectionHeader = ({
-    section,
-  }: {
-    section: SectionKey
-  }) => (
-    <button
-      type="button"
-      onClick={() => toggle(section)}
-      className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-    >
-      <span className="text-sm font-semibold text-gray-700">
-        {SECTION_LABELS[section]}
-      </span>
-      {expanded[section] ? (
-        <ChevronUp size={16} className="text-gray-400" />
-      ) : (
-        <ChevronDown size={16} className="text-gray-400" />
-      )}
-    </button>
-  )
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-3xl">
       {error && (
@@ -383,7 +394,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
       )}
 
       {/* Profile Section */}
-      <SectionHeader section="profile" />
+      <SectionHeader section="profile" isOpen={expanded.profile} onToggle={toggle} />
       {expanded.profile && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-white rounded-xl border border-gray-100">
           {/* 头像上传 */}
@@ -460,7 +471,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
       )}
 
       {/* Personal Info */}
-      <SectionHeader section="personal" />
+      <SectionHeader section="personal" isOpen={expanded.personal} onToggle={toggle} />
       {expanded.personal && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-white rounded-xl border border-gray-100">
           {[
@@ -486,7 +497,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
       )}
 
       {/* Skills */}
-      <SectionHeader section="skills" />
+      <SectionHeader section="skills" isOpen={expanded.skills} onToggle={toggle} />
       {expanded.skills && (
         <div className="p-4 bg-white rounded-xl border border-gray-100 space-y-3">
           {skills.map((skill, i) => (
@@ -540,7 +551,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
       )}
 
       {/* Certificates */}
-      <SectionHeader section="certificates" />
+      <SectionHeader section="certificates" isOpen={expanded.certificates} onToggle={toggle} />
       {expanded.certificates && (
         <DynamicList
           items={certificates}
@@ -551,7 +562,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
       )}
 
       {/* Self Evaluation */}
-      <SectionHeader section="selfEval" />
+      <SectionHeader section="selfEval" isOpen={expanded.selfEval} onToggle={toggle} />
       {expanded.selfEval && (
         <div className="p-4 bg-white rounded-xl border border-gray-100">
           <textarea
@@ -565,7 +576,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
       )}
 
       {/* Hobbies */}
-      <SectionHeader section="hobbies" />
+      <SectionHeader section="hobbies" isOpen={expanded.hobbies} onToggle={toggle} />
       {expanded.hobbies && (
         <div className="p-4 bg-white rounded-xl border border-gray-100">
           <textarea
@@ -579,7 +590,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
       )}
 
       {/* Education */}
-      <SectionHeader section="education" />
+      <SectionHeader section="education" isOpen={expanded.education} onToggle={toggle} />
       {expanded.education && (
         <DynamicList
           items={education}
@@ -598,7 +609,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
       )}
 
       {/* Campus */}
-      <SectionHeader section="campus" />
+      <SectionHeader section="campus" isOpen={expanded.campus} onToggle={toggle} />
       {expanded.campus && (
         <DynamicList
           items={campus}
@@ -615,7 +626,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
       )}
 
       {/* Projects */}
-      <SectionHeader section="projects" />
+      <SectionHeader section="projects" isOpen={expanded.projects} onToggle={toggle} />
       {expanded.projects && (
         <DynamicList
           items={projects}
@@ -633,7 +644,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
       )}
 
       {/* Practices */}
-      <SectionHeader section="practices" />
+      <SectionHeader section="practices" isOpen={expanded.practices} onToggle={toggle} />
       {expanded.practices && (
         <DynamicList
           items={practices}
@@ -651,7 +662,7 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
       )}
 
       {/* Job Target */}
-      <SectionHeader section="footer" />
+      <SectionHeader section="footer" isOpen={expanded.footer} onToggle={toggle} />
       {expanded.footer && (
         <div className="p-4 bg-white rounded-xl border border-gray-100 space-y-4">
           <div>
