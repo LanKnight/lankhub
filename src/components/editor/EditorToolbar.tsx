@@ -64,7 +64,16 @@ export default function EditorToolbar({
   )
 
   return (
-    <div className="flex flex-wrap items-center gap-1 px-4 py-2 border-b border-gray-200 bg-gray-50/50">
+    /*
+     * 工具栏吸顶：长文滚动时停在导航栏下方，随时可点。
+     *
+     * top-16：导航栏高度是 h-16（4rem），正好贴在它下面。
+     * z-20：低于导航栏的 z-50，不会盖住导航栏。
+     * 底色必须不透明：原先的 bg-gray-50/50 在吸顶时会让正文从按钮缝隙透出来。
+     * rounded-t-xl：父层刻意去掉了 overflow-hidden（原因见 RichTextEditor），
+     * 卡片顶部的圆角裁切改由工具栏自己承担。
+     */
+    <div className="sticky top-16 z-20 flex flex-wrap items-center gap-1 px-4 py-2 border-b border-gray-200 bg-gray-50 rounded-t-xl">
       {/* Headings */}
       <div className="flex items-center gap-0.5 mr-2">
         <ToolButton

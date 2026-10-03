@@ -186,7 +186,16 @@ export default function RichTextEditor({
   }
 
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+    /*
+     * 这里刻意不写 overflow-hidden。
+     *
+     * 带 overflow 的元素自身就是一个滚动容器，而 position: sticky 是相对
+     * 最近的滚动容器吸附的 —— 一旦加回 overflow-hidden，工具栏的 sticky
+     * 就只会相对这个「永远不会滚动」的容器生效，页面滚动时它照样被滚走，
+     * 表现是「样式写了但完全没反应」。
+     * 卡片顶部的圆角裁切改由工具栏的 rounded-t-xl 承担。
+     */
+    <div className="border border-gray-200 rounded-xl bg-white">
       <EditorToolbar
         editor={editor}
         onAddImage={addImage}
