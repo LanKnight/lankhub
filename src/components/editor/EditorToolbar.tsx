@@ -11,7 +11,7 @@ import {
   Quote,
   Undo,
   Redo,
-  Image,
+  Image as ImageIcon,
   Link,
   Heading1,
   Heading2,
@@ -26,24 +26,27 @@ interface EditorToolbarProps {
   onAddLink: () => void
 }
 
-export default function EditorToolbar({
-  editor,
-  onAddImage,
-  onAddLink,
-}: EditorToolbarProps) {
-  const ToolButton = ({
-    onClick,
-    active = false,
-    disabled = false,
-    children,
-    title,
-  }: {
-    onClick: () => void
-    active?: boolean
-    disabled?: boolean
-    children: React.ReactNode
-    title: string
-  }) => (
+/**
+ * 工具栏按钮。
+ *
+ * 必须定义在组件外部：写在 EditorToolbar 内部的话，每次渲染都会产生一个新的
+ * 组件类型，React 会当成不同组件而卸载重建整排按钮 —— 而工具栏每次击键都会
+ * 重渲染（isActive 变了），等于打一个字就重建十几个 DOM 节点。
+ */
+function ToolButton({
+  onClick,
+  active = false,
+  disabled = false,
+  children,
+  title,
+}: {
+  onClick: () => void
+  active?: boolean
+  disabled?: boolean
+  children: React.ReactNode
+  title: string
+}) {
+  return (
     <button
       type="button"
       onClick={onClick}
@@ -62,7 +65,13 @@ export default function EditorToolbar({
       {children}
     </button>
   )
+}
 
+export default function EditorToolbar({
+  editor,
+  onAddImage,
+  onAddLink,
+}: EditorToolbarProps) {
   return (
     /*
      * 工具栏吸顶：长文滚动时停在导航栏下方，随时可点。
@@ -193,7 +202,8 @@ export default function EditorToolbar({
       {/* Media */}
       <div className="flex items-center gap-0.5">
         <ToolButton title="插入图片" onClick={onAddImage}>
-          <Image size={16} />
+          {/* 用 ImageIcon 别名：直接叫 Image 会被 jsx-a11y/alt-text 当成 <img> 要求 alt（误报） */}
+          <ImageIcon size={16} />
         </ToolButton>
         <ToolButton title="插入链接" onClick={onAddLink}>
           <Link size={16} />
