@@ -70,6 +70,15 @@ body {
   line-height: 1.8;
 }
 
+/*
+ * 锚点落点补偿：站点导航栏是 sticky h-16（4rem），
+ * 不补的话从目录点过去，标题会正好停在导航栏底下被盖住 —— 看起来像「跳歪了」。
+ * 这个值要和 TocSpy 里的 ACTIVE_LINE_PX（96px）对应着改。
+ */
+.prose :is(h1, h2, h3, h4, h5, h6) {
+  scroll-margin-top: 5rem;
+}
+
 /* Smooth scroll */
 html {
   scroll-behavior: smooth;

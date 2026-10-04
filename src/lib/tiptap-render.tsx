@@ -48,6 +48,41 @@ export function parseTiptapContent(content: string): TipTapNode {
   return { type: "doc", content: [] }
 }
 
+export interface TocItem {
+  id: string
+  level: number
+  text: string
+}
+
+/**
+ * 为正文里每个标题分配 id，并返回目录。
+ *
+ * 渲染与目录共用这一次遍历，所以「目录第 N 条」与「正文第 N 个标题」必然对得上，
+ * 不会出现点了跳不到的情况。
+ *
+ * 编号直接写回解析出来的节点（attrs.id），而不是把编号表一层层传进渲染函数 ——
+ * 后者要改动 renderNode / renderChildren 的一整串签名。文档树是本次调用新解析出的
+ * 局部对象，改它不会影响其他请求（绝不能用模块级变量存，那会在并发请求间串号）。
+ */
+export function assignHeadingIds(doc: TipTapNode): TocItem[] {
+  const items: TocItem[] = []
+  const walk = (node: TipTapNode) => {
+    if (node.type === "heading") {
+      const id = `heading-${items.length + 1}`
+      node.attrs = { ...(node.attrs ?? {}), id }
+      items.push({ id, level: readHeadingLevel(node), text: collectText(node) })
+    }
+    for (const child of node.content ?? []) walk(child)
+  }
+  walk(doc)
+  return items
+}
+
+/** 页面入口：直接从存储的 JSON 拿目录（会独立解析一次，几 KB 的 JSON 开销可忽略） */
+export function extractOutline(content: string): TocItem[] {
+  return assignHeadingIds(parseTiptapContent(content))
+}
+
 /**
  * 把存储的 TipTap JSON 渲染成 React 元素。
  *
@@ -55,7 +90,10 @@ export function parseTiptapContent(content: string): TipTapNode {
  * TipTap / ProseMirror / highlight.js 全部不再进入前台客户端包。
  */
 export function renderTiptapDocument(content: string): ReactNode {
-  return renderNode(parseTiptapContent(content), 0)
+  const doc = parseTiptapContent(content)
+  // 先分配 id，renderHeading 会读 attrs.id
+  assignHeadingIds(doc)
+  return renderNode(doc, 0)
 }
 
 function renderChildren(node: TipTapNode): ReactNode[] {
@@ -99,7 +137,14 @@ function renderNode(node: TipTapNode, key: number): ReactNode {
 
 function renderHeading(node: TipTapNode, key: number): ReactNode {
   const Tag = HEADING_TAGS[readHeadingLevel(node) - 1]
-  return <Tag key={key}>{renderChildren(node)}</Tag>
+  // id 由 assignHeadingIds 统一分配。万一没走到那一步（例如将来有人单独调用
+  // renderNode），就不输出 id —— 退化成「没有锚点」，而不是给出一个错的锚点
+  const id = typeof node.attrs?.id === "string" ? node.attrs.id : undefined
+  return (
+    <Tag key={key} id={id}>
+      {renderChildren(node)}
+    </Tag>
+  )
 }
 
 /** 编辑器只开放 1-3 级，但历史数据可能有更高层级，夹取到 1-6 防止越界 */
