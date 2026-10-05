@@ -20,8 +20,19 @@ export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
   const session = await auth()
-  if (!session?.user) return null
-  return session.user as unknown as AuthUser
+  const user = session?.user
+  // id 是登录后必然写入的，没有它就当未登录
+  if (!user?.id) return null
+
+  return {
+    id: user.id,
+    email: user.email ?? "",
+    name: user.name ?? "",
+    // 数据库里 role 是自由字符串，这里收敛成应用层认识的两种取值：
+    // 认不出来的一律按普通读者处理，符合最小权限
+    role: user.role === "OWNER" ? "OWNER" : "READER",
+    permissions: user.permissions ?? null,
+  }
 }
 
 export async function isOwner(): Promise<boolean> {

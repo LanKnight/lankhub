@@ -2,10 +2,26 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { rateLimit, getClientIp } from "@/lib/rate-limit"
+import { RegisterSchema } from "@/lib/validations"
+
+/** Prisma 把唯一约束冲突报成 P2002；这里不改用 error class 而做鸭子类型判断，避免耦合生成客户端的导出 */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "P2002"
+  )
+}
+
+/** P2002 的 meta.target 在 SQLite 下是索引名（如 User_name_key），据此区分是哪一列冲突 */
+function conflictedColumn(error: unknown): string {
+  const target = (error as { meta?: { target?: unknown } }).meta?.target
+  return String(target ?? "")
+}
 
 export async function POST(req: NextRequest) {
   // 频率限制：每个 IP 每小时最多注册 10 次
-  const ip = getClientIp(req)
+  const ip = getClientIp(req.headers)
   const limitResult = rateLimit(`register:${ip}`, 10, 60 * 60 * 1000)
   if (!limitResult.allowed) {
     return NextResponse.json(
@@ -15,48 +31,36 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { name, email: rawEmail, password } = await req.json()
+    const body = await req.json().catch(() => null)
 
-    // 统一邮箱格式：trim + 小写（SQLite unique 大小写敏感，避免重复账号/登录失败）
-    const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : ""
-
-    // Validation
-    if (!name || !email || !password) {
+    // 校验与规范化全部交给 zod：trim、邮箱小写、昵称上限都在 schema 里。
+    // 之前这里手写过一套平行规则，结果和 RegisterSchema 漂移了
+    // （schema 有 max(50)，接口没有；纯空白昵称也能过）。
+    const parsed = RegisterSchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "请填写所有必填字段" },
+        { error: parsed.error.issues[0]?.message || "请检查填写内容" },
         { status: 400 }
       )
     }
+    const { name, email, password } = parsed.data
 
-    if (password.length < 6) {
+    // 昵称唯一：这里可以给明确提示。它不泄露邮箱是否已注册，不存在枚举风险
+    const nameTaken = await prisma.user.findUnique({ where: { name } })
+    if (nameTaken) {
       return NextResponse.json(
-        { error: "密码长度至少6位" },
-        { status: 400 }
+        { error: "该昵称已被使用，请换一个" },
+        { status: 409 }
       )
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: "请输入有效的邮箱地址" },
-        { status: 400 }
-      )
-    }
-
-    // 检查邮箱是否已存在（使用模糊提示防止邮箱枚举）
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    })
-
+    // 邮箱已存在时统一返回成功 shape，防邮箱枚举（沿用原有策略）
+    const existingUser = await prisma.user.findUnique({ where: { email } })
     if (existingUser) {
       console.log("[register] duplicate email attempt")
-      return NextResponse.json(
-        { message: "注册成功" }, // 统一返回 shape，不暴露邮箱是否已注册
-        { status: 201 }
-      )
+      return NextResponse.json({ message: "注册成功" }, { status: 201 })
     }
 
-    // Create user
     const hashedPassword = await bcrypt.hash(password, 10)
     const user = await prisma.user.create({
       data: {
@@ -75,6 +79,19 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     )
   } catch (error) {
+    // 并发注册同一个昵称/邮箱时，上面的查询会同时放行，
+    // 这时靠数据库的唯一索引兜底，把它翻译回同一套提示
+    if (isUniqueViolation(error)) {
+      if (conflictedColumn(error).includes("name")) {
+        return NextResponse.json(
+          { error: "该昵称已被使用，请换一个" },
+          { status: 409 }
+        )
+      }
+      // 邮箱冲突同样不暴露是否存在
+      return NextResponse.json({ message: "注册成功" }, { status: 201 })
+    }
+
     console.error("Register error:", error)
     return NextResponse.json(
       { error: "注册失败，请稍后重试" },

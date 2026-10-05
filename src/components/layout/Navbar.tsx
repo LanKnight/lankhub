@@ -4,14 +4,15 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
-import { Menu, X, LogOut, User, PenLine } from "lucide-react"
+import { Menu, X, LogOut, User, PenLine, Settings } from "lucide-react"
 import { resolveActiveHref } from "@/lib/nav"
 
 export default function Navbar() {
   const { data: session, status } = useSession()
   const [menuOpen, setMenuOpen] = useState(false)
   const pathname = usePathname()
-  const user = session?.user as any
+  // session.user 的扩展字段由 src/types/next-auth.d.ts 声明，这里不再需要断言
+  const user = session?.user
 
   const navLinks = [
     { href: "/", label: "首页" },
@@ -83,6 +84,13 @@ export default function Navbar() {
                     管理
                   </Link>
                 )}
+                <Link
+                  href="/settings"
+                  className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  <Settings size={14} />
+                  设置
+                </Link>
                 <button
                   onClick={() => signOut({ callbackUrl: window.location.origin + "/" })}
                   className="flex items-center gap-1 text-sm text-gray-500 hover:text-red-500 transition-colors"
@@ -150,6 +158,13 @@ export default function Navbar() {
                   管理后台
                 </Link>
               )}
+              <Link
+                href="/settings"
+                className="block text-sm text-gray-600 hover:text-gray-900"
+                onClick={() => setMenuOpen(false)}
+              >
+                账号设置
+              </Link>
               <button
                 onClick={() => {
                   signOut({ callbackUrl: window.location.origin + "/" })

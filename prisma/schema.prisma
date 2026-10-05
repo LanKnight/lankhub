@@ -11,7 +11,9 @@ model User {
   id          Int       @id @default(autoincrement())
   email       String    @unique
   password    String
-  name        String
+  // 昵称唯一：否则无法区分同名用户，也挡不住「注册成站长」这类冒充。
+  // 上线前必须先跑 npm run db:normalize-usernames 清理存量重名，否则 db push 会失败。
+  name        String    @unique
   role        String    @default("READER")
   avatar      String?
   bio         String?

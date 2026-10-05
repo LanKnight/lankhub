@@ -57,6 +57,7 @@ npm run dev
 | 合集详情 | `/blog/collections/[slug]` | 合集内文章列表 |
 | 简历 | `/resume` | 在线简历展示 |
 | 完整版简历 | `/resume/print` | 单栏 A4 打印视图，供「另存为 PDF」 |
+| 账号设置 | `/settings` | 登录用户改自己的昵称与密码 |
 
 ### 管理后台
 
@@ -227,6 +228,31 @@ npm run update              # 一键更新：拉取 → 安装 → 推送DB → 
 >
 > 同一版本新增的「完整版简历」下载（`/resume/print` 打印视图）不需要任何额外命令。
 
+> ⚠️ **本次升级不能直接跑 `npm run update`，会中途失败。**
+>
+> 用户昵称（`User.name`）加上了唯一约束。Prisma 遇到「给已有数据的列加唯一索引」
+> 会先给出数据丢失警告并要求 `--accept-data-loss`，而 `npm run update` 里的 `db:push`
+> 没带这个参数，**会在推送数据库那一步中断**。另外如果库里已存在重名昵称，
+> 加索引会直接失败，所以必须先把存量昵称整理干净。
+>
+> 在服务器上按顺序执行一次：
+>
+> ```bash
+> git pull                                        # 先拿到新 schema 与整理脚本
+> npm run db:normalize-usernames -- --dry-run     # 先预览会改哪些昵称
+> npm run db:normalize-usernames                  # 确认后执行（幂等，可重复跑）
+> npx prisma db push --accept-data-loss           # 这一次需要显式接受数据风险
+> npm run update                                  # 之后照旧一键更新
+> ```
+>
+> 整理脚本会做的事：去掉首尾空白、把编码损坏的昵称（含 U+FFFD）换成 `user-<id>`、
+> 截断到 20 字、给重名依次追加 `-2`、`-3`。跑第二遍会报「无需整理」。
+>
+> 同一版本还新增了 `/settings`（账号设置）：**所有登录用户**都能改自己的昵称与密码。
+> 原先只有站长能从 `/admin/settings` 进，普通读者连改自己密码的入口都没有；
+> 现在 `/admin/settings` 会 302 跳到 `/settings`，后台侧栏的入口也移到了导航栏。
+
+
 ### PM2 常用命令
 
 | 命令 | 说明 |
@@ -250,6 +276,7 @@ npm run update              # 一键更新：拉取 → 安装 → 推送DB → 
 | `npm run db:push` | 同步数据库 Schema |
 | `npm run db:backfill-collections` | 把「已发布但没有合集」的文章归入「未分类」（幂等，加 `-- --dry-run` 先预览） |
 | `npm run db:cleanup-awards` | 清理历史遗留的「获奖荣誉」死数据（幂等，加 `-- --dry-run` 先预览） |
+| `npm run db:normalize-usernames` | 整理存量用户昵称（去空白、修损坏、去重），加唯一约束前必须先跑（幂等，加 `-- --dry-run` 先预览） |
 | `npm run db:seed` | 运行种子脚本，设置站长账号 |
 | `sqlite3 dev.db "SELECT id, email, name, role FROM User;"` | 查询账号 |
 

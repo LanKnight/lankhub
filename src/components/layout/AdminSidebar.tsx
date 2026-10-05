@@ -10,7 +10,6 @@ import {
   ImageIcon,
   MessageSquare,
   FileUser,
-  Settings,
   LogOut,
   Home,
   ScrollText,
@@ -28,13 +27,13 @@ const links = [
   { href: "/admin/comments", label: "评论管理", icon: MessageSquare, perm: null },
   { href: "/admin/resume", label: "简历编辑", icon: FileUser, perm: null },
   { href: "/admin/users", label: "账号管理", icon: Users, perm: null },
-  { href: "/admin/settings", label: "账号设置", icon: Settings, perm: null },
 ]
 
 export default function AdminSidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
-  const user = session?.user as any
+  // session.user 的扩展字段由 src/types/next-auth.d.ts 声明，这里不再需要断言
+  const user = session?.user
   const isOwner = user?.role === "OWNER"
 
   // 站长看全部；读者只显示自己有权限的模块（站长专属菜单一律隐藏）

@@ -69,7 +69,7 @@ export async function POST(
   if (user instanceof NextResponse) return user
 
   // 频率限制：每个用户每分钟最多 3 条评论
-  const ip = getClientIp(req)
+  const ip = getClientIp(req.headers)
   const limitResult = rateLimit(`comment:${user.id}`, 3, 60 * 1000)
   if (!limitResult.allowed) {
     return NextResponse.json(

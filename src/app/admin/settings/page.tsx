@@ -1,28 +1,9 @@
-import type { Metadata } from "next"
 import { redirect } from "next/navigation"
-import { getCurrentUser } from "@/lib/auth-helpers"
-import PasswordForm from "./PasswordForm"
 
-export const metadata: Metadata = {
-  title: "账号设置 - 管理后台",
-}
-
-export default async function AdminSettingsPage() {
-  // 账号设置为站长专属
-  const user = await getCurrentUser()
-  if (user?.role !== "OWNER") redirect("/admin")
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">账号设置</h1>
-        <p className="text-sm text-gray-500 mt-1">修改站长登录密码</p>
-      </div>
-
-      <div className="bg-white rounded-xl border border-gray-100 p-6">
-        <h2 className="font-semibold text-gray-900 mb-4">修改密码</h2>
-        <PasswordForm />
-      </div>
-    </div>
-  )
+/**
+ * 账号设置已迁到 /settings —— 那里对所有登录用户开放（原来只有站长进得来）。
+ * 保留这个路由做 302，避免旧书签和后台侧栏的旧链接变成 404。
+ */
+export default function AdminSettingsPage() {
+  redirect("/settings")
 }

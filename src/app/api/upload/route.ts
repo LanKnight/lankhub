@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 频率限制：每用户每分钟最多 10 次上传
-  const ip = getClientIp(req)
+  const ip = getClientIp(req.headers)
   const limitResult = rateLimit(`upload:${ip}`, 10, 60 * 1000)
   if (!limitResult.allowed) {
     return NextResponse.json(
