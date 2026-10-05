@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useSession, signOut } from "next-auth/react"
+import { useSession } from "next-auth/react"
 import {
   LayoutDashboard,
   FileText,
@@ -10,8 +10,6 @@ import {
   ImageIcon,
   MessageSquare,
   FileUser,
-  LogOut,
-  Home,
   ScrollText,
   Users,
 } from "lucide-react"
@@ -72,33 +70,13 @@ export default function AdminSidebar() {
         })}
       </nav>
 
-      <div className="hidden md:block space-y-1 pt-4 border-t border-white/10">
-        <Link
-          href="/"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
-        >
-          <Home size={18} />
-          回首页
-        </Link>
-        <button
-          onClick={() => signOut({ callbackUrl: window.location.origin + "/" })}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-red-400 hover:bg-white/5 transition-colors"
-        >
-          <LogOut size={18} />
-          退出登录
-        </button>
-      </div>
-
-      {/* 移动端退出（桌面端在左侧栏） */}
-      <div className="md:hidden pt-2 border-t border-white/10">
-        <button
-          onClick={() => signOut({ callbackUrl: window.location.origin + "/" })}
-          className="w-full flex items-center justify-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-red-400 hover:bg-white/5 transition-colors"
-        >
-          <LogOut size={16} />
-          退出登录
-        </button>
-      </div>
+      {/*
+        这里原先还有「回首页」与「退出登录」两块，现在都去掉了：
+          · 回首页 —— 顶部导航栏的 logo 就是回首页，同一屏里出现三次没有意义
+          · 退出   —— 统一收进 /settings（站长与读者都从那里退）
+        顺带也消掉了原先桌面端/移动端两套重复实现 ——
+        那两套里移动端还漏了「回首页」，不对称。
+      */}
     </aside>
   )
 }

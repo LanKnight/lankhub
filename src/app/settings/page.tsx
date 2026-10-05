@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
 import ProfileForm from "@/components/settings/ProfileForm"
 import PasswordForm from "@/components/settings/PasswordForm"
+import LogoutButton from "@/components/settings/LogoutButton"
 
 export const metadata: Metadata = {
   title: "账号设置",
@@ -47,6 +48,14 @@ export default async function SettingsPage() {
         <section className="bg-white rounded-xl border border-gray-100 p-6">
           <h2 className="font-semibold text-gray-900 mb-4">修改密码</h2>
           <PasswordForm />
+        </section>
+
+        <section className="bg-white rounded-xl border border-gray-100 p-6">
+          <h2 className="font-semibold text-gray-900 mb-1">退出登录</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            退出后需要重新登录才能评论或进入后台。
+          </p>
+          <LogoutButton />
         </section>
       </div>
     </div>
