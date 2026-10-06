@@ -1,5 +1,9 @@
 import { auth } from "@/lib/auth"
 import { NextResponse } from "next/server"
+import {
+  type PermissionCode,
+  userHasPermission,
+} from "@/lib/permissions"
 
 export type AuthUser = {
   id: string
@@ -9,14 +13,16 @@ export type AuthUser = {
   permissions?: string | null
 }
 
-/** 可授予读者的权限码（站长 OWNER 恒有全部权限） */
-export const PERMISSIONS = {
-  article: "article", // 文章管理（只能操作自己创建的文章）
-  photo: "photo", // 相册管理（只能操作自己上传的照片）
-  poem: "poem", // 拾章管理（只能操作自己添加的诗词）
-} as const
-
-export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
+/*
+ * 权限码的唯一真相源在 src/lib/permissions.ts。
+ *
+ * 之所以单独一个文件：那个模块不导入任何服务端东西，客户端组件（Navbar、
+ * UserManager、AdminSidebar）才能引用；而本文件导入了 @/lib/auth，客户端引不进来 ——
+ * 原先就是因此导致权限清单被抄成了 4 份。
+ * 这里转发一下，方便服务端代码少写一个 import。
+ */
+export { PERMISSIONS, PERMISSION_CODES, canAccessAdmin } from "@/lib/permissions"
+export type { PermissionCode } from "@/lib/permissions"
 
 export async function getCurrentUser(): Promise<AuthUser | null> {
   const session = await auth()
@@ -40,15 +46,12 @@ export async function isOwner(): Promise<boolean> {
   return user?.role === "OWNER"
 }
 
-/** 判断用户是否拥有某权限（OWNER 恒有） */
+/** 判断用户是否拥有某权限（OWNER 恒有）。实现见 src/lib/permissions.ts */
 export function hasPermission(
   user: AuthUser | null,
   perm: PermissionCode
 ): boolean {
-  if (!user) return false
-  if (user.role === "OWNER") return true
-  const perms = user.permissions?.split(",").map((p) => p.trim()) || []
-  return perms.includes(perm)
+  return userHasPermission(user, perm)
 }
 
 export async function requireOwnerUser() {

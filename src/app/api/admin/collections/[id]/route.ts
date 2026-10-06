@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireOwner } from "@/lib/auth-helpers"
 import { generateSlug } from "@/lib/utils"
-import { IdSchema } from "@/lib/validations"
+import { IdSchema, CollectionUpdateSchema } from "@/lib/validations"
 import {
   ensureUncategorizedCollection,
   isUncategorizedCollection,
@@ -28,15 +28,16 @@ export async function PUT(
   if (id instanceof NextResponse) return id
 
   try {
-    const body = await req.json().catch(() => null)
-    if (!body || typeof body !== "object") {
+    // PUT 是局部更新语义，所以用 CollectionUpdateSchema（= CollectionSchema.partial()）：
+    // 未传的字段保持原值，不能因为缺 name 就把只改描述的请求打回
+    const parsed = CollectionUpdateSchema.safeParse(await req.json().catch(() => null))
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "请求体不是合法的 JSON" },
+        { error: parsed.error.issues[0]?.message || "请检查填写内容" },
         { status: 400 }
       )
     }
-
-    const { name, description, coverImage, sortOrder } = body as Record<string, unknown>
+    const { name, description, coverImage, sortOrder } = parsed.data
 
     const existing = await prisma.collection.findUnique({
       where: { id },
@@ -47,7 +48,7 @@ export async function PUT(
     }
 
     let slug = existing.slug
-    if (typeof name === "string" && name && name !== existing.name) {
+    if (name && name !== existing.name) {
       slug = generateSlug(name)
       const duplicate = await prisma.collection.findFirst({
         where: { slug, id: { not: id } },
@@ -60,14 +61,11 @@ export async function PUT(
     const collection = await prisma.collection.update({
       where: { id },
       data: {
-        name: typeof name === "string" && name ? name : existing.name,
+        name: name ?? existing.name,
         slug,
-        description:
-          typeof description === "string" ? description : existing.description,
-        coverImage:
-          typeof coverImage === "string" ? coverImage : existing.coverImage,
-        sortOrder:
-          typeof sortOrder === "number" ? sortOrder : existing.sortOrder,
+        description: description ?? existing.description,
+        coverImage: coverImage ?? existing.coverImage,
+        sortOrder: sortOrder ?? existing.sortOrder,
       },
     })
 

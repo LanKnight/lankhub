@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/auth-helpers"
 import { rateLimit, getClientIp } from "@/lib/rate-limit"
+import { CommentSchema } from "@/lib/validations"
 
 export async function GET(
   req: NextRequest,
@@ -83,23 +84,16 @@ export async function POST(
 
   try {
     const { id } = await params
-    const body = await req.json()
-    const { content, parentId } = body
 
-    if (!content || content.trim().length === 0) {
+    // 校验与 trim 全部交给 CommentSchema（原先这里手写了一套平行规则）
+    const parsed = CommentSchema.safeParse(await req.json().catch(() => null))
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "评论内容不能为空" },
+        { error: parsed.error.issues[0]?.message || "评论内容不合法" },
         { status: 400 }
       )
     }
-
-    // 限制评论最大长度 5000 字符
-    if (content.trim().length > 5000) {
-      return NextResponse.json(
-        { error: "评论内容过长，最多 5000 字" },
-        { status: 400 }
-      )
-    }
+    const { content, parentId } = parsed.data
 
     // Check if article exists and is published
     const article = await prisma.article.findUnique({
@@ -128,7 +122,7 @@ export async function POST(
 
     const comment = await prisma.comment.create({
       data: {
-        content: content.trim(),
+        content,
         articleId: parseInt(id),
         authorId: parseInt(user.id),
         parentId: parentId || null,

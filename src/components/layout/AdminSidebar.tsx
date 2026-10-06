@@ -13,11 +13,21 @@ import {
   ScrollText,
   Users,
   Headphones,
+  type LucideIcon,
 } from "lucide-react"
 
 import { resolveActiveHref } from "@/lib/nav"
+import type { PermissionCode } from "@/lib/permissions"
 
-const links = [
+interface AdminLink {
+  href: string
+  label: string
+  icon: LucideIcon
+  /** 需要的权限码；null 表示仅站长可见。加了类型约束后，权限码写错 tsc 会直接报错 */
+  perm: PermissionCode | null
+}
+
+const links: AdminLink[] = [
   { href: "/admin", label: "仪表盘", icon: LayoutDashboard, perm: null },
   { href: "/admin/articles", label: "文章管理", icon: FileText, perm: "article" },
   { href: "/admin/collections", label: "合集管理", icon: FolderOpen, perm: null },

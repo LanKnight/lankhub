@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireOwner } from "@/lib/auth-helpers"
 import { generateSlug } from "@/lib/utils"
+import { CollectionSchema } from "@/lib/validations"
 
 export async function GET(req: NextRequest) {
   const authError = await requireOwner()
@@ -24,15 +25,15 @@ export async function POST(req: NextRequest) {
   if (authError) return authError
 
   try {
-    const body = await req.json()
-    const { name, description, coverImage, sortOrder } = body
-
-    if (!name) {
+    // 校验交给 CollectionSchema（原先只判了个 !name）
+    const parsed = CollectionSchema.safeParse(await req.json().catch(() => null))
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "合集名称为必填项" },
+        { error: parsed.error.issues[0]?.message || "请检查填写内容" },
         { status: 400 }
       )
     }
+    const { name, description, coverImage, sortOrder } = parsed.data
 
     let slug = generateSlug(name)
     const existing = await prisma.collection.findUnique({ where: { slug } })

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
-import { getCurrentUser, hasPermission } from "@/lib/auth-helpers"
+import { getCurrentUser } from "@/lib/auth-helpers"
+import { canAccessAdmin } from "@/lib/permissions"
 import AdminSidebar from "@/components/layout/AdminSidebar"
 
 export default async function AdminLayout({
@@ -13,14 +14,9 @@ export default async function AdminLayout({
     redirect("/auth/login?callbackUrl=/admin")
   }
 
-  // 站长全权限；读者需拥有任一功能权限（文章/相册/拾章）才能进入后台
-  const allowed =
-    user.role === "OWNER" ||
-    hasPermission(user, "article") ||
-    hasPermission(user, "photo") ||
-    hasPermission(user, "poem")
-
-  if (!allowed) {
+  // 站长全权限；读者需拥有任一内容权限才能进入后台。
+  // 与 Navbar 的「管理」入口共用同一套判断，不再各写一份权限清单
+  if (!canAccessAdmin(user)) {
     redirect("/")
   }
 

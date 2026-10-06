@@ -2,10 +2,29 @@ import { z } from "zod"
 
 import { isSafeUrl } from "@/lib/utils"
 
-// 分页参数
+/*
+ * 让 zod 内置的类型错误也说中文。
+ *
+ * 不设的话，字段**完全缺失**时（例如请求体里压根没有 name）返回的是
+ * `Invalid input: expected string, received undefined` —— 英文且对用户没意义。
+ * 注意这只影响类型层错误；带自定义文案的规则（.min/.max/.email 等）不受影响。
+ */
+z.config(z.locales.zhCN())
+
+/**
+ * 分页参数。
+ *
+ * 用 .catch 兜底而不是让 min/max 直接失败：`?page=abc` 这类脏查询串
+ * 在改造前是回退到默认值的（parseInt(...) || 1），改成 400 属于行为变更。
+ * limit 越界用 transform 夹取到 1–50，与原来的 Math.min/max 语义一致。
+ */
 export const PaginationSchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(50).default(10),
+  page: z.coerce.number().int().min(1).catch(1),
+  limit: z.coerce
+    .number()
+    .int()
+    .catch(10)
+    .transform((n) => Math.min(50, Math.max(1, n))),
 })
 
 // ID 参数
@@ -104,6 +123,7 @@ export const SongImportSchema = z.object({
 export const CommentSchema = z.object({
   content: z
     .string()
+    .trim()
     .min(1, "评论内容不能为空")
     .max(5000, "评论内容过长，最多 5000 字"),
   parentId: z.number().int().positive().optional(),
@@ -155,26 +175,76 @@ export const AdminArticleListSchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 })
 
-// 合集创建/更新
+/**
+ * 合集创建。
+ *
+ * 刻意不收 slug：它由服务端从名称生成（generateSlug）并在重名时加后缀，
+ * 让客户端传 slug 会变成可控的 URL，没有好处。原 schema 里的 slug 字段
+ * 接口从来没读过，属于会误导人的东西。
+ * coverImage 是接口实际在用、而原 schema 漏掉的字段 ——
+ * zod 默认会剥掉未知字段，漏一个就是静默丢数据。
+ */
 export const CollectionSchema = z.object({
-  name: z.string().min(1, "名称不能为空").max(100, "名称过长"),
-  slug: z.string().min(1).max(100).optional(),
+  name: z.string().trim().min(1, "名称不能为空").max(100, "名称过长"),
   description: z.string().max(500, "描述过长").optional(),
+  coverImage: z.string().trim().max(500, "封面地址过长").optional(),
   sortOrder: z.number().int().min(0).optional(),
 })
 
-// 简历资料更新
+/**
+ * 合集更新：PUT 是局部更新语义（未传的字段保持原值），
+ * 所以必须用 partial —— 否则只改描述的请求会因为缺 name 而 400。
+ */
+export const CollectionUpdateSchema = CollectionSchema.partial()
+
+/**
+ * 简历资料。
+ *
+ * 字段必须与 /api/admin/resume 的 PUT 用到的完全一致：
+ * 原 schema 只覆盖了 15 个字段里的 11 个，漏掉 avatar / hobbies / resumePdf，
+ * 直接套上去会把这三项静默丢掉。
+ * resumePdf 的路径合法性在路由里另有更严格的正则校验（防止路径穿越）。
+ */
 export const ResumeProfileSchema = z.object({
-  name: z.string().max(100).optional(),
-  title: z.string().max(200).optional(),
-  email: z.string().email().max(200).optional().or(z.literal("")),
-  phone: z.string().max(50).optional(),
-  location: z.string().max(200).optional(),
+  name: z.string().trim().min(1, "姓名为必填项").max(100, "姓名过长"),
+  title: z.string().max(200, "职位过长").optional(),
+  email: z.string().email("邮箱格式不正确").max(200).optional().or(z.literal("")),
+  phone: z.string().max(50, "电话过长").optional(),
+  location: z.string().max(200, "所在地过长").optional(),
+  avatar: z.string().max(500, "头像地址过长").optional().nullable(),
   birthDate: z.string().max(50).optional(),
   birthplace: z.string().max(200).optional(),
   degree: z.string().max(100).optional(),
   political: z.string().max(100).optional(),
-  selfEvaluation: z.string().max(2000).optional(),
-  jobTarget: z.string().max(200).optional(),
-  jobSummary: z.string().max(2000).optional(),
+  selfEvaluation: z.string().max(2000, "自我评价过长").optional(),
+  jobTarget: z.string().max(200, "求职意向过长").optional(),
+  jobSummary: z.string().max(2000, "求职摘要过长").optional(),
+  hobbies: z.string().max(1000, "兴趣爱好过长").optional(),
+  resumePdf: z.string().max(500).optional().nullable(),
+})
+
+/** 简历技能（保存时整批替换） */
+export const ResumeSkillSchema = z.object({
+  name: z.string().trim().min(1, "技能名不能为空").max(100, "技能名过长"),
+  level: z.number().int().min(0).max(100).optional(),
+  sortOrder: z.number().int().min(0).optional(),
+})
+
+/** 简历经历（保存时整批替换） */
+export const ResumeExperienceSchema = z.object({
+  type: z.string().trim().min(1, "经历类型不能为空").max(50),
+  title: z.string().trim().min(1, "经历标题不能为空").max(200, "标题过长"),
+  subtitle: z.string().max(200).optional().nullable(),
+  startDate: z.string().max(50).optional().nullable(),
+  endDate: z.string().max(50).optional().nullable(),
+  description: z.string().max(5000, "描述过长").optional().nullable(),
+  techStack: z.string().max(500).optional().nullable(),
+  sortOrder: z.number().int().min(0).optional(),
+})
+
+/** 简历保存的完整请求体 */
+export const ResumeSaveSchema = z.object({
+  profile: ResumeProfileSchema,
+  skills: z.array(ResumeSkillSchema).max(100, "技能过多").optional(),
+  experiences: z.array(ResumeExperienceSchema).max(200, "经历过多").optional(),
 })

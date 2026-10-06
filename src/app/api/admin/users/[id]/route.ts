@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireOwner, getCurrentUser } from "@/lib/auth-helpers"
-
-/** 允许授予的权限码 */
-const ALLOWED_PERMS = ["article", "photo", "poem"]
+import { isPermissionCode } from "@/lib/permissions"
 
 /**
  * 更新账号权限（站长专属）
@@ -52,7 +50,7 @@ export async function PUT(
     // 规范化权限列表：仅允许已知权限码，去重
     const raw = Array.isArray(body.permissions) ? body.permissions : []
     const permissions = [
-      ...new Set(raw.filter((p: string) => ALLOWED_PERMS.includes(p))),
+      ...new Set(raw.filter((p: unknown) => isPermissionCode(p))),
     ].join(",")
 
     const updated = await prisma.user.update({

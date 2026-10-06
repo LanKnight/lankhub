@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Menu, X, User, PenLine, Settings } from "lucide-react"
 import { resolveActiveHref } from "@/lib/nav"
+import { canAccessAdmin } from "@/lib/permissions"
 
 export default function Navbar() {
   const { data: session, status } = useSession()
@@ -30,10 +31,9 @@ export default function Navbar() {
   const isActive = (href: string) => href === activeHref
 
   // 管理入口：站长 或 拥有任一内容权限（文章/相册/拾章）的授权读者
-  const userPerms = (user?.permissions || "").split(",").map((p: string) => p.trim())
-  const canManage =
-    user?.role === "OWNER" ||
-    ["article", "photo", "poem"].some((p) => userPerms.includes(p))
+  // 管理入口：站长 或 拥有任一内容权限的授权读者。
+  // 与后台布局共用 canAccessAdmin，不再各写一份权限清单
+  const canManage = canAccessAdmin(user)
 
   /**
    * 后台页面收窄导航栏。

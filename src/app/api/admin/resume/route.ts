@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { requireOwner } from "@/lib/auth-helpers"
+import { ResumeSaveSchema } from "@/lib/validations"
 
 export async function GET() {
   const authError = await requireOwner()
@@ -34,15 +35,20 @@ export async function PUT(req: NextRequest) {
   if (authError) return authError
 
   try {
-    const body = await req.json()
-    const { profile: profileData, skills, experiences } = body
-
-    if (!profileData || !profileData.name) {
+    /*
+     * 校验交给 ResumeSaveSchema —— 它的字段清单与下面用到的完全对齐。
+     * 这一点必须小心：zod 会静默剥掉未知字段，原来那个 ResumeProfileSchema
+     * 只覆盖了 15 个字段里的 11 个（漏 avatar / hobbies / resumePdf），
+     * 直接套上去会把这三项默默丢掉。
+     */
+    const parsed = ResumeSaveSchema.safeParse(await req.json().catch(() => null))
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "姓名为必填项" },
+        { error: parsed.error.issues[0]?.message || "请检查填写内容" },
         { status: 400 }
       )
     }
+    const { profile: profileData, skills, experiences } = parsed.data
 
     // 安全校验：resumePdf 必须是合法路径格式（防止路径穿越写入，移到 transaction 外避免 TS 类型问题）
     const resumePdf = profileData.resumePdf || null
@@ -95,7 +101,7 @@ export async function PUT(req: NextRequest) {
         await tx.resumeSkill.deleteMany({ where: { profileId: profile.id } })
         if (skills.length > 0) {
           await tx.resumeSkill.createMany({
-            data: skills.map((s: any, i: number) => ({
+            data: skills.map((s, i) => ({
               name: s.name,
               level: s.level ?? 0,
               sortOrder: s.sortOrder ?? i,
@@ -112,7 +118,7 @@ export async function PUT(req: NextRequest) {
         })
         if (experiences.length > 0) {
           await tx.resumeExperience.createMany({
-            data: experiences.map((e: any, i: number) => ({
+            data: experiences.map((e, i) => ({
               type: e.type,
               title: e.title,
               subtitle: e.subtitle || null,

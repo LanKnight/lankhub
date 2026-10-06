@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { PaginationSchema } from "@/lib/validations"
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
-    const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1)
-    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "10") || 10))
+    // 分页参数交给 PaginationSchema：它用 .catch 保留原有的宽松回退
+    // （脏查询串回退到默认值，而不是变成 400），limit 越界则夹取到 1–50
+    const parsed = PaginationSchema.safeParse({
+      page: searchParams.get("page") ?? undefined,
+      limit: searchParams.get("limit") ?? undefined,
+    })
+    const { page, limit } = parsed.success ? parsed.data : { page: 1, limit: 10 }
     const skip = (page - 1) * limit
 
     const [articles, total] = await Promise.all([

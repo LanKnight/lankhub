@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react"
 import { Trash2, Loader2, ShieldCheck, User as UserIcon } from "lucide-react"
 import { useToast } from "@/components/ui/Toast"
 import { formatDate } from "@/lib/utils"
+import { PERMISSIONS } from "@/lib/permissions"
 
 interface Account {
   id: number
@@ -22,17 +23,15 @@ interface Account {
   }
 }
 
-const PERM_OPTIONS = [
-  { code: "article", label: "文章管理" },
-  { code: "photo", label: "相册管理" },
-  { code: "poem", label: "拾章管理" },
-]
+// 权限码与中文标签都取自唯一真相源，不在这里另抄一份
+const PERM_OPTIONS = PERMISSIONS
 
 export default function UserManager({ initialUsers }: { initialUsers: Account[] }) {
   const router = useRouter()
   const { toast } = useToast()
   const { data: session } = useSession()
-  const myId = parseInt((session?.user as any)?.id || "0")
+  // session.user 的扩展字段由 src/types/next-auth.d.ts 声明，这里不再需要断言
+  const myId = parseInt(session?.user?.id || "0")
 
   const [users, setUsers] = useState<Account[]>(initialUsers)
   const [error, setError] = useState("")
