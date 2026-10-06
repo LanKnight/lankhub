@@ -11,6 +11,7 @@ import {
   ArticleCreateSchema,
   CollectionSchema,
   CommentSchema,
+  ProfileUpdateSchema,
   ResumeExperienceSchema,
   ResumeProfileSchema,
   ResumeSkillSchema,
@@ -29,6 +30,11 @@ import {
  * 那正是这个项目里「权限码被抄成 5 份」的同类问题。
  *
  * 只读：全程只有 findMany，不会写入任何数据。
+ *
+ * 已知局限：它校验的是**已有数据**，所以查不出「某个可空列暂时还没有 null 值」
+ * 这种隐患 —— 那种情况要等第一批 null 出现时才会暴露。
+ * schema 与数据模型的可空性是否一致，仍需人工对照 prisma/schema.prisma 复核。
+ *（已经因此修过三次：Collection.coverImage、Song.link、Comment.parentId）
  *
  * 用法：
  *   npx tsx prisma/check-limits.ts
@@ -115,6 +121,15 @@ async function main() {
       checkWith(CommentSchema, row, "评论", `#${row.id}`, issues)
     }
 
+    // 账号：ProfileUpdateSchema 要求昵称非空（昵称另有唯一约束兜底）
+    const users = await prisma.user.findMany({
+      select: { id: true, name: true, bio: true },
+      orderBy: { id: "asc" },
+    })
+    for (const row of users) {
+      checkWith(ProfileUpdateSchema, row, "账号", describeRow(row, "name"), issues)
+    }
+
     // 相册分类 music 已被改造成歌单页：这些照片不会被删除，但已不在任何页面展示
     const orphanPhotos = await prisma.photo.count({ where: { category: "music" } })
 
@@ -127,7 +142,7 @@ async function main() {
     console.log(
       `扫描：合集 ${collections.length} · 简历资料 ${profiles.length} · ` +
         `经历 ${experiences.length} · 技能 ${skills.length} · 文章 ${articles.length} · ` +
-        `歌单 ${songs.length} · 评论 ${comments.length}`
+        `歌单 ${songs.length} · 评论 ${comments.length} · 账号 ${users.length}`
     )
 
     if (issues.length === 0) {
@@ -141,9 +156,11 @@ async function main() {
         }
       }
       console.log(
-        `\n共 ${issues.length} 处会被新规则卡住。` +
-          "\n这些记录前台照常显示，只是无法在后台保存。" +
-          "\n处理方式二选一：在后台把它们改到符合规则，或放宽 /src/lib/validations 里对应的上限。"
+        `\n共 ${issues.length} 处不符合接口的校验规则。` +
+          "\n它们前台照常显示，但把该记录原样提交给对应接口会被拒绝。" +
+          "\n可编辑的内容（合集/简历/文章/歌单）会表现为后台保存失败；" +
+          "\n评论在后台只能删除、账号只能改权限，所以实际影响仅限于直接调用接口。" +
+          "\n处理方式二选一：在后台把它们改到符合规则，或放宽 /src/lib/validations 里对应的限制。"
       )
     }
 

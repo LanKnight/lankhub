@@ -69,7 +69,8 @@ export const RegisterSchema = z.object({
 /** 个人资料更新（昵称 + 简介；头像暂不开放给普通用户） */
 export const ProfileUpdateSchema = z.object({
   name: NicknameSchema,
-  bio: z.string().trim().max(200, "个人简介不能超过 200 字").optional(),
+  // User.bio 在库里可空，所以同时接受 null（保持 schema 不比数据模型更严格）
+  bio: z.string().trim().max(200, "个人简介不能超过 200 字").optional().nullable(),
 })
 
 /** 修改密码 */
@@ -127,7 +128,9 @@ export const CommentSchema = z.object({
     .trim()
     .min(1, "评论内容不能为空")
     .max(5000, "评论内容过长，最多 5000 字"),
-  parentId: z.number().int().positive().optional(),
+  // Comment.parentId 在库里可空（顶层评论就是 null）。
+  // 只写 .optional() 的话，把一条顶层评论原样回传会被判为非法。
+  parentId: z.number().int().positive().optional().nullable(),
 })
 
 // 文章字段。创建与更新共用，更新时全部可选（保持 PUT 的局部更新语义，
