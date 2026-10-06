@@ -24,6 +24,7 @@ model User {
   comments    Comment[]
   photos      Photo[]
   poems       Poem[]
+  songs       Song[]
   sessions    Session[]
   accounts    Account[]
 }
@@ -196,4 +197,24 @@ model Poem {
   updatedAt DateTime @updatedAt
 
   @@index([sortOrder])
+}
+
+/// 歌单：我喜欢的歌。前台按歌手分组展示，所以 artist 是必填。
+model Song {
+  id        Int      @id @default(autoincrement())
+  title     String
+  artist    String
+  /// 外链（QQ音乐 / 网易云 / YouTube 等），可选
+  link      String?
+  /// 特别推荐：在所属歌手分组里置顶并加标记
+  favorite  Boolean  @default(false)
+  sortOrder Int      @default(0)
+  authorId  Int?
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// 前台按歌手分组取数，所以索引带上 artist
+  @@index([artist, sortOrder])
+  @@index([sortOrder, createdAt])
 }

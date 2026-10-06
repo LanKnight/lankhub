@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { isSafeUrl } from "@/lib/utils"
+
 // 分页参数
 export const PaginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -55,6 +57,47 @@ export const ProfileUpdateSchema = z.object({
 export const ChangePasswordSchema = z.object({
   oldPassword: z.string().min(1, "请输入当前密码"),
   newPassword: PasswordSchema,
+})
+
+// 歌单。上限与 src/lib/music.ts 里的解析器保持一致
+const SongTitleSchema = z
+  .string()
+  .trim()
+  .min(1, "请填写歌名")
+  .max(100, "歌名过长")
+const SongArtistSchema = z
+  .string()
+  .trim()
+  .min(1, "请填写歌手")
+  .max(100, "歌手名过长")
+const SongLinkSchema = z
+  .string()
+  .trim()
+  .max(500, "链接过长")
+  .refine((v) => v === "" || isSafeUrl(v), "链接仅支持 http/https 或站内相对路径")
+  .optional()
+
+/** 新增一首歌 */
+export const SongCreateSchema = z.object({
+  title: SongTitleSchema,
+  artist: SongArtistSchema,
+  link: SongLinkSchema,
+  favorite: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).optional(),
+})
+
+/** 更新一首歌（局部更新语义，字段全部可选） */
+export const SongUpdateSchema = z.object({
+  title: SongTitleSchema.optional(),
+  artist: SongArtistSchema.optional(),
+  link: SongLinkSchema,
+  favorite: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).optional(),
+})
+
+/** 批量导入：只带上文本，解析交给 parseSongLines（与客户端预览同一份逻辑） */
+export const SongImportSchema = z.object({
+  text: z.string().min(1, "请先粘贴内容").max(200_000, "内容过长"),
 })
 
 // 评论

@@ -12,6 +12,7 @@ import {
   FileUser,
   ScrollText,
   Users,
+  Headphones,
 } from "lucide-react"
 
 import { resolveActiveHref } from "@/lib/nav"
@@ -22,6 +23,8 @@ const links = [
   { href: "/admin/collections", label: "合集管理", icon: FolderOpen, perm: null },
   { href: "/admin/photos", label: "相册管理", icon: ImageIcon, perm: "photo" },
   { href: "/admin/poems", label: "拾章管理", icon: ScrollText, perm: "poem" },
+  // perm 为 null = 仅站长可见（歌单是站长私人的收藏）
+  { href: "/admin/music", label: "歌单管理", icon: Headphones, perm: null },
   { href: "/admin/comments", label: "评论管理", icon: MessageSquare, perm: null },
   { href: "/admin/resume", label: "简历编辑", icon: FileUser, perm: null },
   { href: "/admin/users", label: "账号管理", icon: Users, perm: null },

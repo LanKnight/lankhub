@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ScrollText } from "lucide-react"
+import { Headphones, ScrollText } from "lucide-react"
 import { PHOTO_CATEGORIES, HOBBY_ICONS } from "@/lib/photo-categories"
 import { staggerDelay } from "@/lib/motion"
 
@@ -33,11 +33,27 @@ export default function HobbiesSection() {
             )
           })}
 
+          {/*
+            清弦：歌单。原先它是相册里的一个分类，但音乐照片太少，
+            已经改成歌单页（/music），所以这里单独列一格而不是从相册分类里取。
+          */}
+          <Link
+            href="/music"
+            className="flex flex-col items-center gap-2.5 p-5 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group animate-rise-in"
+            style={{ animationDelay: staggerDelay(PHOTO_CATEGORIES.length, 60) }}
+          >
+            <Headphones
+              size={28}
+              className="text-pink-500 group-hover:scale-110 transition-transform"
+            />
+            <span className="text-sm font-medium text-gray-600">清弦</span>
+          </Link>
+
           {/* 拾章：诗词收藏（与六栏目同一行） */}
           <Link
             href="/poems"
             className="flex flex-col items-center gap-2.5 p-5 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group animate-rise-in"
-            style={{ animationDelay: staggerDelay(PHOTO_CATEGORIES.length, 60) }}
+            style={{ animationDelay: staggerDelay(PHOTO_CATEGORIES.length + 1, 60) }}
           >
             <ScrollText
               size={28}

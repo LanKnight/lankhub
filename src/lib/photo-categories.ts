@@ -2,12 +2,17 @@ import {
   Code2,
   Gamepad2,
   Dumbbell,
-  Headphones,
   Camera,
   Coffee,
   type LucideIcon,
 } from "lucide-react"
 
+/**
+ * 相册分类。
+ *
+ * 原先还有一个 slug 为 music 的「清弦」—— 因为音乐类的照片太少，
+ * 那一栏已经改造成歌单页（/music），不再属于相册，所以从这里移除了。
+ */
 export const PHOTO_CATEGORIES = [
   {
     slug: "programming",
@@ -26,12 +31,6 @@ export const PHOTO_CATEGORIES = [
     label: "驰野",
     color: "text-green-500",
     description: "运动日常",
-  },
-  {
-    slug: "music",
-    label: "清弦",
-    color: "text-pink-500",
-    description: "音乐瞬间",
   },
   {
     slug: "photography",
@@ -61,7 +60,6 @@ export const HOBBY_ICONS: Record<PhotoCategorySlug, LucideIcon> = {
   programming: Code2,
   gaming: Gamepad2,
   sports: Dumbbell,
-  music: Headphones,
   photography: Camera,
   coffee: Coffee,
 }

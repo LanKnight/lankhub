@@ -17,6 +17,14 @@ const nextConfig: NextConfig = {
         destination: "/",
         permanent: true,
       },
+      {
+        // 「清弦」原本是相册里的音乐分类，因为音乐照片太少，已改造成歌单页 /music。
+        // 同样保留 308，避免旧链接、书签和搜索引擎里的记录变成 404。
+        // 注意 `/photos` 那条是精确匹配、不会吃掉 `/photos/music`，所以这条是必要的。
+        source: "/photos/music",
+        destination: "/music",
+        permanent: true,
+      },
     ];
   },
 

@@ -51,6 +51,17 @@ export function hasPermission(
   return perms.includes(perm)
 }
 
+export async function requireOwnerUser() {
+  const user = await getCurrentUser()
+  if (!user) {
+    return NextResponse.json({ error: "请先登录" }, { status: 401 })
+  }
+  if (user.role !== "OWNER") {
+    return NextResponse.json({ error: "无权限访问" }, { status: 403 })
+  }
+  return user
+}
+
 export async function requireOwner() {
   const user = await getCurrentUser()
   if (!user) {
