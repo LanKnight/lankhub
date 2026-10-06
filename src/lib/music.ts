@@ -14,9 +14,9 @@ export interface ParsedSongLine {
   error?: string
 }
 
-/** 与 validations.ts 里的 zod schema 保持一致 */
-export const SONG_TITLE_MAX = 100
-export const SONG_ARTIST_MAX = 100
+/** 与 validations.ts 里的 zod schema 保持一致（仅本模块内部使用） */
+const SONG_TITLE_MAX = 100
+const SONG_ARTIST_MAX = 100
 
 /**
  * 分隔符按「从明确到宽松」排列：先认带空格的写法，再认裸连字符。

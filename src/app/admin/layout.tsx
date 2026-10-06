@@ -22,7 +22,8 @@ export default async function AdminLayout({
 
   return (
     <div className="flex flex-col md:flex-row">
-      <AdminSidebar />
+      {/* 会话从服务端传进去：侧栏不再先渲染空 <nav> 再水合 */}
+      <AdminSidebar role={user.role} permissions={user.permissions ?? null} />
       <div className="flex-1 p-6 lg:p-8 bg-gray-50 min-h-[calc(100vh-4rem)]">
         {children}
       </div>

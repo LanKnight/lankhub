@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next"
 import { prisma } from "@/lib/prisma"
+import { PHOTO_CATEGORIES } from "@/lib/photo-categories"
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl =
@@ -20,6 +21,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/resume`, lastModified: new Date(), changeFrequency: "monthly" as const, priority: 0.7 },
   ]
 
+  // 相册分类页从分类表派生，不另抄一份 slug 清单
+  // （原先这些页面一直没进 sitemap，只补了 /music 是不够的）
+  const photoRoutes = PHOTO_CATEGORIES.map((category) => ({
+    url: `${baseUrl}/photos/${category.slug}`,
+    lastModified: new Date(),
+    changeFrequency: "monthly" as const,
+    priority: 0.5,
+  }))
+
   const articleRoutes = articles.map((article) => ({
     url: `${baseUrl}/blog/${article.slug}`,
     lastModified: article.updatedAt,
@@ -27,5 +37,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }))
 
-  return [...staticRoutes, ...articleRoutes]
+  return [...staticRoutes, ...photoRoutes, ...articleRoutes]
 }

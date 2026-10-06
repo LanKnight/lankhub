@@ -95,6 +95,7 @@ const SongLinkSchema = z
   .max(500, "链接过长")
   .refine((v) => v === "" || isSafeUrl(v), "链接仅支持 http/https 或站内相对路径")
   .optional()
+  .nullable()
 
 /** 新增一首歌 */
 export const SongCreateSchema = z.object({
@@ -133,11 +134,12 @@ export const CommentSchema = z.object({
 // 不能给字段加 default —— 否则未传的字段会被默认值覆盖掉）
 const articleFields = {
   title: z.string().trim().min(1, "标题不能为空").max(200, "标题过长"),
-  summary: z.string().max(500, "摘要过长").optional(),
+  // summary / coverImage 在库里是可空的，同样要接受 null（理由见 CollectionSchema）
+  summary: z.string().max(500, "摘要过长").optional().nullable(),
   // 刻意只校验"非空字符串"，不校验是否为合法 TipTap JSON：
   // 库里可能存在早期以 HTML 存储的正文，收紧会让这些文章无法再编辑
   content: z.string().min(1, "内容不能为空"),
-  coverImage: z.string().max(500, "封面地址过长").optional(),
+  coverImage: z.string().max(500, "封面地址过长").optional().nullable(),
   published: z.boolean().optional(),
   pinned: z.boolean().optional(),
   collectionId: z.number().int().positive("合集 ID 不合法").nullable().optional(),
@@ -186,8 +188,11 @@ export const AdminArticleListSchema = z.object({
  */
 export const CollectionSchema = z.object({
   name: z.string().trim().min(1, "名称不能为空").max(100, "名称过长"),
-  description: z.string().max(500, "描述过长").optional(),
-  coverImage: z.string().trim().max(500, "封面地址过长").optional(),
+  // 这两个字段在库里是可空的（String?），所以必须同时接受 null ——
+  // 只写 .optional() 的话，一条 description/coverImage 为 null 的旧记录
+  // 一旦被客户端原样回传就会 400。schema 不该比数据模型更严格。
+  description: z.string().max(500, "描述过长").optional().nullable(),
+  coverImage: z.string().trim().max(500, "封面地址过长").optional().nullable(),
   sortOrder: z.number().int().min(0).optional(),
 })
 

@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useSession } from "next-auth/react"
 import {
   LayoutDashboard,
   FileText,
@@ -17,7 +16,7 @@ import {
 } from "lucide-react"
 
 import { resolveActiveHref } from "@/lib/nav"
-import type { PermissionCode } from "@/lib/permissions"
+import { type PermissionCode, userHasPermission } from "@/lib/permissions"
 
 interface AdminLink {
   href: string
@@ -40,18 +39,31 @@ const links: AdminLink[] = [
   { href: "/admin/users", label: "账号管理", icon: Users, perm: null },
 ]
 
-export default function AdminSidebar() {
+interface AdminSidebarProps {
+  /**
+   * 会话信息由后台布局（服务端组件）传入，这里刻意不用 useSession()。
+   *
+   * 原因：useSession 在服务端拿不到会话，权限过滤会把所有菜单都滤掉，
+   * 于是 SSR 出来的是一个空的 <nav>，要等客户端水合才填上 ——
+   * 用户会看到一瞬间的空侧栏。后台布局本来就已经读到了用户，直接传进来即可。
+   * （导航栏 Navbar 没有跟着改：它在根布局里，改成服务端读会话会让全站
+   *   每个页面都变成动态渲染，代价远大于那一瞬骨架屏。）
+   */
+  role: string
+  permissions: string | null
+}
+
+export default function AdminSidebar({ role, permissions }: AdminSidebarProps) {
   const pathname = usePathname()
-  const { data: session } = useSession()
-  // session.user 的扩展字段由 src/types/next-auth.d.ts 声明，这里不再需要断言
-  const user = session?.user
-  const isOwner = user?.role === "OWNER"
+  const user = { role, permissions }
+  const isOwner = role === "OWNER"
 
   // 站长看全部；读者只显示自己有权限的模块（站长专属菜单一律隐藏）
-  const userPerms = (user?.permissions || "").split(",").map((p: string) => p.trim())
   const visibleLinks = isOwner
     ? links
-    : links.filter((link) => userPerms.includes(link.perm as string))
+    : links.filter(
+        (link) => link.perm !== null && userHasPermission(user, link.perm)
+      )
 
   // 同 Navbar：取最长匹配。原来用 `link.href !== "/admin"` 特例绕开
   // 「/admin 是所有后台页面的前缀」这个问题，现在统一交给同一套逻辑

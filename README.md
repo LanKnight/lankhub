@@ -279,6 +279,27 @@ npm run update              # 一键更新：拉取 → 安装 → 推送DB → 
 > 两侧的《》「」会自动去掉）。粘贴后会先给出预览，解析不了的行会单独列出来并说明原因，
 > 导入时还会跳过已存在的同名同歌手条目。
 
+> **接口的请求校验统一收进了 zod schema**，并新增了 `npm run db:check-limits` 预检。
+>
+> - 起因是 `src/lib/validations.ts` 里有 4 个 schema 定义了却从没被引用，
+>   而对应的接口各自手写了一套平行规则。现在评论 / 合集 / 简历 / 分页四组接口都真正用上了它们
+> - **代价是出现了一批过去不存在的长度与格式限制**：这些限制只作用在请求上，
+>   **不会改动任何已有数据**，但如果某条历史记录违反了新规则，它就会「能看不能存」——
+>   在后台点保存永远失败。**上线后先跑一次 `npm run db:check-limits`** 即可查出
+> - 那个脚本直接复用 `src/lib/validations.ts` 里的 schema，不另抄一份限制，
+>   所以以后改了 schema、预检会跟着变，不会失真
+> - 另外把「可空字段」对齐了：`Collection.coverImage`、`Article.summary` 这些在库里是 `null` 的列，
+>   schema 现在同时接受 `null`，否则把数据库记录原样回传的客户端会被 400
+>
+> 同一轮还清理了几处历史遗留：
+>
+> - 删掉 `scripts/deploy.sh`（WSL 本地构建部署，服务器 IP 一直是占位符，已被 `npm run update` 取代）
+> - 删掉 `prisma/dev.db`（0 字节空壳，真正的库是根目录的 `dev.db`）
+> - 删掉两个无人调用的接口 `/api/collections` 与 `/api/collections/[slug]`
+>   （前端合集页是服务端直接查库的；它们本来也不泄漏草稿，所有查询都过滤了 `published`）
+> - sitemap 补上 5 个相册分类页（此前只有固定几个路由）
+> - 后台侧栏改为由服务端传入会话，不再先渲染一个空的 `<nav>` 再水合
+
 
 ### PM2 常用命令
 
@@ -304,6 +325,7 @@ npm run update              # 一键更新：拉取 → 安装 → 推送DB → 
 | `npm run db:backfill-collections` | 把「已发布但没有合集」的文章归入「未分类」（幂等，加 `-- --dry-run` 先预览） |
 | `npm run db:cleanup-awards` | 清理历史遗留的「获奖荣誉」死数据（幂等，加 `-- --dry-run` 先预览） |
 | `npm run db:normalize-usernames` | 整理存量用户昵称（去空白、修损坏、去重），加唯一约束前必须先跑（幂等，加 `-- --dry-run` 先预览） |
+| `npm run db:check-limits` | **上线前预检**：检查现有数据是否会被接口的校验规则卡住（只读，有问题时退出码为 1） |
 | `npm run db:seed` | 运行种子脚本，设置站长账号 |
 | `sqlite3 dev.db "SELECT id, email, name, role FROM User;"` | 查询账号 |
 

@@ -29,8 +29,10 @@ const MAGIC_PATTERNS: { bytes: number[]; mime: string; ext: string }[] = [
  * 检测 buffer 的 magic bytes 并返回 MIME 类型
  * 仅在前 12 字节中检测图片和 PDF 格式
  * @returns DetectedType 或 null（无法识别）
+ *
+ * 仅本模块内部使用，对外只暴露 isAllowedImage / isPdf
  */
-export function detectFileType(buffer: Buffer): DetectedType | null {
+function detectFileType(buffer: Buffer): DetectedType | null {
   if (buffer.length < 4) return null
 
   for (const pattern of MAGIC_PATTERNS) {

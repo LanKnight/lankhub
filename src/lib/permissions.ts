@@ -34,8 +34,9 @@ export function isPermissionCode(value: unknown): value is PermissionCode {
 /**
  * 把 User.permissions 那串逗号分隔的文本解析成权限码数组。
  * 顺带过滤掉不认识的值 —— 库里可能残留已废弃的权限码，不能让它们继续生效。
+ * （仅本模块内部使用，对外只暴露 userHasPermission / canAccessAdmin）
  */
-export function parsePermissionList(
+function parsePermissionList(
   raw: string | null | undefined
 ): PermissionCode[] {
   if (!raw) return []

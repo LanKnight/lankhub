@@ -5,7 +5,8 @@ import { Check, Loader2, Pencil, Plus, Star, Trash2, X } from "lucide-react"
 import { useToast } from "@/components/ui/Toast"
 import { parseSongLines } from "@/lib/music"
 
-export interface AdminSong {
+/** 组件内部的 props 形状：调用方直接传数据即可，不必引用这个类型名 */
+interface AdminSong {
   id: number
   title: string
   artist: string
