@@ -116,6 +116,29 @@ export const SongUpdateSchema = z.object({
   sortOrder: z.number().int().min(0).optional(),
 })
 
+/**
+ * 把歌绑定到音乐接口。
+ *
+ * 每首歌要「1 次搜索 + 2 次抓取」，而官方限流是 60 次 / 5 分钟，
+ * 所以一次最多 6 首（约 12 次调用），由前端分批循环。
+ */
+export const SONG_BIND_BATCH_MAX = 6
+
+export const SongBindItemSchema = z.object({
+  songId: z.number().int().positive(),
+  apiId: z.string().trim().min(1, "缺少播放 ID").max(200),
+  picId: z.string().trim().max(200).optional().nullable(),
+  lyricId: z.string().trim().max(200).optional().nullable(),
+  album: z.string().trim().max(200).optional().nullable(),
+})
+
+export const SongBindSchema = z.object({
+  items: z
+    .array(SongBindItemSchema)
+    .min(1, "没有要绑定的歌曲")
+    .max(SONG_BIND_BATCH_MAX, `一次最多绑定 ${SONG_BIND_BATCH_MAX} 首`),
+})
+
 /** 批量导入：只带上文本，解析交给 parseSongLines（与客户端预览同一份逻辑） */
 export const SongImportSchema = z.object({
   text: z.string().min(1, "请先粘贴内容").max(200_000, "内容过长"),

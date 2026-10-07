@@ -42,6 +42,12 @@ export default function Footer() {
             >
               简历
             </Link>
+            <Link
+              href="/music/disclaimer"
+              className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
+            >
+              免责声明
+            </Link>
           </div>
 
           {/* Social */}

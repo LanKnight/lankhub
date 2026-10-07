@@ -214,6 +214,22 @@ model Song {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // ---- 在线播放（GD音乐台 API）。实测结论见 docs/music-plan.md ----
+  // 只有 netease 是真正能播的音源：kuwo 被服务端直接拒绝，
+  // joox 能搜到但取不到播放链接，其余音源全部 400。
+  /// 音源，目前固定为 netease
+  source    String   @default("netease")
+  /// 播放用的 url_id；为空表示这首歌还没绑定到 API
+  apiId     String?
+  /// 取封面与歌词用的 ID
+  picId     String?
+  lyricId   String?
+  /// 封面地址与歌词在「绑定」那一刻就抓取入库，
+  /// 这样前台渲染卡片墙与歌词是零 API 调用（官方限流 60 次/5 分钟）
+  coverUrl  String?
+  lyric     String?
+  album     String?
+
   /// 前台按歌手分组取数，所以索引带上 artist
   @@index([artist, sortOrder])
   @@index([sortOrder, createdAt])
