@@ -19,8 +19,14 @@ const API_BASE = "https://music-api.gdstudio.xyz/api.php"
 export const MUSIC_SOURCE = "netease"
 const TIMEOUT_MS = 8000
 
-/** 播放地址的缓存时长。签名 URL 有有效期，所以只短缓存 */
-const PLAY_URL_TTL_MS = 10 * 60 * 1000
+/**
+ * 播放地址的缓存时长。签名 URL 有有效期，所以只短缓存。
+ *
+ * 取 5 分钟而不是更长：签名地址的有效期约 1 小时（URL 里带时间戳），
+ * 但「拿到就一定能播」这件事没有保证，短缓存能让换绑 / 服务端轮换签名后
+ * 更快自愈。播放器那边还有「失败即绕过缓存重取一次」的兜底，见 getPlayUrl。
+ */
+const PLAY_URL_TTL_MS = 5 * 60 * 1000
 /** 缓存条目上限，避免长时间运行后无限增长 */
 const PLAY_URL_CACHE_MAX = 500
 
@@ -159,10 +165,16 @@ export async function searchSongs(keyword: string): Promise<ApiResult<ApiSong[]>
  *
  * 注意空字符串也是失败：joox 就是这个形态（`{"url":"","br":-1}`），
  * 不判空的话会拿到一个空 src，前端静默播不出声音，很难排查。
+ *
+ * `force` 用于播放器「播到一半地址失效」的场景：跳过缓存重新取一次，
+ * 否则会拿到那条已经坏掉的缓存地址，重试变成原地打转。
  */
-export async function getPlayUrl(apiId: string): Promise<ApiResult<string>> {
+export async function getPlayUrl(
+  apiId: string,
+  options: { force?: boolean } = {}
+): Promise<ApiResult<string>> {
   const cached = playUrlCache.get(apiId)
-  if (cached && cached.expiresAt > Date.now()) {
+  if (!options.force && cached && cached.expiresAt > Date.now()) {
     return { ok: true, data: cached.url }
   }
 

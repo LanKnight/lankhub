@@ -42,6 +42,12 @@ export async function POST(req: NextRequest) {
   let bound = 0
   const failed: { songId: number; error: string }[] = []
   const warnings: { songId: number; error: string }[] = []
+  /*
+   * 回传真正落库的值。
+   * 为什么不能只回 bound 计数：封面与歌词各自独立失败，界面若只乐观地
+   * 记住「点了绑定」，就没法分辨某首歌的封面到底抓到了没有。
+   */
+  const loaded: { songId: number; coverUrl: string | null; lyric: boolean }[] = []
 
   for (const item of parsed.data.items) {
     const song = await prisma.song.findUnique({
@@ -69,7 +75,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      await prisma.song.update({
+      const updated = await prisma.song.update({
         where: { id: item.songId },
         data: {
           source: MUSIC_SOURCE,
@@ -83,6 +89,12 @@ export async function POST(req: NextRequest) {
           ...(coverUrl ? { coverUrl } : {}),
           ...(lyric ? { lyric } : {}),
         },
+        select: { coverUrl: true, lyric: true },
+      })
+      loaded.push({
+        songId: item.songId,
+        coverUrl: updated.coverUrl,
+        lyric: Boolean(updated.lyric),
       })
       bound += 1
     } catch (error) {
@@ -93,6 +105,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     bound,
+    loaded,
     failed,
     warnings,
     budget: musicApiBudget(),

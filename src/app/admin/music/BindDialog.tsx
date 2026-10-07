@@ -13,10 +13,17 @@ interface ApiSong {
   lyricId: string
 }
 
+/** 绑定成功后回传给调用方，让它不必重新拉一次列表 */
+export interface BoundInfo {
+  apiId: string
+  picId: string | null
+  coverUrl: string | null
+}
+
 interface Props {
   song: { id: number; title: string; artist: string }
   onClose: () => void
-  onBound: () => void
+  onBound: (info: BoundInfo) => void
 }
 
 /**
@@ -106,7 +113,12 @@ export default function BindDialog({ song, onClose, onBound }: Props) {
       }
       const warning = data.warnings?.[0]?.error
       toast(warning ? `已绑定（${warning}）` : "已绑定", warning ? "error" : "success")
-      onBound()
+      onBound({
+        apiId: item.apiId,
+        picId: item.picId || null,
+        // 服务端把真正落库的封面地址回传过来，用它比用本地猜的准
+        coverUrl: data.loaded?.[0]?.coverUrl ?? null,
+      })
       onClose()
     } catch {
       toast("网络错误，请稍后重试", "error")
@@ -174,6 +186,13 @@ export default function BindDialog({ song, onClose, onBound }: Props) {
                     disabled={bindingId !== null}
                     className="flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-gray-50 disabled:opacity-60"
                   >
+                    {/*
+                      这里刻意不显示候选封面。
+                      实测搜索结果里没有封面地址字段（只有 pic_id），而封面 CDN
+                      需要一段无法由 pic_id 推导的加密哈希 —— 想显示封面就只能
+                      为每条候选调一次 types=pic，一次搜索十几条会瞬间吃光
+                      60 次 / 5 分钟的配额。挑原版本来也不靠封面，靠歌手与专辑。
+                    */}
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-gray-100 text-[10px] text-gray-400">
                       封面
                     </span>
@@ -199,7 +218,7 @@ export default function BindDialog({ song, onClose, onBound }: Props) {
         <p className="border-t border-gray-100 px-5 py-3 text-xs leading-relaxed text-gray-400">
           注意：源站有大量冒充原唱的翻唱（歌手名后面加点或符号）。
           <strong className="font-medium text-gray-500">请对照歌手与专辑挑选</strong>，
-          选错了前台会放出别人的翻唱。
+          选错了前台会放出别人的翻唱。列表不显示封面是为了不额外消耗接口配额。
         </p>
       </div>
     </div>

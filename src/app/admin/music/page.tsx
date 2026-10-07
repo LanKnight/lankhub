@@ -16,7 +16,18 @@ export default async function AdminMusicPage() {
 
   const songs = await prisma.song.findMany({
     orderBy: [{ artist: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
-    select: { id: true, title: true, artist: true, link: true, favorite: true },
+    // 在线播放相关的字段必须一起 select：界面要据此显示绑定状态徽标与封面缩略图
+    select: {
+      id: true,
+      title: true,
+      artist: true,
+      link: true,
+      favorite: true,
+      apiId: true,
+      matchStatus: true,
+      coverUrl: true,
+      picId: true,
+    },
   })
 
   return (

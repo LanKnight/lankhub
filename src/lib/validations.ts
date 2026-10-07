@@ -132,14 +132,24 @@ export const SongBindItemSchema = z.object({
   album: z.string().trim().max(200).optional().nullable(),
 })
 
-export const SongBindSchema = z.object({
-  items: z
-    .array(SongBindItemSchema)
-    .min(1, "没有要绑定的歌曲")
-    .max(SONG_BIND_BATCH_MAX, `一次最多绑定 ${SONG_BIND_BATCH_MAX} 首`),
-  /** 同批里判定「源站无原版」的歌，标记为 nomatch，避免下次重复搜索 */
-  markNoMatch: z.array(z.number().int().positive()).max(50).optional(),
-})
+export const SongBindSchema = z
+  .object({
+    items: z
+      .array(SongBindItemSchema)
+      .max(SONG_BIND_BATCH_MAX, `一次最多绑定 ${SONG_BIND_BATCH_MAX} 首`)
+      .default([]),
+    /** 同批里判定「源站无原版」的歌，标记为 nomatch，避免下次重复搜索 */
+    markNoMatch: z.array(z.number().int().positive()).max(50).optional(),
+  })
+  /*
+   * items 允许为空数组，但两者不能都空。
+   * 为什么要允许空：后台的「标记无原版」是一个独立动作 ——
+   * 只把「歌名相同但全是翻唱」的歌记下来，不绑定任何东西。
+   * 早先这里写死 .min(1)，那个按钮点下去会被 400 拒掉。
+   */
+  .refine((data) => data.items.length > 0 || (data.markNoMatch?.length ?? 0) > 0, {
+    message: "没有要绑定或标记的歌曲",
+  })
 
 /** 解绑：指定几首，或 all 清除全部 */
 export const SongUnbindSchema = z.object({

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireOwnerUser } from "@/lib/auth-helpers"
-import { IdSchema } from "@/lib/validations"
+import { SongUnbindSchema } from "@/lib/validations"
 
 /**
  * 解绑：清掉在线播放相关的字段，让这首歌回到「未绑定」。
@@ -16,15 +16,17 @@ export async function POST(req: NextRequest) {
   const user = await requireOwnerUser()
   if (user instanceof NextResponse) return user
 
-  const body = await req.json().catch(() => null)
-  const all = body?.all === true
+  // 走 schema 而不是自己手写校验：长度上限、类型都在 validations 里统一维护
+  const parsed = SongUnbindSchema.safeParse(await req.json().catch(() => null))
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message || "参数不合法" },
+      { status: 400 }
+    )
+  }
 
-  const songIds: number[] = Array.isArray(body?.songIds)
-    ? body.songIds
-        .map((n: unknown) => IdSchema.safeParse(n))
-        .filter((r: { success: boolean }) => r.success)
-        .map((r: { data: number }) => r.data)
-    : []
+  const all = parsed.data.all === true
+  const songIds = parsed.data.songIds ?? []
 
   if (!all && songIds.length === 0) {
     return NextResponse.json({ error: "没有指定要解绑的歌曲" }, { status: 400 })
@@ -40,7 +42,12 @@ export async function POST(req: NextRequest) {
         coverUrl: null,
         lyric: null,
         album: null,
-        matchStatus: null,
+        /*
+         * 刻意**不清** matchStatus。
+         * 「没有原版」是搜过之后的结论，与「有没有绑定」是两回事：
+         * 清掉它会让当初判定无版权的歌（周杰伦那批）下次又被白搜一遍。
+         * 想重新搜某首歌，走单首的「搜索绑定」即可（那条路径不受标记限制）。
+         */
       },
     })
     return NextResponse.json({ unbound: result.count })

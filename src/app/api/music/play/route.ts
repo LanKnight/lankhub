@@ -27,10 +27,14 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  const parsed = IdSchema.safeParse(new URL(req.url).searchParams.get("id"))
+  const url = new URL(req.url)
+  const parsed = IdSchema.safeParse(url.searchParams.get("id"))
   if (!parsed.success) {
     return NextResponse.json({ error: "参数不合法" }, { status: 400 })
   }
+  // 播放器播到一半发现地址失效时会带这个参数回来，跳过内存缓存重取一次，
+  // 否则重试拿到的还是那条已经坏掉的地址
+  const force = url.searchParams.get("retry") === "1"
 
   const song = await prisma.song.findUnique({
     where: { id: parsed.data },
@@ -50,7 +54,7 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  const result = await getPlayUrl(song.apiId)
+  const result = await getPlayUrl(song.apiId, { force })
   if (!result.ok) {
     return NextResponse.json(
       { error: result.error, fallback: song.link },
