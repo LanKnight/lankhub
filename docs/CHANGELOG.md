@@ -26,6 +26,11 @@
 - 新增测试记录 [`docs/music-plan.md`](music-plan.md) 与需求原文
   [`docs/musicFunctionDevDoc.md`](musicFunctionDevDoc.md)
 - 升级公告从 README 搬到本文件（即本次整理）
+- 补正 README 里几处与事实不符的描述：`scripts/setup.sh` 的实际流程、
+  `npm run setup` 与 `npm install` 的区别、种子数据的内容、目录结构里缺 `data/`、
+  以及补上此前未记录的 `npm run backup` / `npm run restore`
+- 修正 [`docs/original-todo.md`](original-todo.md) 里的项目路径
+  （原写作 `lank-hub`，实际是 `lankhub`）
 
 ---
 

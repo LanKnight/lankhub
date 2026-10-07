@@ -41,7 +41,7 @@ cp .env.example .env
 # 3. 安装依赖（会自动生成 Prisma 客户端）
 npm install
 
-# 4. 初始化数据库（建表 + 种子数据）
+# 4. 初始化数据库（生成 Prisma 客户端 + 建表 + 写入种子数据）
 npm run setup
 
 # 5. 启动开发服务器
@@ -209,7 +209,12 @@ nano .env  # 编辑以下内容：
 bash scripts/setup.sh
 ```
 
-脚本会自动：检查 Node.js → 安装依赖 → 初始化数据库（建表 + 种子数据）→ 生产构建。
+脚本按顺序做这几件事：检查 Node.js → 检查 `.env`（不存在就从 `.env.example`
+复制一份并**停下来**，让你填完密钥后重新运行）→ `npm install` 装依赖 →
+`npm run setup` 初始化数据库 → `npm run build` 生产构建。
+
+> ⚠️ 别把两个命令弄混：**`npm install` 装依赖**，而 **`npm run setup` 是初始化数据库**
+> （生成 Prisma 客户端 + 建表 + 写入种子数据），它**不装依赖**。
 
 ### 4. 启动服务（PM2 常驻后台）
 
@@ -278,10 +283,18 @@ sudo certbot renew --dry-run
 npm run update              # 一键更新：拉取 → 安装 → 推送DB → 构建 → 重启
 ```
 
-它第一步就是 `scripts/backup.sh`：备份 `dev.db` 与 `data/uploads/`、并打一个 git tag，
-保留最近 2 份；命令用 `&&` 串联，**中途失败会中断**，因此最坏情况可回滚。
+它第一步就是 `scripts/backup.sh`：备份 `dev.db`、`data/uploads/`（上传的图片），
+并打一个 git tag 作为代码快照，三者时间戳一致；保留最近 2 份，
+命令用 `&&` 串联，**中途失败会中断**，因此最坏情况可回滚。
 
-> ⚠️ 备份只是便利机制，**不构成数据安全保证**，详见 [免责声明](#免责声明)。
+> ⚠️ 两点必须知道：
+>
+> 1. **备份不含 `.env`** —— 而 `AUTH_SECRET` 一旦丢失，所有已登录会话都会失效。
+>    请自己另行保存 `.env`。
+> 2. 备份只是便利机制，**不构成数据安全保证**，详见 [免责声明](#免责声明)。
+
+恢复用 `npm run restore`（会覆盖当前的数据库与上传目录，因此有二次确认）；
+它按 `backup.sh` 备份的三样东西逐一还原，然后重装依赖、构建、重启服务。
 
 **升级前请先看 [`docs/CHANGELOG.md`](docs/CHANGELOG.md)。**
 
@@ -311,14 +324,16 @@ npm run update              # 一键更新：拉取 → 安装 → 推送DB → 
 | `npm run build` | 生产构建（含 Prisma 生成） |
 | `npm start` | 启动生产服务 |
 | `npm run update` | 服务器一键更新部署 |
-| `npm run setup` | 一键初始化数据库（生成 + 推送 + 种子） |
+| `npm run setup` | 初始化数据库：生成 Prisma 客户端 + 建表 + 写入种子数据（**不装依赖**） |
+| `npm run backup` | 备份数据库、上传目录并打一个 git tag（保留最近 2 份） |
+| `npm run restore` | 从最近一份备份恢复（覆盖数据库与上传目录，会二次确认） |
 | `npm run db:generate` | 重新生成 Prisma 客户端 |
 | `npm run db:push` | 同步数据库 Schema |
 | `npm run db:backfill-collections` | 把「已发布但没有合集」的文章归入「未分类」（幂等，加 `-- --dry-run` 先预览） |
 | `npm run db:cleanup-awards` | 清理历史遗留的「获奖荣誉」死数据（幂等，加 `-- --dry-run` 先预览） |
 | `npm run db:normalize-usernames` | 整理存量用户昵称（去空白、修损坏、去重），加唯一约束前必须先跑（幂等，加 `-- --dry-run` 先预览） |
 | `npm run db:check-limits` | **上线前预检**：检查现有数据是否会被接口的校验规则卡住（只读，有问题时退出码为 1） |
-| `npm run db:seed` | 运行种子脚本，设置站长账号 |
+| `npm run db:seed` | 运行种子脚本（站长账号 + 一个「入门指南」示例合集） |
 | `npm run reset-password` | 重置指定账号的密码 |
 | `sqlite3 dev.db "SELECT id, email, name, role FROM User;"` | 查询账号 |
 
@@ -373,6 +388,8 @@ lankhub/
 │   │   └── resume/       # 简历展示组件
 │   ├── lib/              # 工具库（auth, prisma, validations, music-api, lrc…）
 │   └── generated/        # Prisma 生成的客户端（不入库）
+├── data/
+│   └── uploads/          # 运行时上传的图片与简历 PDF（不入库；backup.sh 会备份它）
 └── public/               # 静态资源
 ```
 
@@ -389,7 +406,7 @@ lankhub/
 ### 二、第三方服务
 
 - 「清弦」的在线试听依赖**第三方免费接口 GD音乐台**（`music.gdstudio.xyz`）。
-  该服务由第三方独立运营，**与本项目作者无任何关联**，作者也未获得其授权、赞助或担保。
+  该服务由第三方独立运营，**与本项目作者没有任何关联**，作者也未获得其授权、赞助或担保。
 - 本项目**不存储、不制作、不转码、不分发任何音频文件**。服务器只负责向上述接口
   请求一个短时签名的播放地址，音频流由浏览器直接向对方 CDN 获取。
 - 该接口可能随时变更、限流或停止服务。**本项目不对其可用性、准确性或合法性作出任何保证**，
