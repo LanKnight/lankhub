@@ -7,7 +7,7 @@ dotenvConfig({ path: path.resolve(__dirname, "..", ".env"), override: false })
 import { PrismaClient } from "../src/generated/prisma/client"
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3"
 import { getCoverUrl, getLyric, MUSIC_SOURCE, searchSongs } from "../src/lib/music-api"
-import { pickBestMatch } from "../src/lib/music-match"
+import { matchSong } from "../src/lib/music-match"
 
 /**
  * 把「还没有绑定到音乐接口」的歌，自动搜索并绑定。
@@ -77,10 +77,18 @@ async function main() {
         continue
       }
 
-      const best = pickBestMatch(result.data, song.title, song.artist)
+      const outcome = matchSong(result.data, song.title, song.artist)
+      const best = outcome.match
       if (!best) {
-        console.log(`  – ${song.title} — ${song.artist}：没找到可信的匹配，需要手动绑定`)
+        // 多半是源站没有这首歌的版权（如网易云的周杰伦），标记下来免得下次白搜
+        console.log(`  – ${song.title} — ${song.artist}：源站没有原版，只能走外链`)
         skipped += 1
+        if (!dryRun) {
+          await prisma.song.update({
+            where: { id: song.id },
+            data: { matchStatus: "nomatch" },
+          })
+        }
         continue
       }
 
@@ -115,6 +123,7 @@ async function main() {
           picId: best.picId || null,
           lyricId: best.lyricId || null,
           album: best.album || null,
+          matchStatus: null,
           ...(coverUrl ? { coverUrl } : {}),
           ...(lyric ? { lyric } : {}),
         },

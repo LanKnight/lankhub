@@ -75,6 +75,10 @@ export function musicApiBudget(): { used: number; remaining: number } {
   }
 }
 
+/** 两次调用之间的最小间隔。实测连续快速搜索会拿到 503，加个间隔既是礼貌也更稳 */
+const CALL_GAP_MS = 400
+let lastCallAt = 0
+
 /** 统一的请求封装：带超时、统一错误文案，绝不把底层异常抛给调用方 */
 async function callApi(params: Record<string, string>): Promise<ApiResult<unknown>> {
   const now = Date.now()
@@ -85,31 +89,48 @@ async function callApi(params: Record<string, string>): Promise<ApiResult<unknow
       error: "音乐接口的调用配额快用完了，请过几分钟再试",
     }
   }
-  recentCalls.push(now)
+
+  const gap = now - lastCallAt
+  if (gap < CALL_GAP_MS) {
+    await new Promise((resolve) => setTimeout(resolve, CALL_GAP_MS - gap))
+  }
+  lastCallAt = Date.now()
+  recentCalls.push(lastCallAt)
 
   const query = new URLSearchParams({ ...params, source: params.source ?? MUSIC_SOURCE })
   const url = `${API_BASE}?${query.toString()}`
 
-  try {
-    const res = await fetch(url, {
-      // 这个接口不稳定，不能让 Next 把失败结果也缓存住
-      cache: "no-store",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { Accept: "application/json" },
-    })
+  // 503 是实测遇到过的瞬时错误，重试一次；其余情况不重试，免得白白消耗配额
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const res = await fetch(url, {
+        // 这个接口不稳定，不能让 Next 把失败结果也缓存住
+        cache: "no-store",
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        headers: { Accept: "application/json" },
+      })
 
-    if (!res.ok) {
-      return { ok: false, error: `音乐接口返回 ${res.status}` }
+      if (res.status === 503 && attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 800))
+        continue
+      }
+      if (!res.ok) {
+        return { ok: false, error: `音乐接口返回 ${res.status}` }
+      }
+      return { ok: true, data: await res.json() }
+    } catch (error) {
+      const reason =
+        error instanceof Error && error.name === "TimeoutError"
+          ? "音乐接口响应超时"
+          : "音乐接口暂时无法访问"
+      if (attempt === 0 && reason.includes("超时")) {
+        continue
+      }
+      return { ok: false, error: reason }
     }
-
-    return { ok: true, data: await res.json() }
-  } catch (error) {
-    const reason =
-      error instanceof Error && error.name === "TimeoutError"
-        ? "音乐接口响应超时"
-        : "音乐接口暂时无法访问"
-    return { ok: false, error: reason }
   }
+
+  return { ok: false, error: "音乐接口暂时不可用" }
 }
 
 /** 搜索歌曲。只用于后台绑定，前台不开放搜索 */

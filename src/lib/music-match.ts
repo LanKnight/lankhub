@@ -1,77 +1,82 @@
 /**
  * 把「我写的歌名 + 歌手」和「音乐接口搜出来的结果」对上号。
  *
- * 刻意保守：标题对不上就直接放弃，返回 null 交给人来选。
- * 理由是一旦错配，用户很难发现 —— 播放器会放出一首完全不相干的歌，
- * 而这比「没匹配上、需要手动选一次」糟糕得多。
+ * 上一版有两个缺陷，直接导致了错绑，这里都改掉了：
+ *
+ *  1. 歌名允许「包含」匹配 → 「稻香(治愈版)」被当成了「稻香」，绑上了翻唱。
+ *     现在要求歌名**精确相同**（只剥掉《》「」这类外围装饰，不动内部括号）。
+ *
+ *  2. 歌手归一化把标点全剥了 → 冒充原唱的「周杰伦.」和正版「周杰伦」
+ *     变成同一个字符串、拿到同样的分数。现在只做去空格与小写，
+ *     并要求**精确相等**，或「目标名后面直接跟括号」（「冯沁苑(买辣椒也用券)」
+ *     这种合法别名），「周杰伦.」「周杰伦♚」一律不算。
+ *
+ * 还有一条更重要的前提：**网易云根本没有周杰伦的版权**，
+ * 搜出来的全是翻唱。所以这里搜不到可信匹配时返回 null 是正确结果，
+ * 不是失败 —— 界面会据此提示「本站无此版权，走外链」。
+ * 详见 docs/music-plan.md。
  */
 
 import type { ApiSong } from "@/lib/music-api"
 
-/** 归一化：去掉空格、大小写差异，以及中英文里常见的分隔与装饰符号 */
-function normalize(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[\s\u3000]/g, "")
-    .replace(/[（）()【】[\]《》「」『』"'`·、,，.。\-_/\\&+~!！?？:：;；]/g, "")
+export interface MatchOutcome {
+  match: ApiSong | null
+  /** high = 歌名与歌手都对得上；none = 没有可信匹配（多半是源站没版权） */
+  confidence: "high" | "none"
 }
 
-/** 歌手名可能有多位（接口用 " / " 连接，我自己的数据里可能是 "、" 或 "&"） */
+/** 只剥掉外围装饰，绝不动内部括号 —— 内部括号往往正是「翻唱版」的标记 */
+const SURROUNDING = /^[《「『"'（(【\[]+|[》」』"'）)】\]]+$/g
+
+function titleKey(value: string): string {
+  return value.replace(SURROUNDING, "").trim().toLowerCase()
+}
+
+function artistKey(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+/** 候选的歌手字段可能写着多位歌手，拆开逐个比 */
 function artistTokens(value: string): string[] {
   return value
-    .split(/[/、,&]|feat\.?|ft\.?/i)
-    .map((part) => normalize(part))
-    .filter((part) => part.length > 0)
+    .split(/[/、,&]/)
+    .map(artistKey)
+    .filter((token) => token.length > 0)
 }
 
 /**
- * 标题是否算对得上：完全相等，或一方包含另一方（处理「起风了」vs「起风了 (Live)」）。
- * 包含关系只在较短一方不少于 2 个字时才认，避免「爱」这种字命中一大片。
+ * 候选的歌手是否可信：
+ *  - 与目标完全相同；或
+ *  - 目标名后面直接跟括号（合法别名，如「冯沁苑(买辣椒也用券)」）
+ * 刻意不认「包含」：那正是「周杰伦.」「周杰伦♚」这类冒充号得分的地方。
  */
-function titleMatches(a: string, b: string): boolean {
-  const na = normalize(a)
-  const nb = normalize(b)
-  if (na.length === 0 || nb.length === 0) return false
-  if (na === nb) return true
-  const [short, long] = na.length <= nb.length ? [na, nb] : [nb, na]
-  return short.length >= 2 && long.includes(short)
+function isCredibleArtist(token: string, target: string): boolean {
+  if (token === target) return true
+  for (const open of ["(", "（"]) {
+    if (token.startsWith(target + open)) return true
+  }
+  return false
 }
 
-/**
- * 从候选里挑最可能的一条。
- * 评分：标题完全相等 +2、歌手命中 +3（歌手权重更高，因为同名歌曲太多了）。
- * 分数为 0 或并列最高时返回 null，宁可让人来选。
- */
-export function pickBestMatch(
+export function matchSong(
   candidates: ApiSong[],
   title: string,
   artist: string
-): ApiSong | null {
-  const wantTokens = artistTokens(artist)
+): MatchOutcome {
+  const wantTitle = titleKey(title)
+  const wantArtist = artistKey(artist)
 
-  const scored = candidates
-    .filter((item) => titleMatches(item.title, title))
-    .map((item) => {
-      const haveTokens = artistTokens(item.artist)
-      let score = normalize(item.title) === normalize(title) ? 2 : 0
+  const credible = candidates.filter((item) => {
+    if (titleKey(item.title) !== wantTitle) return false
+    if (wantArtist.length === 0) return false
+    return artistTokens(item.artist).some((token) =>
+      isCredibleArtist(token, wantArtist)
+    )
+  })
 
-      if (wantTokens.length > 0 && haveTokens.length > 0) {
-        const exact = wantTokens.some((w) => haveTokens.includes(w))
-        const loose = wantTokens.some((w) =>
-          haveTokens.some((h) => h.includes(w) || w.includes(h))
-        )
-        if (exact) score += 3
-        else if (loose) score += 1
-      }
-
-      return { item, score }
-    })
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score)
-
-  if (scored.length === 0) return null
-  // 最高分并列时无法判断，交给人来选
-  if (scored.length > 1 && scored[1].score === scored[0].score) return null
-
-  return scored[0].item
+  // 接口按相关度排序，可信候选里取第一条即可
+  if (credible.length > 0) {
+    return { match: credible[0], confidence: "high" }
+  }
+  return { match: null, confidence: "none" }
 }

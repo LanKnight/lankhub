@@ -229,6 +229,9 @@ model Song {
   coverUrl  String?
   lyric     String?
   album     String?
+  /// 自动匹配的结论：为空=没试过；"nomatch"=试过但没有原版（如网易云无周杰伦版权）。
+  /// 记下来是为了不反复搜索这些歌、白耗第三方配额
+  matchStatus String?
 
   /// 前台按歌手分组取数，所以索引带上 artist
   @@index([artist, sortOrder])

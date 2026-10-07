@@ -137,6 +137,14 @@ export const SongBindSchema = z.object({
     .array(SongBindItemSchema)
     .min(1, "没有要绑定的歌曲")
     .max(SONG_BIND_BATCH_MAX, `一次最多绑定 ${SONG_BIND_BATCH_MAX} 首`),
+  /** 同批里判定「源站无原版」的歌，标记为 nomatch，避免下次重复搜索 */
+  markNoMatch: z.array(z.number().int().positive()).max(50).optional(),
+})
+
+/** 解绑：指定几首，或 all 清除全部 */
+export const SongUnbindSchema = z.object({
+  songIds: z.array(z.number().int().positive()).max(200).optional(),
+  all: z.boolean().optional(),
 })
 
 /** 批量导入：只带上文本，解析交给 parseSongLines（与客户端预览同一份逻辑） */

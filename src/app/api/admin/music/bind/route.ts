@@ -26,6 +26,19 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // 这批里被判定「源站没有原版」的歌，标记下来，免得下次自动匹配又白搜一遍
+  const noMatchIds: number[] = Array.isArray(parsed.data.markNoMatch)
+    ? parsed.data.markNoMatch.filter(
+        (n): n is number => typeof n === "number" && Number.isInteger(n) && n > 0
+      )
+    : []
+  if (noMatchIds.length > 0) {
+    await prisma.song.updateMany({
+      where: { id: { in: noMatchIds }, apiId: null },
+      data: { matchStatus: "nomatch" },
+    })
+  }
+
   let bound = 0
   const failed: { songId: number; error: string }[] = []
   const warnings: { songId: number; error: string }[] = []
@@ -64,6 +77,8 @@ export async function POST(req: NextRequest) {
           picId: item.picId ?? null,
           lyricId: item.lyricId ?? null,
           album: item.album ?? null,
+          // 绑上了就不再是「无原版」状态
+          matchStatus: null,
           // 之前抓到过就保留，避免这次失败反而把已有的清掉
           ...(coverUrl ? { coverUrl } : {}),
           ...(lyric ? { lyric } : {}),
