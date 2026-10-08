@@ -1,7 +1,5 @@
 import { z } from "zod"
 
-import { isSafeUrl } from "@/lib/utils"
-
 /*
  * 让 zod 内置的类型错误也说中文。
  *
@@ -79,7 +77,7 @@ export const ChangePasswordSchema = z.object({
   newPassword: PasswordSchema,
 })
 
-// 歌单。上限与 src/lib/music.ts 里的解析器保持一致
+// 歌单
 const SongTitleSchema = z
   .string()
   .trim()
@@ -90,19 +88,18 @@ const SongArtistSchema = z
   .trim()
   .min(1, "请填写歌手")
   .max(100, "歌手名过长")
-const SongLinkSchema = z
-  .string()
-  .trim()
-  .max(500, "链接过长")
-  .refine((v) => v === "" || isSafeUrl(v), "链接仅支持 http/https 或站内相对路径")
-  .optional()
-  .nullable()
 
-/** 新增一首歌 */
+/**
+ * 新增一首歌。
+ *
+ * 只有歌名与歌手 —— 歌单**不再有外链字段**。
+ * 原因是录入方式已经改成「搜索添加」：搜索能直接带回歌手、封面与歌词，
+ * 而外链既没法从搜索接口拿到、也没打算让用户手工维护。
+ * 未绑定的歌在前台会置灰不可点（提示「本站无此版本」），不再有「去别处听」的退路。
+ */
 export const SongCreateSchema = z.object({
   title: SongTitleSchema,
   artist: SongArtistSchema,
-  link: SongLinkSchema,
   favorite: z.boolean().optional(),
   sortOrder: z.number().int().min(0).optional(),
 })
@@ -111,7 +108,6 @@ export const SongCreateSchema = z.object({
 export const SongUpdateSchema = z.object({
   title: SongTitleSchema.optional(),
   artist: SongArtistSchema.optional(),
-  link: SongLinkSchema,
   favorite: z.boolean().optional(),
   sortOrder: z.number().int().min(0).optional(),
 })
@@ -155,11 +151,6 @@ export const SongBindSchema = z
 export const SongUnbindSchema = z.object({
   songIds: z.array(z.number().int().positive()).max(200).optional(),
   all: z.boolean().optional(),
-})
-
-/** 批量导入：只带上文本，解析交给 parseSongLines（与客户端预览同一份逻辑） */
-export const SongImportSchema = z.object({
-  text: z.string().min(1, "请先粘贴内容").max(200_000, "内容过长"),
 })
 
 // 评论

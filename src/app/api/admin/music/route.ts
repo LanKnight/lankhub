@@ -20,12 +20,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { title, artist, link, favorite, sortOrder } = parsed.data
+    const { title, artist, favorite, sortOrder } = parsed.data
     const song = await prisma.song.create({
       data: {
         title,
         artist,
-        link: link && link.length > 0 ? link : null,
         favorite: favorite ?? false,
         sortOrder: sortOrder ?? 0,
         authorId: Number(user.id),

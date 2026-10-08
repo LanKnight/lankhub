@@ -16,8 +16,9 @@ import {
   X,
 } from "lucide-react"
 import { useToast } from "@/components/ui/Toast"
-import { parseSongLines } from "@/lib/music"
+import { bindSong, type ApiSongItem } from "@/lib/music-bind-client"
 import BindDialog from "./BindDialog"
+import SearchAddDialog from "./SearchAddDialog"
 
 /**
  * 组件内部的 props 形状：调用方直接传数据即可，不必引用这个类型名。
@@ -29,7 +30,6 @@ interface AdminSong {
   id: number
   title: string
   artist: string
-  link: string | null
   favorite: boolean
   apiId: string | null
   matchStatus: string | null
@@ -37,15 +37,8 @@ interface AdminSong {
   picId: string | null
 }
 
-/** 接口回传的一首歌（与 src/lib/music-api.ts 的 ApiSong 同形） */
-interface ApiSong {
-  apiId: string
-  title: string
-  artist: string
-  album: string
-  picId: string
-  lyricId: string
-}
+/** 接口回传的一首歌：与 src/lib/music-bind-client.ts 的 ApiSongItem 同形，直接复用 */
+type ApiSong = ApiSongItem
 
 /** /api/admin/music/match 回的一条提案 */
 interface Proposal {
@@ -58,17 +51,6 @@ interface Proposal {
   titleMatches: ApiSong[]
   error: string | null
 }
-
-/** /api/admin/music/bind 的回执 */
-interface BindResponse {
-  bound: number
-  loaded?: { songId: number; coverUrl: string | null; lyric: boolean }[]
-  failed: { songId: number; error: string }[]
-  warnings: { songId: number; error: string }[]
-  error?: string
-}
-
-type Mode = "single" | "bulk"
 
 /** 按每批 n 个切分，用于把「一次最多 6 首」的绑定量分批执行 */
 function chunk<T>(list: T[], size: number): T[][] {
@@ -122,22 +104,19 @@ const inputClass =
 export default function SongManager({ initialSongs }: { initialSongs: AdminSong[] }) {
   const { toast } = useToast()
   const [songs, setSongs] = useState<AdminSong[]>(initialSongs)
-  const [mode, setMode] = useState<Mode>("single")
 
-  // 单条添加
+  // 搜索添加
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  // 手动添加（源站没收录的歌才用）
   const [title, setTitle] = useState("")
   const [artist, setArtist] = useState("")
-  const [link, setLink] = useState("")
   const [favorite, setFavorite] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  // 批量粘贴
-  const [bulkText, setBulkText] = useState("")
-  const [importing, setImporting] = useState(false)
-
   // 行内编辑
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [draft, setDraft] = useState({ title: "", artist: "", link: "" })
+  const [draft, setDraft] = useState({ title: "", artist: "" })
 
   // 手动搜索绑定
   const [bindTarget, setBindTarget] = useState<AdminSong | null>(null)
@@ -151,10 +130,6 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
   const [binding, setBinding] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [budget, setBudget] = useState<number | null>(null)
-
-  const parsed = useMemo(() => parseSongLines(bulkText), [bulkText])
-  const parsedOk = parsed.filter((l) => !l.error)
-  const parsedBad = parsed.filter((l) => l.error)
 
   const unboundCount = songs.filter((s) => !s.apiId).length
   const boundCount = songs.length - unboundCount
@@ -173,11 +148,6 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
     return [...map.entries()]
   }, [songs])
 
-  async function refresh() {
-    const res = await fetch("/api/admin/music")
-    if (res.ok) setSongs(await res.json())
-  }
-
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim() || !artist.trim()) {
@@ -189,7 +159,7 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
       const res = await fetch("/api/admin/music", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, artist, link, favorite }),
+        body: JSON.stringify({ title, artist, favorite }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -199,43 +169,12 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
       setSongs((prev) => [...prev, data])
       setTitle("")
       setArtist("")
-      setLink("")
       setFavorite(false)
-      toast("已添加", "success")
+      toast("已添加（还没绑定，暂时不能站内播放）", "success")
     } catch {
       toast("网络错误，请稍后重试", "error")
     } finally {
       setSaving(false)
-    }
-  }
-
-  async function handleImport() {
-    if (parsedOk.length === 0) {
-      toast("没有可导入的行", "error")
-      return
-    }
-    setImporting(true)
-    try {
-      const res = await fetch("/api/admin/music/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: bulkText }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        toast(data.error || "导入失败", "error")
-        return
-      }
-      await refresh()
-      setBulkText("")
-      toast(
-        `导入 ${data.created} 首${data.skipped ? `，跳过重复 ${data.skipped} 首` : ""}`,
-        "success"
-      )
-    } catch {
-      toast("网络错误，请稍后重试", "error")
-    } finally {
-      setImporting(false)
     }
   }
 
@@ -268,7 +207,7 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
 
   function startEdit(song: AdminSong) {
     setEditingId(song.id)
-    setDraft({ title: song.title, artist: song.artist, link: song.link ?? "" })
+    setDraft({ title: song.title, artist: song.artist })
   }
 
   async function saveEdit(id: number) {
@@ -279,7 +218,6 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
     const ok = await patchSong(id, {
       title: draft.title.trim(),
       artist: draft.artist.trim(),
-      link: draft.link.trim(),
     })
     if (ok) {
       setEditingId(null)
@@ -290,7 +228,7 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
   async function handleUnbind(song: AdminSong) {
     if (
       !window.confirm(
-        `解绑「${song.title} - ${song.artist}」？\n解绑后这首歌在站内放不出声音，只能走外链。`
+        `解绑「${song.title} - ${song.artist}」？\n解绑后这首歌在站内放不出声音，前台会置灰显示。`
       )
     ) {
       return
@@ -417,33 +355,28 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
     try {
       let boundCount = 0
       const failedIds = new Set<number>()
-      const loaded: { songId: number; coverUrl: string | null; lyric: boolean }[] = []
+      const coverBySong = new Map<number, string | null>()
+      let warningCount = 0
 
-      for (const batch of chunk(items, 6)) {
-        const res = await fetch("/api/admin/music/bind", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            items: batch.map(({ songId, item }) => ({
-              songId,
-              apiId: item.apiId,
-              picId: item.picId,
-              lyricId: item.lyricId,
-              album: item.album,
-            })),
-          }),
-        })
-        const data: BindResponse = await res.json().catch(() => ({} as BindResponse))
-        if (!res.ok) {
-          toast(data.error || "绑定失败", "error")
-          break
+      /*
+       * 每首单独调 bindSong，而不是把 6 首塞进一个请求。
+       * 为什么值得多几次往返：/bind 现在会为每个 item 校验「这个版本是否
+       * 来自当前搜索结果」，逐首调用能拿到**每首歌自己的**失败原因与封面，
+       * 而不是一坨混在一起的结果 —— 批量失败时最容易在这里说不清。
+       */
+      for (const { songId, item } of items) {
+        const result = await bindSong(songId, item)
+        if (!result.ok) {
+          failedIds.add(songId)
+          toast(`「${item.title}」绑定失败：${result.error}`, "error")
+          continue
         }
-        boundCount += data.bound
-        for (const f of data.failed ?? []) failedIds.add(f.songId)
-        loaded.push(...(data.loaded ?? []))
-        if (data.warnings?.length) {
-          toast(`${data.warnings.length} 首歌的封面或歌词没抓到，不影响播放`, "error")
-        }
+        boundCount += 1
+        coverBySong.set(songId, result.coverUrl)
+        if (result.warning) warningCount += 1
+      }
+      if (warningCount > 0) {
+        toast(`${warningCount} 首歌的封面或歌词没抓到，不影响播放`, "error")
       }
 
       // 没匹配上的标记成「无原版」，下次自动匹配就不再白搜这些歌
@@ -458,19 +391,17 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
       const boundIds = items
         .map((i) => i.songId)
         .filter((id) => !failedIds.has(id))
-      const detail = new Map(loaded.map((l) => [l.songId, l]))
       const noMatchSet = new Set(noMatchIds)
 
       setSongs((prev) =>
         prev.map((s) => {
           if (boundIds.includes(s.id)) {
             const item = items.find((i) => i.songId === s.id)?.item
-            const info = detail.get(s.id)
             return {
               ...s,
               apiId: item?.apiId ?? s.apiId,
               picId: item?.picId ?? s.picId,
-              coverUrl: info?.coverUrl ?? s.coverUrl,
+              coverUrl: coverBySong.get(s.id) ?? s.coverUrl,
               matchStatus: null,
             }
           }
@@ -564,32 +495,40 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
   return (
     <div className="space-y-6">
       {/* 录入 */}
-      <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <div className="flex border-b border-gray-100">
-          {(
-            [
-              ["single", "单条添加"],
-              ["bulk", "批量粘贴"],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setMode(value)}
-              className={`px-5 py-3 text-sm transition-colors ${
-                mode === value
-                  ? "text-gray-900 font-medium border-b-2 border-accent -mb-px"
-                  : "text-gray-500 hover:text-gray-900"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+      <div className="bg-white rounded-xl border border-gray-100">
+        {/*
+          主入口是「搜索添加」：搜到的结果自带歌手、专辑、封面与歌词，
+          不用手工录歌手，也不用自己分类。
+          手动添加只是退路 —— 专门留给源站确实没收录的歌。
+        */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-gray-100 px-5 py-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-gray-900">搜索添加</p>
+            <p className="mt-0.5 text-xs text-gray-400">
+              搜歌名（可带上歌手）→ 挑一个版本 → 加入歌单。
+              歌手、专辑、封面与歌词都由搜索结果带出来，不用手工录
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+          >
+            <Search size={16} />
+            搜索添加
+          </button>
         </div>
 
-        {mode === "single" ? (
-          <form onSubmit={handleAdd} className="p-5 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-sm text-gray-500 transition-colors hover:text-gray-900">
+            <Plus size={14} className="shrink-0" />
+            手动添加（源站没收录的歌用这个）
+            <span className="text-xs text-gray-300 transition-transform group-open:rotate-90">
+              ›
+            </span>
+          </summary>
+          <form onSubmit={handleAdd} className="space-y-4 border-t border-gray-100 p-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="song-title" className="block text-sm font-medium text-gray-700 mb-1.5">
                   歌名
@@ -614,20 +553,8 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
                   placeholder="周杰伦"
                 />
               </div>
-              <div>
-                <label htmlFor="song-link" className="block text-sm font-medium text-gray-700 mb-1.5">
-                  外链（可选）
-                </label>
-                <input
-                  id="song-link"
-                  value={link}
-                  onChange={(e) => setLink(e.target.value)}
-                  className={inputClass}
-                  placeholder="https://y.qq.com/..."
-                />
-              </div>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <label className="flex items-center gap-2 text-sm text-gray-600">
                 <input
                   type="checkbox"
@@ -646,76 +573,12 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
                 添加
               </button>
             </div>
+            <p className="text-xs text-gray-400">
+              这里加的只是歌名与歌手，暂时不能站内播放；
+              之后用工具栏的「自动匹配未绑定的歌」或行内的「搜索绑定」把它绑上
+            </p>
           </form>
-        ) : (
-          <div className="p-5 space-y-4">
-            <div>
-              <label htmlFor="bulk" className="block text-sm font-medium text-gray-700 mb-1.5">
-                每行一首，格式「歌名 - 歌手」
-              </label>
-              <textarea
-                id="bulk"
-                rows={8}
-                value={bulkText}
-                onChange={(e) => setBulkText(e.target.value)}
-                className={`${inputClass} resize-y font-mono`}
-                placeholder={"晴天 - 周杰伦\n演员 - 薛之谦\n大鱼 - 周深"}
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                也认「–」「—」「|」和制表符分隔、以及行首的 1. / - 之类的列表标记
-              </p>
-            </div>
-
-            {parsed.length > 0 && (
-              <div className="rounded-lg border border-gray-200 overflow-hidden">
-                <div className="px-4 py-2 bg-gray-50 text-xs text-gray-600 flex items-center gap-3">
-                  <span>解析到 {parsed.length} 行</span>
-                  <span className="text-green-600">可导入 {parsedOk.length}</span>
-                  {parsedBad.length > 0 && (
-                    <span className="text-red-500">有问题 {parsedBad.length}</span>
-                  )}
-                </div>
-                <ul className="max-h-64 overflow-y-auto divide-y divide-gray-100">
-                  {parsed.map((line, i) => (
-                    <li
-                      key={`${line.raw}-${i}`}
-                      className="px-4 py-2 text-sm flex items-center gap-3"
-                    >
-                      {line.error ? (
-                        <>
-                          <span className="text-red-500 shrink-0">✕</span>
-                          <span className="text-gray-400 line-through truncate">{line.raw}</span>
-                          <span className="text-xs text-red-500 shrink-0 ml-auto">
-                            {line.error}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-green-600 shrink-0">✓</span>
-                          <span className="text-gray-900 truncate">{line.title}</span>
-                          <span className="text-gray-400 shrink-0">—</span>
-                          <span className="text-gray-500 truncate">{line.artist}</span>
-                        </>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={handleImport}
-                disabled={importing || parsedOk.length === 0}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors text-sm font-medium"
-              >
-                {importing ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-                导入 {parsedOk.length} 首
-              </button>
-            </div>
-          </div>
-        )}
+        </details>
       </div>
 
       {/* 在线播放的工具条 */}
@@ -973,12 +836,6 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
                         className={`${inputClass} sm:w-40`}
                         placeholder="歌手"
                       />
-                      <input
-                        value={draft.link}
-                        onChange={(e) => setDraft({ ...draft, link: e.target.value })}
-                        className={`${inputClass} sm:flex-1`}
-                        placeholder="外链（可选）"
-                      />
                       <button
                         type="button"
                         onClick={() => saveEdit(song.id)}
@@ -1031,17 +888,6 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
                         </span>
                       )}
 
-                      {song.link && (
-                        <a
-                          href={song.link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-accent hover:underline shrink-0"
-                        >
-                          外链
-                        </a>
-                      )}
-
                       <span className="ml-auto flex items-center gap-1 shrink-0">
                         {song.apiId ? (
                           <button
@@ -1090,6 +936,45 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
         )}
       </div>
 
+      {searchOpen && (
+        <SearchAddDialog
+          onClose={() => setSearchOpen(false)}
+          onAdded={(info) => {
+            // 已存在的歌只更新播放字段，不重复插一条
+            setSongs((prev) => {
+              const hit = prev.find((s) => s.id === info.songId)
+              if (hit) {
+                return prev.map((s) =>
+                  s.id === info.songId
+                    ? {
+                        ...s,
+                        apiId: info.apiId ?? s.apiId,
+                        coverUrl: info.coverUrl ?? s.coverUrl,
+                        matchStatus: info.apiId ? null : s.matchStatus,
+                      }
+                    : s
+                )
+              }
+              // 新加的歌：服务端只回了 id，这里先按已知信息插进去，
+              // 之后刷新页面即可拿到完整字段
+              return [
+                ...prev,
+                {
+                  id: info.songId,
+                  title: info.title,
+                  artist: info.artist,
+                  favorite: false,
+                  apiId: info.apiId,
+                  matchStatus: null,
+                  coverUrl: info.coverUrl,
+                  picId: null,
+                },
+              ]
+            })
+          }}
+        />
+      )}
+
       {bindTarget && (
         <BindDialog
           song={{ id: bindTarget.id, title: bindTarget.title, artist: bindTarget.artist }}
@@ -1124,7 +1009,6 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
         id,
         title: "",
         artist: "",
-        link: null,
         favorite: false,
         apiId: null,
         matchStatus: null,

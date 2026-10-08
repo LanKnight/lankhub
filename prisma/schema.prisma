@@ -204,8 +204,6 @@ model Song {
   id        Int      @id @default(autoincrement())
   title     String
   artist    String
-  /// 外链（QQ音乐 / 网易云 / YouTube 等），可选
-  link      String?
   /// 特别推荐：在所属歌手分组里置顶并加标记
   favorite  Boolean  @default(false)
   sortOrder Int      @default(0)

@@ -38,28 +38,25 @@ export async function GET(req: NextRequest) {
 
   const song = await prisma.song.findUnique({
     where: { id: parsed.data },
-    select: { apiId: true, link: true },
+    select: { apiId: true },
   })
 
   if (!song) {
     return NextResponse.json({ error: "歌曲不存在" }, { status: 404 })
   }
 
-  // 还没绑定到 API 的歌：把外链一并返回，前端可以退回到「去别处听」，
-  // 而不是给用户一个放不出声音的播放器
+  /*
+   * 还没绑定到 API 的歌返回 409。
+   * 歌单已经没有外链字段了，所以这里不再附带「去别处听」的退路 ——
+   * 前台对这类歌直接置灰不可点，提示「本站无此版本」。
+   */
   if (!song.apiId) {
-    return NextResponse.json(
-      { error: "这首歌尚未绑定在线播放", fallback: song.link },
-      { status: 409 }
-    )
+    return NextResponse.json({ error: "本站没有这首歌的版本" }, { status: 409 })
   }
 
   const result = await getPlayUrl(song.apiId, { force })
   if (!result.ok) {
-    return NextResponse.json(
-      { error: result.error, fallback: song.link },
-      { status: 502 }
-    )
+    return NextResponse.json({ error: result.error }, { status: 502 })
   }
 
   return NextResponse.json({ url: result.data })

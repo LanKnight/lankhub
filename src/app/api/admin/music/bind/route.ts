@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireOwnerUser } from "@/lib/auth-helpers"
-import { getCoverUrl, getLyric, MUSIC_SOURCE, musicApiBudget } from "@/lib/music-api"
+import {
+  getCoverUrl,
+  getLyric,
+  MUSIC_SOURCE,
+  musicApiBudget,
+  searchSongs,
+  type ApiSong,
+} from "@/lib/music-api"
 import { SongBindSchema } from "@/lib/validations"
 
 /**
@@ -49,13 +56,44 @@ export async function POST(req: NextRequest) {
    */
   const loaded: { songId: number; coverUrl: string | null; lyric: boolean }[] = []
 
+  /*
+   * 同一批里如果有多首同名同歌手的歌，只搜一次。
+   * 校验每个 item 都要花 1 次搜索配额（见下面的注释），去重能省下重复的那几次。
+   */
+  const candidateCache = new Map<string, ApiSong[]>()
+
   for (const item of parsed.data.items) {
     const song = await prisma.song.findUnique({
       where: { id: item.songId },
-      select: { id: true },
+      select: { id: true, title: true, artist: true },
     })
     if (!song) {
       failed.push({ songId: item.songId, error: "歌曲不存在" })
+      continue
+    }
+
+    /*
+     * 校验提交上来的版本确实来自当前搜索结果。
+     *
+     * 为什么要多花这 1 次搜索配额：apiId 是客户端说了算的，而后台允许改歌名歌手。
+     * 改了之后再点一个**旧的**对话框，就会把 A 歌的 apiId 写进 B 歌 ——
+     * 结果是前台放出一首毫不相干的歌。这个错很难从界面上看出来。
+     *
+     * 反过来说，合法的入口（搜索添加、单首绑定）提交的 apiId 本来就来自
+     * 刚刚那次搜索，所以在结果里一定能找到，不会误伤。
+     */
+    const cacheKey = `${song.title}\u0000${song.artist}`
+    let candidates = candidateCache.get(cacheKey)
+    if (!candidates) {
+      const searched = await searchSongs(song.title, song.artist)
+      candidates = searched.ok ? searched.data : []
+      candidateCache.set(cacheKey, candidates)
+    }
+    if (!candidates.some((c) => c.apiId === item.apiId)) {
+      failed.push({
+        songId: item.songId,
+        error: "这个版本已不在当前搜索结果里（可能已下架，或歌名歌手被改过），请重新搜索",
+      })
       continue
     }
 

@@ -30,21 +30,12 @@ export async function PUT(
   }
 
   try {
-    const { title, artist, link, favorite, sortOrder } = parsed.data
+    const { title, artist, favorite, sortOrder } = parsed.data
     const song = await prisma.song.update({
       where: { id },
       data: {
         title: title ?? existing.title,
         artist: artist ?? existing.artist,
-        // link 允许显式传空串或 null 来清空。
-        // 必须先判 null：SongLinkSchema 现在接受 null，
-        // 直接写 link.length 会在 null 上抛 TypeError、变成 500 而不是干净的 400
-        link:
-          link === undefined
-            ? existing.link
-            : link === null || link.length === 0
-              ? null
-              : link,
         favorite: favorite ?? existing.favorite,
         sortOrder: sortOrder ?? existing.sortOrder,
       },

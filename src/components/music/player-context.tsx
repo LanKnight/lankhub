@@ -18,9 +18,8 @@ export interface PlayerSong {
   artist: string
   coverUrl: string | null
   lyric: string | null
-  link: string | null
   favorite: boolean
-  /** 为空表示还没绑定到音乐接口，点播放会给出提示 */
+  /** 为空表示还没绑定到音乐接口，前台会置灰不可点 */
   apiId: string | null
 }
 
@@ -30,8 +29,6 @@ interface PlayerContextValue {
   loading: boolean
   /** 播放失败时的提示文案 */
   error: string | null
-  /** 播放失败但有外链时，给用户一个「去别处听」的出口 */
-  fallbackLink: string | null
   /** 当前播放列表（点卡片里的歌时，队列 = 那位歌手的歌） */
   queue: PlayerSong[]
   /**
@@ -74,7 +71,6 @@ export function PlayerProvider({
   const [playing, setPlaying] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [fallbackLink, setFallbackLink] = useState<string | null>(null)
 
   /**
    * 已经为哪首歌自动重取过地址了。
@@ -87,7 +83,7 @@ export function PlayerProvider({
   const retrying = useRef(false)
 
   /**
-   * 取播放地址并开始播放。失败时给出原因与外链出口。
+   * 取播放地址并开始播放。失败时给出原因。
    *
    * `options.force` 让服务端跳过它的内存缓存重新取地址（重试时必须带上，
    * 否则拿回来的还是那条已经失效的地址）；`options.resumeAt` 是续播位置。
@@ -96,7 +92,6 @@ export function PlayerProvider({
     async (song: PlayerSong, options: { force?: boolean; resumeAt?: number } = {}) => {
       setCurrent(song)
       setError(null)
-      setFallbackLink(null)
       setLoading(true)
 
       const audio = audioRef.current
@@ -110,7 +105,6 @@ export function PlayerProvider({
 
         if (!res.ok || !data.url) {
           setError(data.error || "暂时无法播放这首歌")
-          setFallbackLink(data.fallback ?? song.link ?? null)
           setPlaying(false)
           audio.removeAttribute("src")
           return
@@ -131,7 +125,6 @@ export function PlayerProvider({
         setPlaying(true)
       } catch {
         setError("网络异常，暂时无法播放")
-        setFallbackLink(song.link)
         setPlaying(false)
       } finally {
         setLoading(false)
@@ -194,7 +187,6 @@ export function PlayerProvider({
     setCurrent(null)
     setPlaying(false)
     setError(null)
-    setFallbackLink(null)
     setQueue([])
   }, [])
 
@@ -204,7 +196,6 @@ export function PlayerProvider({
       playing,
       loading,
       error,
-      fallbackLink,
       queue,
       audioRef,
       play,
@@ -219,7 +210,6 @@ export function PlayerProvider({
       playing,
       loading,
       error,
-      fallbackLink,
       queue,
       play,
       toggle,

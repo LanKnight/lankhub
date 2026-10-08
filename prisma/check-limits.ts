@@ -34,7 +34,8 @@ import {
  * 已知局限：它校验的是**已有数据**，所以查不出「某个可空列暂时还没有 null 值」
  * 这种隐患 —— 那种情况要等第一批 null 出现时才会暴露。
  * schema 与数据模型的可空性是否一致，仍需人工对照 prisma/schema.prisma 复核。
- *（已经因此修过三次：Collection.coverImage、Song.link、Comment.parentId）
+ *（已经因此修过三次：Collection.coverImage、Song.link、Comment.parentId。
+ *  注意 Song.link 后来随「歌单不再有外链」被整个删掉了，这里只是保留历史）
  *
  * 用法：
  *   npx tsx prisma/check-limits.ts

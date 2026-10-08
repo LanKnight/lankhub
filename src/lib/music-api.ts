@@ -139,9 +139,19 @@ async function callApi(params: Record<string, string>): Promise<ApiResult<unknow
   return { ok: false, error: "音乐接口暂时不可用" }
 }
 
-/** 搜索歌曲。只用于后台绑定，前台不开放搜索 */
-export async function searchSongs(keyword: string): Promise<ApiResult<ApiSong[]>> {
-  const result = await callApi({ types: "search", name: keyword })
+/**
+ * 搜索歌曲。只用于后台（搜索添加与单首绑定），前台刻意不开放搜索。
+ *
+ * `artist` 可选：带上它就把关键词拼成「歌名 歌手」。
+ * 实测（docs/music-plan.md 有记录）这个写法让歌名精确相同的候选更多、
+ * 原版更靠前：「起风了 冯沁苑」拿到 9 条同名候选，只搜歌名只有 5 条。
+ */
+export async function searchSongs(
+  keyword: string,
+  artist?: string
+): Promise<ApiResult<ApiSong[]>> {
+  const name = artist?.trim() ? `${keyword} ${artist.trim()}` : keyword
+  const result = await callApi({ types: "search", name })
   if (!result.ok) return result
 
   const list = Array.isArray(result.data) ? (result.data as RawSearchItem[]) : []

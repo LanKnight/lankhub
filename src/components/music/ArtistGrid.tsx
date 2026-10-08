@@ -92,15 +92,27 @@ export default function ArtistGrid({ groups }: { groups: ArtistGroup[] }) {
                 {group.songs.map((song) => {
                   const isCurrent = current?.id === song.id
                   const isPlayingThis = isCurrent && playing
+                  /*
+                   * 未绑定 = 本站没有这首歌的版本，直接置灰不可点。
+                   * 不做的两件事：一是不再给「去别处听」的外链（歌单已无外链字段），
+                   * 二是不让它进播放队列 —— 否则「下一首」会走进一首放不出的歌。
+                   */
+                  const playable = Boolean(song.apiId)
                   return (
                     <li key={song.id}>
                       <button
                         type="button"
+                        disabled={!playable}
+                        title={playable ? undefined : "本站无此版本"}
                         onClick={() =>
-                          isCurrent ? toggle() : play(song, group.songs)
+                          isCurrent ? toggle() : play(song, group.songs.filter((s) => s.apiId))
                         }
                         className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${
-                          isCurrent ? "bg-gray-50" : "hover:bg-gray-50"
+                          playable
+                            ? isCurrent
+                              ? "bg-gray-50"
+                              : "hover:bg-gray-50"
+                            : "cursor-not-allowed opacity-50"
                         }`}
                       >
                         <span className="flex h-4 w-4 shrink-0 items-center justify-center">
@@ -112,7 +124,9 @@ export default function ArtistGrid({ groups }: { groups: ArtistGroup[] }) {
                               className={
                                 isCurrent
                                   ? "text-gray-900"
-                                  : "text-gray-300 group-hover:text-gray-500"
+                                  : playable
+                                    ? "text-gray-300 group-hover:text-gray-500"
+                                    : "text-gray-300"
                               }
                             />
                           )}
@@ -131,21 +145,10 @@ export default function ArtistGrid({ groups }: { groups: ArtistGroup[] }) {
                         >
                           {song.title}
                         </span>
-                        {!song.apiId && (
-                          <span className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] text-gray-400 ring-1 ring-gray-200">
-                            待绑定
+                        {!playable && (
+                          <span className="ml-auto shrink-0 text-[10px] text-gray-400">
+                            本站无此版本
                           </span>
-                        )}
-                        {song.link && song.apiId && (
-                          <a
-                            href={song.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="ml-auto shrink-0 text-[11px] text-accent hover:underline"
-                          >
-                            外链
-                          </a>
                         )}
                       </button>
                     </li>

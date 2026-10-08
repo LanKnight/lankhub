@@ -30,18 +30,8 @@ function formatTime(seconds: number): string {
  * 这里直接操作 audio 元素的 ref。
  */
 export default function PlayerBar() {
-  const {
-    current,
-    playing,
-    loading,
-    error,
-    fallbackLink,
-    audioRef,
-    toggle,
-    next,
-    prev,
-    close,
-  } = usePlayer()
+  const { current, playing, loading, error, audioRef, toggle, next, prev, close } =
+    usePlayer()
 
   /*
    * 进度状态里带上 songId：换歌时用它推导出「归零」的显示，
@@ -185,22 +175,7 @@ export default function PlayerBar() {
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-gray-900">{current.title}</p>
             {error ? (
-              <p className="truncate text-xs text-red-500">
-                {error}
-                {fallbackLink && (
-                  <>
-                    {" · "}
-                    <a
-                      href={fallbackLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline"
-                    >
-                      去别处听
-                    </a>
-                  </>
-                )}
-              </p>
+              <p className="truncate text-xs text-red-500">{error}</p>
             ) : (
               <p className="truncate text-xs text-gray-500">{current.artist}</p>
             )}

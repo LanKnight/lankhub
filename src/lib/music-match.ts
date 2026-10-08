@@ -76,6 +76,18 @@ function isCredibleArtist(token: string, target: string): boolean {
   return false
 }
 
+/**
+ * 候选这首歌的歌手是否可信 —— 公开版本，供「搜索添加」界面标注「疑似翻唱」。
+ *
+ * 与 matchSong 用的是同一套判定，所以界面上标的「疑似翻唱」与自动匹配
+ * 会不会绑它，结论始终一致，不会出现「界面说不像翻唱、自动匹配却拒绝」。
+ */
+export function isCredibleArtistName(candidateArtist: string, target: string): boolean {
+  const want = artistKey(target)
+  if (want.length === 0) return false
+  return artistTokens(candidateArtist).some((token) => isCredibleArtist(token, want))
+}
+
 export function matchSong(
   candidates: ApiSong[],
   title: string,

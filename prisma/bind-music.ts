@@ -81,7 +81,9 @@ async function main() {
       const best = outcome.match
       if (!best) {
         // 多半是源站没有这首歌的版权（如网易云的周杰伦），标记下来免得下次白搜
-        console.log(`  – ${song.title} — ${song.artist}：源站没有原版，只能走外链`)
+        console.log(
+          `  – ${song.title} — ${song.artist}：源站没有原版，无法绑定（前台会置灰）`
+        )
         skipped += 1
         if (!dryRun) {
           await prisma.song.update({
