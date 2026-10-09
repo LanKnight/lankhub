@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { ChevronDown, Headphones, Pause, Play, Star } from "lucide-react"
+import { useMemo, useState } from "react"
+import { ChevronDown, CircleAlert, Headphones, Pause, Play, Shuffle, Star } from "lucide-react"
 import { usePlayer, type PlayerSong } from "./player-context"
 
 export interface ArtistGroup {
@@ -19,12 +19,71 @@ export interface ArtistGroup {
  * 这样既符合「点卡片再出现音乐」的预期，也不丢失当前浏览位置。
  */
 export default function ArtistGrid({ groups }: { groups: ArtistGroup[] }) {
-  const { current, playing, play, toggle } = usePlayer()
+  const { current, playing, play, toggle, setMode } = usePlayer()
   const [openArtist, setOpenArtist] = useState<string | null>(null)
 
+  /*
+   * 「播放全部」的队列：把各组里**能播的**歌按当前顺序摊平。
+   *
+   * 为什么必须过滤掉不可播的（apiId 为空、前台置灰的那些）：
+   * 它们进队列后，「下一首」会走进一首放不出声的歌，然后卡在错误提示上。
+   * 歌单一多这种情况就很显眼（网易云没版权那批全都不可播）。
+   */
+  const { playable, unplayableCount } = useMemo(() => {
+    const ok: PlayerSong[] = []
+    let bad = 0
+    for (const group of groups) {
+      for (const song of group.songs) {
+        if (song.apiId) ok.push(song)
+        else bad += 1
+      }
+    }
+    return { playable: ok, unplayableCount: bad }
+  }, [groups])
+
+  /** 从整个队列的第一首开始播；random 为真时直接进入随机模式 */
+  function playAll(random: boolean) {
+    if (playable.length === 0) return
+    setMode(random ? "shuffle" : "sequential")
+    play(playable[0], playable)
+  }
+
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-      {groups.map((group) => {
+    <>
+      {/* 播放全部：整站可播的歌合成一个队列，跨歌手连着放 */}
+      {playable.length > 0 && (
+        <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-gray-100 bg-white px-4 py-3">
+          <button
+            type="button"
+            onClick={() => playAll(false)}
+            className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+          >
+            <Play size={15} className="ml-0.5" />
+            播放全部
+          </button>
+          <button
+            type="button"
+            onClick={() => playAll(true)}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 transition-colors hover:border-gray-300 hover:text-gray-900"
+          >
+            <Shuffle size={14} />
+            随机播放
+          </button>
+          <span className="text-xs text-gray-400">{playable.length} 首可播放</span>
+          {unplayableCount > 0 && (
+            <span
+              className="ml-auto inline-flex items-center gap-1.5 text-xs text-amber-600"
+              title="这些歌源站没有原版（或还没绑定），点不出声音，所以不会进入播放队列"
+            >
+              <CircleAlert size={13} className="shrink-0" />
+              {unplayableCount} 首暂不可播，已跳过
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        {groups.map((group) => {
         const isOpen = openArtist === group.artist
         return (
           <div
@@ -97,18 +156,18 @@ export default function ArtistGrid({ groups }: { groups: ArtistGroup[] }) {
                    * 不做的两件事：一是不再给「去别处听」的外链（歌单已无外链字段），
                    * 二是不让它进播放队列 —— 否则「下一首」会走进一首放不出的歌。
                    */
-                  const playable = Boolean(song.apiId)
+                  const canPlay = Boolean(song.apiId)
                   return (
                     <li key={song.id}>
                       <button
                         type="button"
-                        disabled={!playable}
-                        title={playable ? undefined : "本站无此版本"}
+                        disabled={!canPlay}
+                        title={canPlay ? undefined : "本站无此版本"}
                         onClick={() =>
                           isCurrent ? toggle() : play(song, group.songs.filter((s) => s.apiId))
                         }
                         className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors ${
-                          playable
+                          canPlay
                             ? isCurrent
                               ? "bg-gray-50"
                               : "hover:bg-gray-50"
@@ -124,7 +183,7 @@ export default function ArtistGrid({ groups }: { groups: ArtistGroup[] }) {
                               className={
                                 isCurrent
                                   ? "text-gray-900"
-                                  : playable
+                                  : canPlay
                                     ? "text-gray-300 group-hover:text-gray-500"
                                     : "text-gray-300"
                               }
@@ -145,7 +204,7 @@ export default function ArtistGrid({ groups }: { groups: ArtistGroup[] }) {
                         >
                           {song.title}
                         </span>
-                        {!playable && (
+                        {!canPlay && (
                           <span className="ml-auto shrink-0 text-[10px] text-gray-400">
                             本站无此版本
                           </span>
@@ -159,6 +218,7 @@ export default function ArtistGrid({ groups }: { groups: ArtistGroup[] }) {
           </div>
         )
       })}
-    </div>
+      </div>
+    </>
   )
 }

@@ -2,10 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
-  ChevronDown,
+  ArrowRight,
   ListMusic,
+  ListOrdered,
   Pause,
   Play,
+  Repeat,
+  Shuffle,
   SkipBack,
   SkipForward,
   Volume2,
@@ -14,6 +17,9 @@ import {
 } from "lucide-react"
 import { usePlayer } from "./player-context"
 import { findLyricIndex, parseLrc } from "@/lib/lrc"
+import { PLAY_MODE_LABEL, type PlayMode } from "@/lib/play-order"
+import LyricsDrawer from "./LyricsDrawer"
+import QueuePanel from "./QueuePanel"
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00"
@@ -22,16 +28,43 @@ function formatTime(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`
 }
 
+/** 每个播放模式对应的图标 */
+const MODE_ICON: Record<PlayMode, typeof ArrowRight> = {
+  sequential: ArrowRight,
+  single: Repeat,
+  shuffle: Shuffle,
+}
+
+/** 歌词抽屉的高度（h-56 + 标题栏），列表面板要避开它 */
+const LYRICS_OFFSET = "mb-[284px]"
+/** 播放条本身的高度 */
+const BAR_OFFSET = "mb-[68px]"
+
 /**
- * 底部固定播放条 + 歌词抽屉。
+ * 底部固定播放条。
  *
  * 进度/音量故意用本地 state 而不是放进 context：
  * timeupdate 每秒触发多次，放进 context 会让整面卡片墙跟着重渲染。
  * 这里直接操作 audio 元素的 ref。
+ *
+ * 两个弹出面板（歌词 / 播放列表）由这里统一管，因为它们位置重叠、
+ * 同时开就会叠在一起 —— 所以互斥。
  */
 export default function PlayerBar() {
-  const { current, playing, loading, error, audioRef, toggle, next, prev, close } =
-    usePlayer()
+  const {
+    current,
+    playing,
+    loading,
+    error,
+    queue,
+    mode,
+    cycleMode,
+    audioRef,
+    toggle,
+    next,
+    prev,
+    close,
+  } = usePlayer()
 
   /*
    * 进度状态里带上 songId：换歌时用它推导出「归零」的显示，
@@ -40,7 +73,8 @@ export default function PlayerBar() {
   const [progress, setProgress] = useState({ songId: -1, time: 0, duration: 0 })
   const [volume, setVolume] = useState(1)
   const [muted, setMuted] = useState(false)
-  const [showLyric, setShowLyric] = useState(false)
+  /** 当前弹出的是哪个面板；null = 都收起 */
+  const [panel, setPanel] = useState<"lyrics" | "queue" | null>(null)
 
   const lyricBoxRef = useRef<HTMLDivElement | null>(null)
 
@@ -75,7 +109,7 @@ export default function PlayerBar() {
 
   // 当前歌词行滚到中间
   useEffect(() => {
-    if (!showLyric || activeIndex < 0) return
+    if (panel !== "lyrics" || activeIndex < 0) return
     const box = lyricBoxRef.current
     const line = box?.querySelector<HTMLElement>(`[data-line="${activeIndex}"]`)
     if (box && line) {
@@ -84,7 +118,7 @@ export default function PlayerBar() {
         behavior: "smooth",
       })
     }
-  }, [activeIndex, showLyric])
+  }, [activeIndex, panel])
 
   if (!current) return null
 
@@ -104,51 +138,27 @@ export default function PlayerBar() {
     setMuted(value === 0)
   }
 
+  const ModeIcon = MODE_ICON[mode]
+
   return (
     <>
       {/* 歌词抽屉 */}
-      {showLyric && (
-        <div className="fixed inset-x-0 bottom-0 z-50 mb-[68px] px-3 md:px-6">
-          <div className="mx-auto max-w-3xl rounded-t-2xl border border-b-0 border-gray-200 bg-white/95 shadow-xl backdrop-blur">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100">
-              <span className="text-xs text-gray-400">
-                {current.title} · {current.artist}
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowLyric(false)}
-                className="p-1.5 text-gray-400 hover:text-gray-900 rounded-lg transition-colors"
-                aria-label="收起歌词"
-              >
-                <ChevronDown size={16} />
-              </button>
-            </div>
-            <div ref={lyricBoxRef} className="h-56 overflow-y-auto px-6 py-4">
-              {lyricLines.length === 0 ? (
-                <p className="text-center text-sm text-gray-400 py-16">
-                  这首歌暂时没有歌词
-                </p>
-              ) : (
-                <div className="space-y-3 text-center">
-                  {lyricLines.map((line, index) => (
-                    <p
-                      key={`${line.time}-${index}`}
-                      data-line={index}
-                      className={
-                        index === activeIndex
-                          ? "text-[15px] font-medium text-gray-900 transition-colors"
-                          : "text-sm text-gray-400 transition-colors"
-                      }
-                    >
-                      {line.text}
-                    </p>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <LyricsDrawer
+        open={panel === "lyrics"}
+        onClose={() => setPanel(null)}
+        title={current.title}
+        artist={current.artist}
+        lines={lyricLines}
+        activeIndex={activeIndex}
+        boxRef={lyricBoxRef}
+      />
+
+      {/* 播放列表：歌词开着时抬高，避免两个面板重叠 */}
+      <QueuePanel
+        open={panel === "queue"}
+        onClose={() => setPanel(null)}
+        offsetClass={panel === "lyrics" ? LYRICS_OFFSET : BAR_OFFSET}
+      />
 
       {/* 播放条 */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur">
@@ -183,10 +193,25 @@ export default function PlayerBar() {
 
           {/* 控制 */}
           <div className="flex shrink-0 items-center gap-1">
+            {/*
+              播放模式：一个按钮循环切换，而不是并排四个 ——
+              站长明确说过讨厌界面上按钮太多。
+              顺序播放 → 单曲循环 → 随机播放 → 回到顺序
+            */}
+            <button
+              type="button"
+              onClick={cycleMode}
+              className="rounded-lg p-2 text-gray-500 transition-colors hover:text-gray-900"
+              aria-label={`播放模式：${PLAY_MODE_LABEL[mode]}，点击切换`}
+              title={PLAY_MODE_LABEL[mode]}
+            >
+              <ModeIcon size={17} />
+            </button>
+
             <button
               type="button"
               onClick={prev}
-              className="p-2 text-gray-500 hover:text-gray-900 rounded-lg transition-colors"
+              className="rounded-lg p-2 text-gray-500 transition-colors hover:text-gray-900"
               aria-label="上一首"
             >
               <SkipBack size={18} />
@@ -203,7 +228,7 @@ export default function PlayerBar() {
             <button
               type="button"
               onClick={next}
-              className="p-2 text-gray-500 hover:text-gray-900 rounded-lg transition-colors"
+              className="rounded-lg p-2 text-gray-500 transition-colors hover:text-gray-900"
               aria-label="下一首"
             >
               <SkipForward size={18} />
@@ -230,7 +255,7 @@ export default function PlayerBar() {
             </span>
           </div>
 
-          {/* 音量 + 歌词（lg 以上才有空间） */}
+          {/* 音量（lg 以上才有空间） */}
           <div className="hidden shrink-0 items-center gap-1 lg:flex">
             <button
               type="button"
@@ -241,7 +266,7 @@ export default function PlayerBar() {
                 audio.muted = nextMuted
                 setMuted(nextMuted)
               }}
-              className="p-2 text-gray-500 hover:text-gray-900 rounded-lg transition-colors"
+              className="rounded-lg p-2 text-gray-500 transition-colors hover:text-gray-900"
               aria-label={muted ? "取消静音" : "静音"}
             >
               {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
@@ -258,14 +283,29 @@ export default function PlayerBar() {
             />
           </div>
 
-          {/* 移动端也要能看歌词 */}
+          {/* 播放列表 */}
           <button
             type="button"
-            onClick={() => setShowLyric((v) => !v)}
-            className={`shrink-0 p-2 rounded-lg transition-colors ${
-              showLyric ? "text-gray-900" : "text-gray-400 hover:text-gray-900"
+            onClick={() => setPanel((p) => (p === "queue" ? null : "queue"))}
+            className={`shrink-0 rounded-lg p-2 transition-colors ${
+              panel === "queue" ? "text-gray-900" : "text-gray-400 hover:text-gray-900"
+            }`}
+            aria-label="播放列表"
+            aria-expanded={panel === "queue"}
+            title={`播放列表（${queue.length} 首）`}
+          >
+            <ListOrdered size={18} />
+          </button>
+
+          {/* 歌词：移动端也要能看 */}
+          <button
+            type="button"
+            onClick={() => setPanel((p) => (p === "lyrics" ? null : "lyrics"))}
+            className={`shrink-0 rounded-lg p-2 transition-colors ${
+              panel === "lyrics" ? "text-gray-900" : "text-gray-400 hover:text-gray-900"
             }`}
             aria-label="歌词"
+            aria-expanded={panel === "lyrics"}
           >
             <ListMusic size={18} />
           </button>
@@ -273,7 +313,7 @@ export default function PlayerBar() {
           <button
             type="button"
             onClick={close}
-            className="shrink-0 p-2 text-gray-400 hover:text-gray-900 rounded-lg transition-colors"
+            className="shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:text-gray-900"
             aria-label="关闭播放器"
           >
             <X size={16} />
