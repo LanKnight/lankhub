@@ -1,8 +1,10 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import { ViewTransition } from "react"
 import { Headphones } from "lucide-react"
 import { prisma } from "@/lib/prisma"
+import { getCurrentUser } from "@/lib/auth-helpers"
 import BackLink from "@/components/ui/BackLink"
 import { PlayerProvider } from "@/components/music/player-context"
 import ArtistGrid, { type ArtistGroup } from "@/components/music/ArtistGrid"
@@ -17,6 +19,20 @@ export const metadata: Metadata = {
 }
 
 export default async function MusicPage() {
+  /*
+   * 听歌要求登录。
+   *
+   * 为什么放在查库之前：未登录的人连歌单都不该拿到（否则「要求登录」只是
+   * 一个前端遮罩，直接请求接口照样能读全量歌单）。
+   *
+   * 注意这是**门槛**而不是访问控制 —— 站点注册是公开的，任何人都能注册后收听。
+   * 它挡的是「路过的人 / 爬虫 / 懒得注册的人」，以及让播放行为能对应到账号。
+   *
+   * callbackUrl 由 LoginForm 校验为站内相对路径，登录后会跳回本页。
+   */
+  const user = await getCurrentUser()
+  if (!user) redirect("/auth/login?callbackUrl=/music")
+
   const songs = await prisma.song.findMany({
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     select: {

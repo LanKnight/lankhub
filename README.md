@@ -65,8 +65,8 @@ npm run dev
 | 完整版简历 | `/resume/print` | 单栏 A4 打印视图，供「另存为 PDF」 |
 | 账号设置 | `/settings` | 登录用户改自己的昵称、密码，以及**退出登录**（全站唯一的退出入口） |
 | 拾章 | `/poems` | 诗词收藏 |
-| 清弦 | `/music` | 我喜欢的歌，按歌手分组；特别推荐会在组内置顶，支持在线试听 |
-| 清弦免责声明 | `/music/disclaimer` | 音乐功能的完整免责声明与侵权联系方式 |
+| 清弦 | `/music` | 我喜欢的歌，按歌手分组；特别推荐会在组内置顶，支持在线试听（**需登录**） |
+| 清弦免责声明 | `/music/disclaimer` | 音乐功能的完整免责声明与侵权联系方式（**公开**，不需登录） |
 | 生活相册 | `/photos/[category]` | 按分类浏览照片（5 个分类，入口在首页「兴趣爱好」） |
 
 ### 管理后台
@@ -142,6 +142,21 @@ npm run dev
 
 如果播放中途地址失效（例如暂停很久再继续），播放器会**自动重取一次地址并从断点续播**，
 不会让你重新点一遍。
+
+### 访问控制与限流
+
+- **听歌需要登录**：`/music` 未登录会跳到登录页（登录后跳回），
+  `/api/music/play` 未登录返回 **401**。
+  `/music/disclaimer` **保持公开** —— 免责声明是给版权方和未登录访客看的，锁在后面没意义。
+- ⚠️ 说清它的性质：这是**门槛，不是访问控制**。站点注册是公开的，
+  任何人注册后即可收听。它挡的是「路过的人、爬虫、懒得注册的人」，
+  并让播放行为能对应到账号。**要真正限住人，得先关闭公开注册。**
+- **实际收益**：未登录的请求在消耗第三方配额**之前**就被挡掉了。
+  在此之前，任何人刷 `/api/music/play` 都会真的去打第三方接口。
+- **登录后不限额**（按站长的选择）：可以一直听，直到第三方那 45 次 / 5 分钟
+  的配额用尽，那时会提示「配额快用完了」。
+- 应用层仍保留按 IP 的限流（播放 60 次 / 分钟），它防的是「未登录请求刷接口」
+  这种白送的 CPU 消耗；Nginx 那一层见「限流生效的验收方法」。
 
 ### 添加歌曲
 
@@ -256,6 +271,16 @@ sudo nano /etc/nginx/sites-available/lankhub
 ```
 
 ```nginx
+# ---- 限流区定义：必须放在 server {} 之外（http 块里）----
+# 按客户端 IP 限速。这是**第一道防线**：超出的请求在到达 Node 之前就被丢掉，
+# 不会消耗 CPU。应用内部还有一层按 IP 的限流，两者管的事不同（见下面说明）。
+limit_req_zone  $binary_remote_addr zone=general:10m rate=10r/s;
+limit_req_zone  $binary_remote_addr zone=music:10m   rate=2r/s;
+limit_conn_zone $binary_remote_addr zone=perip:10m;
+# 超限时返回 429（默认是 503）—— 语义更准，前端也更好识别
+limit_req_status  429;
+limit_conn_status 429;
+
 server {
     listen 80;
     server_name 你的域名.com;
@@ -264,6 +289,9 @@ server {
     client_max_body_size 12m;
 
     location / {
+        limit_req  zone=general burst=20 nodelay;
+        limit_conn perip 20;
+
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -273,8 +301,33 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
+
+    # 播放接口单独更严：它是唯一会消耗第三方配额的入口
+    location /api/music/play {
+        limit_req  zone=music burst=5 nodelay;
+        limit_conn perip 5;
+
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
 }
 ```
+
+> ⚠️ **`X-Forwarded-For` 这一行不能少。**
+> 应用里的 `getClientIp()` 靠它识别客户端；**一旦缺失就回退成 `127.0.0.1`**，
+> 于是所有访客共用同一个限流桶 —— 要么互相误伤，要么限流整体失效，
+> 而界面上完全看不出来。用 Nginx 之外的方案（CDN、Cloudflare）时同样要传这个头。
+
+> **两层限流各管什么**（都要有）：
+> - **Nginx 层**：在到达 Node 之前挡掉洪水式请求，保护 CPU 与内存
+> - **应用层**（`src/lib/rate-limit.ts`）：按 IP 限制登录、注册、播放等具体动作
+>
+> Nginx 的 `limit_conn` 是**并发连接数**，不是请求数：一个页面会同时开多条请求
+> （HTML + 若干 JS chunk），所以别设得太小，否则页面会**部分资源加载失败**。
 
 ```bash
 # 启用站点
@@ -295,6 +348,36 @@ sudo certbot --nginx -d 你的域名.com
 # 设置自动续期
 sudo certbot renew --dry-run
 ```
+
+### 限流生效的验收方法
+
+改完 Nginx 配置后（`sudo nginx -t && sudo systemctl reload nginx`），按下面三条确认：
+**既挡住了滥用，又没误伤正常浏览**。
+
+```bash
+# 1) 配置语法与限流区是否正确加载
+sudo nginx -t
+sudo nginx -T | grep -E "limit_req_zone|limit_conn_zone"
+
+# 2) 正常浏览不应被误伤：连续快速请求首页 30 次，应该都是 200
+for i in $(seq 1 30); do curl -s -o /dev/null -w "%{http_code} " https://你的域名.com/; done; echo
+
+# 3) 洪水式请求应被挡下：并发打播放接口，应该出现 429
+#    （未登录时应用层会返回 401，所以这里只关心「有没有 429 出现」）
+for i in $(seq 1 60); do
+  curl -s -o /dev/null -w "%{http_code}\n" "https://你的域名.com/api/music/play?id=1" &
+done | sort | uniq -c
+```
+
+**判读**：
+
+- 第 2 条**必须全是 200**。出现 429 说明 `limit_req`/`limit_conn` 设得太紧，
+  调大 `burst` 或 `limit_conn` 的数字 —— 这比限流本身更重要，
+  因为误伤访客是**看得见**的故障
+- 第 3 条出现 429 就算生效。全是 401 说明请求量还没到阈值，
+  把循环次数或并发数调大再试
+- Nginx 的错误日志能看到限流记录：`sudo tail -f /var/log/nginx/error.log`
+  会打印 `limiting requests, excess: ... by zone "music"`
 
 ### 更新部署
 

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { requireAuth } from "@/lib/auth-helpers"
 import { getPlayUrl } from "@/lib/music-api"
 import { rateLimit, getClientIp } from "@/lib/rate-limit"
 import { IdSchema } from "@/lib/validations"
 
 /**
- * 取某首歌的播放地址 —— 前台唯一对访客开放的音乐接口。
+ * 取某首歌的播放地址 —— 前台唯一的音乐接口。
  *
  * 为什么要有这层代理：GD音乐台的 JSON 接口没有 CORS 头，浏览器直接 fetch 会被拦。
  * 音频本身则由浏览器直连 CDN（`<audio src>` 不受同源策略约束），
@@ -14,9 +15,27 @@ import { IdSchema } from "@/lib/validations"
  * 播放地址是短时签名，缓存策略在 src/lib/music-api.ts 里统一处理。
  */
 export async function GET(req: NextRequest) {
-  // 访客可能连着点很多首，做个温和的限流，避免把官方那 60 次/5 分钟的配额打光
+  /*
+   * 要求登录，并且放在**限流与查库之前**。
+   *
+   * 这样未登录的请求不会：消耗第三方配额、查数据库、占用限流桶。
+   * 收益很实在 —— 没有这道门时，任何人刷这个接口都会真的去打第三方接口
+   * （每次还可能拿回一个可用的签名地址）。
+   *
+   * 用 401 而不是 403：前端可据此区分「你该登录」与「你没权限」。
+   */
+  const user = await requireAuth()
+  if (user instanceof NextResponse) return user
+
+  /*
+   * 仍然保留按 IP 的限流，它管的是另一件事：
+   * 登录校验要验 JWT、会话回调还会查一次库，所以未登录的请求也要限制频率。
+   *
+   * 60 次 / 分钟是**防滥用**，不是天花板。真正的天花板是第三方接口那
+   * 45 次 / 5 分钟，超了会返回「配额快用完了」，见 src/lib/music-api.ts。
+   */
   const ip = getClientIp(req.headers)
-  const limitResult = rateLimit(`music:play:${ip}`, 30, 60 * 1000)
+  const limitResult = rateLimit(`music:play:${ip}`, 60, 60 * 1000)
   if (!limitResult.allowed) {
     return NextResponse.json(
       { error: "操作过于频繁，请稍后再试" },
