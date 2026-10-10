@@ -178,6 +178,36 @@ html {
   animation: rise-in 620ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
+/* -- 沉浸式界面的黑胶唱片旋转 -- */
+/*
+ * 用 CSS 动画而不是 JS 每帧改样式：transform 走合成层，不触发重排，
+ * 长按一首歌（几分钟）也不会掉帧。
+ * 暂停时由使用方加 `[animation-play-state:paused]` 让唱片停住 ——
+ * 「暂停了唱片还在转」是很明显的穿帮。
+ */
+@keyframes disc-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.animate-disc-spin {
+  animation: disc-spin 24s linear infinite;
+}
+/*
+ * reduced-motion 降级：停转即可。
+ * 不能只靠上面那条全局规则 —— 它把 animation-duration 压成 0.01ms 后，
+ * 唱片会以极快速度空转（虽然看不见）并且占着一个动画帧。
+ * 这里显式去掉动画，让它就是一张静止的唱片。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .animate-disc-spin {
+    animation: none !important;
+  }
+}
+
 /* -- Hero 副标题循环切换 -- */
 /*
  * 每句的可见窗口固定为整轮的 25%，配合使用方内联的

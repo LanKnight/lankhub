@@ -2,13 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
-  ArrowRight,
+  ChevronUp,
   ListMusic,
   ListOrdered,
   Pause,
   Play,
-  Repeat,
-  Shuffle,
   SkipBack,
   SkipForward,
   Volume2,
@@ -17,22 +15,16 @@ import {
 } from "lucide-react"
 import { usePlayer } from "./player-context"
 import { findLyricIndex, parseLrc } from "@/lib/lrc"
-import { PLAY_MODE_LABEL, type PlayMode } from "@/lib/play-order"
 import LyricsDrawer from "./LyricsDrawer"
 import QueuePanel from "./QueuePanel"
+import ModeButton from "./ModeButton"
+import ImmersivePlayer from "./ImmersivePlayer"
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00"
   const m = Math.floor(seconds / 60)
   const s = Math.floor(seconds % 60)
   return `${m}:${String(s).padStart(2, "0")}`
-}
-
-/** 每个播放模式对应的图标 */
-const MODE_ICON: Record<PlayMode, typeof ArrowRight> = {
-  sequential: ArrowRight,
-  single: Repeat,
-  shuffle: Shuffle,
 }
 
 /** 歌词抽屉的高度（h-56 + 标题栏），列表面板要避开它 */
@@ -51,20 +43,8 @@ const BAR_OFFSET = "mb-[68px]"
  * 同时开就会叠在一起 —— 所以互斥。
  */
 export default function PlayerBar() {
-  const {
-    current,
-    playing,
-    loading,
-    error,
-    queue,
-    mode,
-    cycleMode,
-    audioRef,
-    toggle,
-    next,
-    prev,
-    close,
-  } = usePlayer()
+  const { current, playing, loading, error, queue, audioRef, toggle, next, prev, close } =
+    usePlayer()
 
   /*
    * 进度状态里带上 songId：换歌时用它推导出「归零」的显示，
@@ -75,6 +55,8 @@ export default function PlayerBar() {
   const [muted, setMuted] = useState(false)
   /** 当前弹出的是哪个面板；null = 都收起 */
   const [panel, setPanel] = useState<"lyrics" | "queue" | null>(null)
+  /** 沉浸式全屏层是否打开 */
+  const [immersive, setImmersive] = useState(false)
 
   const lyricBoxRef = useRef<HTMLDivElement | null>(null)
 
@@ -138,10 +120,19 @@ export default function PlayerBar() {
     setMuted(value === 0)
   }
 
-  const ModeIcon = MODE_ICON[mode]
-
   return (
     <>
+      {/* 沉浸式全屏层：盖在最上面，播放器状态不变（不是换路由，见该组件注释） */}
+      <ImmersivePlayer
+        open={immersive}
+        onClose={() => setImmersive(false)}
+        onOpenQueue={() => setPanel("queue")}
+        onOpenLyricsPanel={() => setPanel("lyrics")}
+        currentTime={currentTime}
+        duration={duration}
+        onSeek={seek}
+      />
+
       {/* 歌词抽屉 */}
       <LyricsDrawer
         open={panel === "lyrics"}
@@ -193,20 +184,7 @@ export default function PlayerBar() {
 
           {/* 控制 */}
           <div className="flex shrink-0 items-center gap-1">
-            {/*
-              播放模式：一个按钮循环切换，而不是并排四个 ——
-              站长明确说过讨厌界面上按钮太多。
-              顺序播放 → 单曲循环 → 随机播放 → 回到顺序
-            */}
-            <button
-              type="button"
-              onClick={cycleMode}
-              className="rounded-lg p-2 text-gray-500 transition-colors hover:text-gray-900"
-              aria-label={`播放模式：${PLAY_MODE_LABEL[mode]}，点击切换`}
-              title={PLAY_MODE_LABEL[mode]}
-            >
-              <ModeIcon size={17} />
-            </button>
+            <ModeButton />
 
             <button
               type="button"
@@ -297,17 +275,19 @@ export default function PlayerBar() {
             <ListOrdered size={18} />
           </button>
 
-          {/* 歌词：移动端也要能看 */}
+          {/*
+            歌词按钮点开的不是抽屉，而是**沉浸式全屏界面**（左边唱片、右边歌词）。
+            原来那个「底部歌词抽屉」没有删掉，仍在：沉浸层里有个
+            「在页面内看歌词」的入口，以及沉浸层里点列表图标也会落回抽屉。
+          */}
           <button
             type="button"
-            onClick={() => setPanel((p) => (p === "lyrics" ? null : "lyrics"))}
-            className={`shrink-0 rounded-lg p-2 transition-colors ${
-              panel === "lyrics" ? "text-gray-900" : "text-gray-400 hover:text-gray-900"
-            }`}
-            aria-label="歌词"
-            aria-expanded={panel === "lyrics"}
+            onClick={() => setImmersive(true)}
+            className="shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:text-gray-900"
+            aria-label="沉浸式歌词"
+            title="沉浸式歌词（唱片 + 歌词）"
           >
-            <ListMusic size={18} />
+            <ChevronUp size={18} />
           </button>
 
           <button

@@ -802,5 +802,108 @@ return parsePermissionList(user.permissions).length > 0
   1. 模式按钮连点三下，图标是否依次变成 顺序 → 单曲 → 随机
   2. 「播放全部」是否从第一首开始、放完最后一首是否**停住**
   3. 随机模式下「上一首」是否回到刚才那首（而不是跳到别处）
-  4. 刷新页面后模式与曲目是否恢复，且**处于暂停**状态
+  4. ~~刷新页面后模式与曲目是否恢复~~ —— **v0.9.1 已把这个功能删掉**，不用验了
   5. 同时打开歌词与播放列表时是否重叠（应互斥或避让）
+
+> ⚠️ 15.4 里那两处 lint 修法**在 v0.9.1 被连带删除了**（持久化整个移除），
+> 但规则本身仍然有效：**别在 effect 里同步 setState，也别在渲染期读 ref**。
+
+---
+
+## 16. v0.9.1：沉浸式听歌界面 + 删掉「记住播放状态」（2026-10）
+
+### 16.1 用户的需求与原话
+
+> 「对于刷新页面 —— 模式与曲目是否恢复，且处于暂停状态没用，我打算直接删掉功能，
+> 这点不是很刚需；另外我打算做一个沉浸式听音乐的功能，打算就直接在点击出现歌词的
+> 那个按钮上面做修改……点击后会跳转新界面，左边是唱片，右边是歌词，
+> 下面是功能按钮像是暂停下一首还有列表等等」
+
+确认后的五点：**不换路由**（全屏层）、**浅色水墨**（不铺黑）、**左右分栏 + 窄屏堆叠**、
+**行级高亮 + 滚动居中**、**持久化全删**。
+
+### 16.2 ⚠️ 这一节最重要的一条：为什么不能用新路由
+
+`PlayerProvider`（唯一那个 `<audio>`）挂在 **`/music` 页面内部**，不在根布局：
+
+```tsx
+// src/app/music/page.tsx（第 110 行附近）
+<PlayerProvider>
+  <ArtistGrid groups={groups} />
+  <PlayerBar />
+</PlayerProvider>
+```
+
+**换到另一个路由会把 `/music` 这棵子树整个卸载 → `<audio>` 被销毁 → 正在放的歌当场停。**
+这是 React 的机制，不是取舍。
+
+想「跳转新界面」只有两条路：
+
+| 做法 | 后果 |
+| --- | --- |
+| 全屏层（**当前选择**） | 播放绝不中断；但没有独立 URL，后退键不退出沉浸式（已给关闭按钮 + Esc） |
+| 把 `PlayerProvider` 提到根布局 | 可做真路由，且**顺带解决「切到别的页面音乐就停」**；代价是每个页面都挂播放器上下文，还要处理「根布局不该无脑渲染播放条」 |
+
+**将来若想走第二条**：把 provider 移到 `src/app/layout.tsx`，`/music` 页面只留
+`ArtistGrid`，播放条改成「有 current 才渲染」。根布局是服务端组件、provider 是客户端组件，
+包一层即可（现在就是这么用的）。
+
+### 16.3 改了什么
+
+| 动作 | 路径 |
+| --- | --- |
+| 新增 | `src/components/music/ImmersivePlayer.tsx`（全屏层：唱片 + 歌词 + 控制） |
+| 新增 | `src/components/music/ModeButton.tsx`（播放条与沉浸层共用，避免两处各写一遍） |
+| 改 | `src/components/music/PlayerBar.tsx`（`⌃` 按钮开启沉浸层；模式按钮改用共用组件） |
+| 改 | `src/components/music/player-context.tsx`（**删掉全部持久化**） |
+| 改 | `src/app/globals.css`（`disc-spin` 关键帧 + 显式 reduced-motion 降级） |
+
+### 16.4 一个容易漏的动效降级细节
+
+全局的 `prefers-reduced-motion` 规则（globals.css 第 88 行附近）只把
+`animation-duration` 压成 `0.01ms` 并让 `iteration-count: 1`。
+对 `infinite` 动画来说，这会让它**以极快速度空转**（视觉上看不见，但动画仍然占着）。
+
+所以唱片额外写了一条：
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  .animate-disc-spin { animation: none !important; }
+}
+```
+
+**新增任何无限循环动画时都要照这个办**，否则降级模式下会留下一个「空转」的怪东西。
+（`hero-subtitle-cycle` 是同样的处理思路，见 globals.css 第 226 行附近。）
+
+### 16.5 删掉的持久化（别再"顺手加回来"）
+
+v0.9.0 曾用 localStorage 记住「模式 + 当前曲 + 进度」，v0.9.1 **整个删除**。
+理由是站长实测后认为「刷新后恢复且处于暂停」没有价值 —— 刷新后本来也得手动点一次播放。
+
+连带删掉的东西（哪天要恢复，这些都得一起回来）：lazy initializer 读初值、
+每 5 秒的写盘定时器、为「渲染期调整 state」而引入的 `restored` 状态与
+`pendingPosition` ref。**`player-context.tsx` 里现在不该出现 `localStorage`。**
+
+### 16.6 验证结果与能力边界
+
+28 项断言全过，分四类：
+
+1. **持久化确实已删**：provider / 播放条 / 沉浸层里都搜不到 `localStorage`，
+   也没有 `STORAGE_KEY`、`readPersisted`、`restoreSongId`、`setInterval` 残留
+2. **沉浸层结构齐备**：`fixed inset-0`、`role="dialog"`、`aria-modal`、
+   滚动锁、Esc / 方向键 / 空格（且空格避开输入框）、
+   桌面 `md:flex-row` + 窄屏 `flex-col`、旋转与 `animation-play-state:paused`、
+   纯 CSS 黑胶、歌词 `data-line` + `scrollTo`、复用 `ModeButton`
+3. **动效降级**：`@keyframes disc-spin` 存在，且 reduced-motion 下显式 `animation: none`
+4. **页面与产物**：`/music` 仍 200 且卡片墙/播放全部正常；
+   「退出沉浸式」「在页面内看歌词」「这首歌暂时没有歌词」「沉浸式歌词」都进了客户端产物
+
+⚠️ **交互本身仍然没有验证过**（本机没有可点的浏览器）。需要人在浏览器里点：
+
+1. 点 `⌃` 是否进入全屏；此时**歌是否继续放**（**最关键的一条** —— 证明全屏层没打断播放）
+2. 唱片是否在转；**暂停时是否停转**
+3. 歌词是否跟着滚动居中；切歌后歌词是否换成新的
+4. `Esc` 是否能退出；`←`/`→` 是否切歌；`空格` 是否播放/暂停
+5. 窄屏（手机宽度）下是否变成上下堆叠、有没有被挤变形
+6. 打开系统「减少动态效果」后，唱片是否静止（而不是诡异的快速抖动）
+7. 沉浸层底部的「在页面内看歌词」是否能切回底部那个抽屉

@@ -4,7 +4,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -71,53 +70,6 @@ export function usePlayer(): PlayerContextValue {
   return ctx
 }
 
-/* ------------------------------------------------------------------ *
- * 播放状态的持久化
- *
- * 只存「模式 + 当前哪首歌 + 听到哪了」，不存整份歌曲数据 ——
- * 歌曲信息本来就由服务端每次渲染带下来，存一份只会过期。
- * 读到之后也**不自动播放**：浏览器会拦截没有用户手势的自动播放，
- * 那样只会留下一个看起来坏掉的播放条。
- * ------------------------------------------------------------------ */
-
-const STORAGE_KEY = "lankhub:player"
-
-interface PersistedState {
-  mode: PlayMode
-  songId: number | null
-  position: number
-}
-
-function readPersisted(): PersistedState | null {
-  // 服务端渲染时没有 window：返回 null，让首屏走默认值
-  if (typeof window === "undefined") return null
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<PersistedState>
-    const mode =
-      parsed.mode === "sequential" || parsed.mode === "single" || parsed.mode === "shuffle"
-        ? parsed.mode
-        : "sequential"
-    return {
-      mode,
-      songId: typeof parsed.songId === "number" ? parsed.songId : null,
-      position: typeof parsed.position === "number" && parsed.position > 0 ? parsed.position : 0,
-    }
-  } catch {
-    // 隐私模式 / 存储被禁用 / JSON 损坏：一律当作没存过，不影响播放
-    return null
-  }
-}
-
-function writePersisted(state: PersistedState) {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-  } catch {
-    // 存不进去也不该影响播放，静默忽略
-  }
-}
-
 export function PlayerProvider({
   children,
 }: {
@@ -126,15 +78,7 @@ export function PlayerProvider({
   children: ReactNode
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  /*
-   * 用 lazy initializer 读回上次的状态，而不是在 effect 里 setState：
-   * 后者会被 React 19 的 `react-hooks/set-state-in-effect` 判为
-   * 「同步 setState 触发级联渲染」，项目里别处也都避开了这种写法。
-   * 初值只在客户端算（readPersisted 在服务端直接返回 null），
-   * 所以首屏也不会有「先渲染默认值再跳成上次值」的闪烁。
-   */
-  const [saved] = useState(readPersisted)
-  const [mode, setModeState] = useState<PlayMode>(saved?.mode ?? "sequential")
+  const [mode, setModeState] = useState<PlayMode>("sequential")
   const [current, setCurrent] = useState<PlayerSong | null>(null)
   const [queue, setQueue] = useState<PlayerSong[]>([])
   const [playing, setPlaying] = useState(false)
@@ -155,15 +99,6 @@ export function PlayerProvider({
    * 有了历史，上一首就是真的回到刚才那首。
    */
   const shuffleHistory = useRef<number[]>([])
-  /**
-   * 上次听的是哪一首 —— 用 state 而不是 ref：下面「渲染期调整 state」那段
-   * 需要读它，而**渲染期读 ref 是禁止的**（`react-hooks/refs` 会报错）。
-   */
-  const [restoreSongId] = useState<number | null>(saved?.songId ?? null)
-  /** 首屏恢复是否已经做过。同样必须是 state —— 要在渲染期读它来判断 */
-  const [restored, setRestored] = useState(false)
-  /** 首屏恢复的播放进度，等那一首真正开始播时用掉 */
-  const pendingPosition = useRef(saved?.position ?? 0)
 
   /**
    * 已经为哪首歌自动重取过地址了。
@@ -203,20 +138,14 @@ export function PlayerProvider({
           return
         }
 
-        /*
-         * 续播位置的两种来源：
-         *  - `options.resumeAt`：地址失效后重试，要接回断掉的位置
-         *  - `pendingPosition`：首屏从 localStorage 恢复上次听到哪
-         */
-        const resumeAt = options.resumeAt || pendingPosition.current
-        if (resumeAt && resumeAt > 0) {
-          const seekTo = resumeAt
+        // 地址失效后重试时要接回断掉的位置
+        if (options.resumeAt && options.resumeAt > 0) {
+          const seekTo = options.resumeAt
           const onLoaded = () => {
             audio.currentTime = seekTo
           }
           audio.addEventListener("loadedmetadata", onLoaded, { once: true })
         }
-        pendingPosition.current = 0
 
         audio.src = data.url
         // 点击是用户手势，浏览器允许此时自动播放
@@ -256,7 +185,6 @@ export function PlayerProvider({
   const play = useCallback(
     (song: PlayerSong, list: PlayerSong[]) => {
       setQueueAndReset(list)
-      pendingPosition.current = 0
       void start(song)
     },
     [setQueueAndReset, start]
@@ -265,7 +193,6 @@ export function PlayerProvider({
   /** 只换当前曲、不动队列 —— 播放列表面板里点某一首用它 */
   const playSong = useCallback(
     (song: PlayerSong) => {
-      pendingPosition.current = 0
       retriedSongId.current = null
       void start(song)
     },
@@ -300,7 +227,6 @@ export function PlayerProvider({
       const nextSong = queue.find((s) => s.id === outcome.nextId)
       if (!nextSong) return
       retriedSongId.current = null
-      pendingPosition.current = 0
       void start(nextSong)
     },
     [current, queue, mode, start]
@@ -361,58 +287,6 @@ export function PlayerProvider({
     setError(null)
     setQueue([])
   }, [])
-
-  /* ---------------- 持久化：读回上次的模式与当前曲 ---------------- */
-
-  /*
-   * 恢复上次那一首。
-   *
-   * 这里刻意**不用 effect + setState**：React 19 的
-   * `react-hooks/set-state-in-effect` 会拦（同步 setState 会触发级联渲染），
-   * 项目里别处也都避开了这种写法。改用「渲染期调整 state」这个官方模式 ——
-   * 直接按条件 set，React 会立刻用新值重渲染、不会白跑一趟 DOM 提交。
-   *
-   * 时序上它依赖 queue 已经到位：首屏 queue 是空的，所以这个判断会等到
-   * 用户点第一首歌（或将来任何让 queue 有值的时刻）才生效。
-   *
-   * 刻意**不自动播放**：浏览器会拦截没有用户手势的自动播放，
-   * 那样只会留下一个看起来坏掉的播放条。恢复的是一条暂停中的曲目，
-   * 用户点一下播放即可，进度也从上次的位置接着走。
-   */
-  if (!restored) {
-    const wanted = restoreSongId
-    if (wanted !== null && queue.length > 0) {
-      setRestored(true)
-      const song = queue.find((s) => s.id === wanted)
-      if (song && !current) {
-        setCurrent(song)
-        setError(null)
-      }
-    }
-  }
-
-  /** 模式或当前曲变化时写回 */
-  useEffect(() => {
-    if (!restored && restoreSongId === null) return
-    writePersisted({
-      mode,
-      songId: current?.id ?? null,
-      position: audioRef.current?.currentTime ?? 0,
-    })
-  }, [mode, current, restored, restoreSongId])
-
-  /** 进度不放进 state（会让卡片墙重渲染），所以用一个低频定时器定期留存 */
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (!restored && restoreSongId === null) return
-      writePersisted({
-        mode,
-        songId: current?.id ?? null,
-        position: audioRef.current?.currentTime ?? 0,
-      })
-    }, 5000)
-    return () => window.clearInterval(timer)
-  }, [mode, current, restored, restoreSongId])
 
   const value = useMemo<PlayerContextValue>(
     () => ({
