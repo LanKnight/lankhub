@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   ChevronDown,
   ListMusic,
@@ -38,7 +38,6 @@ export default function ImmersivePlayer({
   open,
   onClose,
   onOpenQueue,
-  onOpenLyricsPanel,
   currentTime,
   duration,
   onSeek,
@@ -47,30 +46,46 @@ export default function ImmersivePlayer({
   onClose: () => void
   /** 打开底部那条播放列表；沉浸层收起后由播放条接管 */
   onOpenQueue: () => void
-  /** 打开底部那条歌词抽屉 */
-  onOpenLyricsPanel: () => void
   currentTime: number
   duration: number
   onSeek: (value: number) => void
 }) {
   const { current, playing, loading, error, toggle, next, prev } = usePlayer()
   const lyricBoxRef = useRef<HTMLDivElement | null>(null)
+  /** 歌词容器的可视高度，用来算上下留白（见下面的注释） */
+  const [lyricBoxHeight, setLyricBoxHeight] = useState(0)
 
   const lyricLines = useMemo(() => parseLrc(current?.lyric), [current?.lyric])
   const activeIndex = findLyricIndex(lyricLines, currentTime)
 
-  /** 当前行滚到中间 */
+  /** 量出歌词容器的高度 */
+  useEffect(() => {
+    const box = lyricBoxRef.current
+    if (!box || !open) return
+    const measure = () => setLyricBoxHeight(box.clientHeight)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(box)
+    return () => observer.disconnect()
+  }, [open])
+
+  /**
+   * 把当前行滚到正中间。
+   *
+   * 用 `scrollIntoView({ block: "center" })` 而不是自己算偏移：
+   * 自己算要处理「行的 offsetTop 相对谁」「容器 padding」这些细节，
+   * 差一点就会出现「没滚到中间」甚至「完全不滚」。交给浏览器判断最稳。
+   *
+   * 依赖里带上 lyricLines：切歌时歌词整体换掉，当前行可能没变（都是第 0 行），
+   * 那时 activeIndex 不变、effect 不会重跑，得靠歌词本身变化把它带起来。
+   */
   useEffect(() => {
     if (!open || activeIndex < 0) return
-    const box = lyricBoxRef.current
-    const line = box?.querySelector<HTMLElement>(`[data-line="${activeIndex}"]`)
-    if (box && line) {
-      box.scrollTo({
-        top: line.offsetTop - box.clientHeight / 2 + line.clientHeight / 2,
-        behavior: "smooth",
-      })
-    }
-  }, [activeIndex, open])
+    const line = lyricBoxRef.current?.querySelector<HTMLElement>(
+      `[data-line="${activeIndex}"]`
+    )
+    line?.scrollIntoView({ block: "center", behavior: "smooth" })
+  }, [activeIndex, open, lyricLines])
 
   /** Esc 退出；左右方向键切歌 —— 沉浸层里没有别的东西，用方向键很自然 */
   useEffect(() => {
@@ -145,10 +160,15 @@ export default function ImmersivePlayer({
       </div>
 
       {/* 主体：桌面左右分栏，窄屏上下堆叠 */}
-      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-6 overflow-hidden px-4 py-2 md:flex-row md:gap-12 md:px-12 lg:gap-16">
+      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-5 overflow-hidden px-4 py-2 md:flex-row md:gap-12 md:px-10 lg:gap-16">
         {/* 左：唱片 */}
         <div className="flex shrink-0 flex-col items-center">
-          <div className="relative aspect-square w-40 sm:w-48 md:w-64 lg:w-72">
+          {/*
+            尺寸：唱片要比原来大一倍左右。
+            但只在 desktop（左右分栏、横向有空间）放大 ——
+            窄屏是上下堆叠，唱片太大就会把歌词挤没。
+          */}
+          <div className="relative aspect-square w-52 sm:w-64 md:w-[26rem] lg:w-[30rem]">
             {/*
               黑胶本体：深色底 + 几道同心纹路，全用 CSS 画，不需要额外图片资源。
               封面**不铺在盘面上**，而是放在中心那张圆标里 —— 现实中的唱片就是
@@ -156,13 +176,13 @@ export default function ImmersivePlayer({
               少一层图、少一处会错位的地方。
 
               旋转用 CSS 动画（transform 走合成层，比 JS 每帧改样式省得多）。
-              `animation-play-state` 跟着播放状态 —— 暂停时唱片就停住，
-              这个细节很加分。全局的 prefers-reduced-motion 加上下面那条
-              针对 .animate-disc-spin 的规则会把它压成静止，不会变成怪东西。
+              暂停靠 `is-paused` 这个类，**不是**再叠一个
+              `[animation-play-state:paused]` 工具类 —— 那样两条规则特异性相同，
+              谁生效取决于打包顺序，实测会被 animation 简写覆盖掉（唱片停不下来）。
             */}
             <div
-              className={`absolute inset-0 rounded-full shadow-[0_18px_50px_-12px_rgba(0,0,0,0.35)] ${
-                playing ? "animate-disc-spin" : "animate-disc-spin [animation-play-state:paused]"
+              className={`absolute inset-0 rounded-full shadow-[0_18px_50px_-12px_rgba(0,0,0,0.35)] animate-disc-spin ${
+                playing ? "" : "is-paused"
               }`}
               style={{
                 backgroundColor: "#1c1c1e",
@@ -195,17 +215,30 @@ export default function ImmersivePlayer({
           )}
         </div>
 
-        {/* 右：歌词 */}
+        {/*
+          右：歌词。
+          上下留白必须**约等于容器高度的一半**，否则第一行与最后一行永远无法居中
+          （滚到顶就是极限了）。所以留白按实测的容器高度动态算，而不是写一个
+          py-[38vh] —— 那个在窄屏（歌词区很矮）会算出过量留白、在超宽屏又不够。
+
+          之前「完全没有滚动」的根因也在这里：容器高度是「内容自适应」而不是
+          填满可用空间时就没有溢出，scrollTo 自然什么也不做。
+          现在 min-h-0 + flex-1 让它一定填满，留白保证了任何一行都能居中。
+        */}
         <div
           ref={lyricBoxRef}
-          className="min-h-0 w-full flex-1 overflow-y-auto py-4 [mask-image:linear-gradient(to_bottom,transparent,black_12%,black_88%,transparent)] md:max-w-lg md:py-10"
+          className="min-h-0 w-full flex-1 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_18%,black_82%,transparent)] md:max-w-lg"
+          style={{
+            paddingTop: lyricBoxHeight ? lyricBoxHeight / 2 : 0,
+            paddingBottom: lyricBoxHeight ? lyricBoxHeight / 2 : 0,
+          }}
         >
           {lyricLines.length === 0 ? (
-            <p className="py-16 text-center text-sm text-gray-400">
+            <p className="text-center text-sm text-gray-400">
               {current.lyric ? "歌词暂时无法解析" : "这首歌暂时没有歌词"}
             </p>
           ) : (
-            <div className="space-y-4 text-center md:text-left">
+            <div className="space-y-4 px-2 text-center">
               {lyricLines.map((line, index) => (
                 <p
                   key={`${line.time}-${index}`}
@@ -288,18 +321,6 @@ export default function ImmersivePlayer({
               <ListOrdered size={18} />
             </button>
           </div>
-
-          {/* 回到底部那条歌词抽屉 —— 沉浸层是全屏的，抽屉进不来 */}
-          <button
-            type="button"
-            onClick={() => {
-              onClose()
-              onOpenLyricsPanel()
-            }}
-            className="mx-auto text-[11px] text-gray-400 transition-colors hover:text-gray-600"
-          >
-            在页面内看歌词
-          </button>
         </div>
       </div>
     </div>

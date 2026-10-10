@@ -45,7 +45,16 @@ export default function LyricsDrawer({
             <ChevronDown size={16} />
           </button>
         </div>
-        <div ref={boxRef} className="h-56 overflow-y-auto px-6 py-4">
+        {/*
+          上下留白约等于容器高度的一半（h-56 = 224px → py 各 112px），
+          这样第一行与最后一行也能滚到正中间。
+          `scrollIntoView({ block: "center" })` 依赖这段留白 ——
+          没有它，滚到顶就是极限，前几行永远偏上、最后一行永远偏下。
+        */}
+        <div
+          ref={boxRef}
+          className="h-56 overflow-y-auto px-6 py-[7rem] [mask-image:linear-gradient(to_bottom,transparent,black_15%,black_85%,transparent)]"
+        >
           {lines.length === 0 ? (
             <p className="py-16 text-center text-sm text-gray-400">这首歌暂时没有歌词</p>
           ) : (

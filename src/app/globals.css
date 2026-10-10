@@ -181,9 +181,15 @@ html {
 /* -- 沉浸式界面的黑胶唱片旋转 -- */
 /*
  * 用 CSS 动画而不是 JS 每帧改样式：transform 走合成层，不触发重排，
- * 长按一首歌（几分钟）也不会掉帧。
- * 暂停时由使用方加 `[animation-play-state:paused]` 让唱片停住 ——
- * 「暂停了唱片还在转」是很明显的穿帮。
+ * 一首歌好几分钟也不会掉帧。
+ *
+ * ⚠️ 暂停为什么写在**同一个类里**，而不是额外加一个
+ * `[animation-play-state:paused]` 工具类：
+ * 那样两条规则特异性相同（都是单类），谁生效完全取决于打包后的先后顺序。
+ * 实测产物里 `.animate-disc-spin{animation:...}` 排在
+ * `.[animation-play-state:paused]{...}` **之后**，
+ * 于是那条 `animation` 简写把 play-state 覆盖掉 —— 表现就是「暂停了唱片还在转」。
+ * 收进同一个类，顺序就不可能打架。
  */
 @keyframes disc-spin {
   from {
@@ -196,11 +202,13 @@ html {
 .animate-disc-spin {
   animation: disc-spin 24s linear infinite;
 }
+.animate-disc-spin.is-paused {
+  animation-play-state: paused;
+}
 /*
  * reduced-motion 降级：停转即可。
  * 不能只靠上面那条全局规则 —— 它把 animation-duration 压成 0.01ms 后，
- * 唱片会以极快速度空转（虽然看不见）并且占着一个动画帧。
- * 这里显式去掉动画，让它就是一张静止的唱片。
+ * infinite 动画会以极快速度空转（看不见，但动画仍然占着）。
  */
 @media (prefers-reduced-motion: reduce) {
   .animate-disc-spin {

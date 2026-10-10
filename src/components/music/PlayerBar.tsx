@@ -89,18 +89,20 @@ export default function PlayerBar() {
   const lyricLines = useMemo(() => parseLrc(current?.lyric), [current?.lyric])
   const activeIndex = findLyricIndex(lyricLines, currentTime)
 
-  // 当前歌词行滚到中间
+  /**
+   * 当前歌词行滚到中间（底部抽屉）。
+   *
+   * 与沉浸层用同一套做法：`scrollIntoView({ block: "center" })` +
+   * 上下留白（留白写在 LyricsDrawer 里，约等于容器高度的一半）——
+   * 没有留白的话第一行与最后一行永远无法居中。
+   */
   useEffect(() => {
     if (panel !== "lyrics" || activeIndex < 0) return
-    const box = lyricBoxRef.current
-    const line = box?.querySelector<HTMLElement>(`[data-line="${activeIndex}"]`)
-    if (box && line) {
-      box.scrollTo({
-        top: line.offsetTop - box.clientHeight / 2 + line.clientHeight / 2,
-        behavior: "smooth",
-      })
-    }
-  }, [activeIndex, panel])
+    const line = lyricBoxRef.current?.querySelector<HTMLElement>(
+      `[data-line="${activeIndex}"]`
+    )
+    line?.scrollIntoView({ block: "center", behavior: "smooth" })
+  }, [activeIndex, panel, lyricLines])
 
   if (!current) return null
 
@@ -127,7 +129,6 @@ export default function PlayerBar() {
         open={immersive}
         onClose={() => setImmersive(false)}
         onOpenQueue={() => setPanel("queue")}
-        onOpenLyricsPanel={() => setPanel("lyrics")}
         currentTime={currentTime}
         duration={duration}
         onSeek={seek}
@@ -276,10 +277,25 @@ export default function PlayerBar() {
           </button>
 
           {/*
-            歌词按钮点开的不是抽屉，而是**沉浸式全屏界面**（左边唱片、右边歌词）。
-            原来那个「底部歌词抽屉」没有删掉，仍在：沉浸层里有个
-            「在页面内看歌词」的入口，以及沉浸层里点列表图标也会落回抽屉。
+            两个歌词入口，各管一件事：
+             - 这个（ListMusic）打开**底部歌词抽屉**，边看歌单边看歌词
+             - 右边那个（ChevronUp）进**沉浸式全屏**（唱片 + 歌词）
+            站长反馈过沉浸层里那行「在页面内看歌词」小字太隐蔽，所以抽屉的入口
+            放回播放条上，两处都能直达。
           */}
+          <button
+            type="button"
+            onClick={() => setPanel((p) => (p === "lyrics" ? null : "lyrics"))}
+            className={`shrink-0 rounded-lg p-2 transition-colors ${
+              panel === "lyrics" ? "text-gray-900" : "text-gray-400 hover:text-gray-900"
+            }`}
+            aria-label="歌词"
+            aria-expanded={panel === "lyrics"}
+            title="歌词（底部抽屉）"
+          >
+            <ListMusic size={18} />
+          </button>
+
           <button
             type="button"
             onClick={() => setImmersive(true)}

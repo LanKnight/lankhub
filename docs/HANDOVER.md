@@ -907,3 +907,101 @@ v0.9.0 曾用 localStorage 记住「模式 + 当前曲 + 进度」，v0.9.1 **�
 5. 窄屏（手机宽度）下是否变成上下堆叠、有没有被挤变形
 6. 打开系统「减少动态效果」后，唱片是否静止（而不是诡异的快速抖动）
 7. 沉浸层底部的「在页面内看歌词」是否能切回底部那个抽屉
+
+> ⚠️ 上面第 7 条**已在 v0.9.2 删除该入口**（改为播放条上一个独立按钮），见第 17 节。
+
+---
+
+## 17. v0.9.2：修掉沉浸层的两个真 bug + 两处改进（2026-10）
+
+站长实测反馈四条：暂停后唱片还在转；歌词不滚动也不居中；唱片要再大一倍；
+「在页面内看歌词」改为放回。**前两条都是我实现里的真 bug。**
+
+### 17.1 ⚠️ Bug 一：暂停不停转 —— CSS 规则顺序（最容易再犯）
+
+我原本用「两个类」实现暂停：
+
+```tsx
+playing ? "animate-disc-spin" : "animate-disc-spin [animation-play-state:paused]"
+```
+
+看起来没问题，但两条规则**特异性相同（都是单类）**，谁生效取决于**打包顺序**。
+实测产物里：
+
+```css
+.\[animation-play-state\:paused\]{animation-play-state:paused}   /* 先 */
+.animate-disc-spin{animation:24s linear infinite disc-spin}      /* 后 → 胜出 */
+```
+
+后出现的那条 `animation` **简写**（`animation` 是简写，会重置所有子属性，
+包括 `animation-play-state`）把暂停覆盖掉了。
+
+**修法**：暂停收进同一个 class。
+
+```css
+.animate-disc-spin { animation: disc-spin 24s linear infinite; }
+.animate-disc-spin.is-paused { animation-play-state: paused; }
+```
+
+**教训（要记住的通用规律）**：**不要用两条独立的类去争同一个 CSS 属性** ——
+Tailwind 工具类与 globals.css 里的自定义类的先后顺序不受你控制。
+让「基础 + 变体」落在同一个选择器族里，顺序就恒定。
+
+### 17.2 ⚠️ Bug 二：歌词不滚动 —— `flex-1` 缺 `min-h-0`
+
+歌词容器的 class 原来是：
+
+```
+min-h-0 w-full flex-1 overflow-y-auto py-4 md:py-10
+```
+
+**少了 `min-h-0`**（同一个元素上既有 `flex-1` 又有 `overflow-y-auto`）。
+在 flex column 里，`flex-1` 的默认 `min-height:auto` 会让元素被内容撑开，
+于是容器**根本没有溢出**，`scrollTo` / `scrollIntoView` 什么也不做。
+
+配套的第二个问题：**留白不够**。即使能滚，滚到顶就是极限 ——
+第一行与最后一行永远无法居中。
+
+**修法**（沉浸层与底部抽屉都改了）：
+
+1. 容器加 `min-h-0`，真正填满可用空间、产生溢出
+2. 上下留白按**实测容器高度的一半**算（`ResizeObserver`），任何一行都能居中
+3. 用 `scrollIntoView({ block: "center" })` 而不是自己算 `offsetTop`
+4. 依赖数组里带 `lyricLines` —— 切歌时当前行可能仍是第 0 行，`activeIndex` 没变，
+   effect 不会重跑，得靠歌词本身变化把它带起来
+
+**教训**：`overflow-y-auto` + `flex-1` 忘了 `min-h-0` 是 flexbox 的经典坑，
+表现就是「滚动条永远不出现、程序化滚动无效」。**遇到「滚动没反应」先查这个。**
+
+### 17.3 我上一轮为什么没发现
+
+**我只验了源码里写了 `[animation-play-state:paused]`，没验构建产物里它是否真的生效。**
+这一轮的断言改成直接读 `.next` 里的 CSS，比对两条规则的**下标先后**，
+并确认旧写法已从产物中消失。**涉及 CSS 覆盖/顺序的问题，必须验产物，不能验源码。**
+
+（顺带记一个断言写法坑：我第一版断言「代码里没有旧写法」时搜的是整份文件，
+结果命中了**我自己写的解释性注释**。要排掉块注释再搜。）
+
+### 17.4 两处改进
+
+- **唱片放大**：桌面 `md:w-[26rem] lg:w-[30rem]`（原 16rem/18rem），
+  窄屏 `w-52 sm:w-64`。**只在桌面放到最大** —— 窄屏是上下堆叠，唱片太大会把歌词挤没
+- **歌词入口放回播放条**：删掉沉浸层里那行小字，播放条上重新有独立的歌词按钮。
+  现在两个入口都能直达：`ListMusic` → 底部抽屉，`ChevronUp` → 沉浸层
+
+### 17.5 验证结果
+
+22 项断言全过，其中**直接读产物 CSS** 的关键几条：
+
+- 产物里不再有 `[animation-play-state:paused]`
+- 有 `.animate-disc-spin.is-paused{animation-play-state:paused}`
+- 且它的下标**大于**基础动画（同特异性下后者胜出，正是需要的）
+- `prefers-reduced-motion` 下仍显式 `animation: none`
+
+另外验到：沉浸层与抽屉都用了 `scrollIntoView({block:"center"})`、
+容器有 `min-h-0 w-full flex-1 overflow-y-auto`、留白按实测高度算、
+`ResizeObserver` 在、依赖带 `lyricLines`、旧的自算偏移写法已删、
+唱片尺寸已放大、沉浸层小字已删且播放条两个按钮各自独立。
+
+⚠️ **浏览器观感仍需人工确认**（我无法验）：
+唱片暂停时是否真的停住、歌词是否平滑滚到中间且切歌后跟随、超大唱片在手机上是否把歌词挤没。
