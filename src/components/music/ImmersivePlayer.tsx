@@ -13,6 +13,7 @@ import {
 import { findLyricIndex, parseLrc } from "@/lib/lrc"
 import { usePlayer } from "./player-context"
 import ModeButton from "./ModeButton"
+import QueueDrawer from "./QueueDrawer"
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00"
@@ -37,15 +38,12 @@ function formatTime(seconds: number): string {
 export default function ImmersivePlayer({
   open,
   onClose,
-  onOpenQueue,
   currentTime,
   duration,
   onSeek,
 }: {
   open: boolean
   onClose: () => void
-  /** 打开底部那条播放列表；沉浸层收起后由播放条接管 */
-  onOpenQueue: () => void
   currentTime: number
   duration: number
   onSeek: (value: number) => void
@@ -54,6 +52,8 @@ export default function ImmersivePlayer({
   const lyricBoxRef = useRef<HTMLDivElement | null>(null)
   /** 歌词容器的可视高度，用来算上下留白（见下面的注释） */
   const [lyricBoxHeight, setLyricBoxHeight] = useState(0)
+  /** 播放列表抽屉是否打开（在沉浸层**内部**，不再退回原页面） */
+  const [queueOpen, setQueueOpen] = useState(false)
 
   const lyricLines = useMemo(() => parseLrc(current?.lyric), [current?.lyric])
   const activeIndex = findLyricIndex(lyricLines, currentTime)
@@ -97,12 +97,19 @@ export default function ImmersivePlayer({
     })
   }, [activeIndex, open, lyricLines])
 
-  /** Esc 退出；左右方向键切歌 —— 沉浸层里没有别的东西，用方向键很自然 */
+  /**
+   * Esc 退出；左右方向键切歌 —— 沉浸层里没有别的东西，用方向键很自然。
+   *
+   * ⚠️ Esc 的优先级：**抽屉开着时先关抽屉**，再按一次才退出沉浸层。
+   * 否则你想收起列表，结果整个沉浸界面被关掉了。
+   */
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-      else if (e.key === "ArrowLeft") prev()
+      if (e.key === "Escape") {
+        if (queueOpen) setQueueOpen(false)
+        else onClose()
+      } else if (e.key === "ArrowLeft") prev()
       else if (e.key === "ArrowRight") next()
       else if (e.key === " ") {
         // 空格是播放/暂停，但要避开输入框与按钮自身的空格语义
@@ -114,7 +121,7 @@ export default function ImmersivePlayer({
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [open, onClose, prev, next, toggle])
+  }, [open, onClose, prev, next, toggle, queueOpen])
 
   /** 打开时锁住页面滚动，否则背后那面卡片墙会跟着滚 */
   useEffect(() => {
@@ -130,11 +137,18 @@ export default function ImmersivePlayer({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex flex-col bg-white"
+      className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-white"
       role="dialog"
       aria-modal="true"
       aria-label={`正在播放 ${current.title}`}
     >
+      {/*
+        播放列表抽屉：挂在**沉浸层内部**（absolute，铺满这一层）。
+        所以打开它不会退出沉浸界面、音乐也不会中断 —— 这正是原来的问题所在
+        （原来点列表是 onClose() + 打开底部那个面板，等于退回原页面）。
+      */}
+      <QueueDrawer open={queueOpen} onClose={() => setQueueOpen(false)} />
+
       {/*
         背景：用封面自身做一层极淡的模糊铺底。
         站点是白底水墨，所以不铺黑 —— 而是把封面高斯模糊到几乎看不出原图，
@@ -369,12 +383,10 @@ export default function ImmersivePlayer({
             </button>
             <button
               type="button"
-              onClick={() => {
-                onClose()
-                onOpenQueue()
-              }}
+              onClick={() => setQueueOpen(true)}
               className="rounded-lg p-2 text-gray-400 transition-colors hover:text-gray-900"
               aria-label="播放列表"
+              aria-expanded={queueOpen}
               title="播放列表"
             >
               <ListOrdered size={18} />

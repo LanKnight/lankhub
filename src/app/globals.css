@@ -178,6 +178,50 @@ html {
   animation: rise-in 620ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
+/* -- 播放列表抽屉的滑入 -- */
+/*
+ * 右侧抽屉（PC）与底部弹层（窄屏）共用同一个类，用媒体查询换关键帧：
+ * 只在 transform 上做，走合成层，不触发重排。
+ */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.animate-drawer-in {
+  animation: sheet-up 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (min-width: 768px) {
+  .animate-drawer-in {
+    animation-name: drawer-in;
+  }
+}
+.animate-sheet-up {
+  animation: sheet-up 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/*
+ * reduced-motion 降级：显式关掉，不做位移。
+ * 全局那条规则只会把时长压成 0.01ms —— 动画看不见了，但仍会有一次瞬时位移。
+ * 新增任何位移类动画都要照这样显式关掉（唱片旋转那次记的是同一个教训）。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .animate-drawer-in,
+  .animate-sheet-up {
+    animation: none !important;
+  }
+}
+
 /* -- 沉浸式界面的黑胶唱片旋转 -- */
 /*
  * 用 CSS 动画而不是 JS 每帧改样式：transform 走合成层，不触发重排，

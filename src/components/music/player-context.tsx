@@ -17,6 +17,8 @@ export interface PlayerSong {
   id: number
   title: string
   artist: string
+  /** 专辑名（绑定后才有）。播放列表里用来区分同名不同版本 */
+  album: string | null
   coverUrl: string | null
   lyric: string | null
   favorite: boolean

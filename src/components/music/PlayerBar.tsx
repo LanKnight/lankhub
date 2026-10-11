@@ -131,7 +131,6 @@ export default function PlayerBar() {
       <ImmersivePlayer
         open={immersive}
         onClose={() => setImmersive(false)}
-        onOpenQueue={() => setPanel("queue")}
         currentTime={currentTime}
         duration={duration}
         onSeek={seek}
