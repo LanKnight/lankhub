@@ -48,32 +48,38 @@ export default function LyricsDrawer({
         {/*
           上下留白约等于容器高度的一半（h-56 = 224px → py 各 112px），
           这样第一行与最后一行也能滚到正中间。
-          `scrollIntoView({ block: "center" })` 依赖这段留白 ——
-          没有它，滚到顶就是极限，前几行永远偏上、最后一行永远偏下。
+
+          ⚠️ `min-h-[28rem]`（两倍容器高）不是装饰：
+          `scrollIntoView({ block: "center" })` 在目标**已经可见**时什么都不做 ——
+          它不是「把目标移到中间」，而是「滚进视野、尽量居中」。
+          内容不够高就不会溢出，于是它一次也不动，看起来就是「一直停在文本中间」。
+          撑到两倍高才能保证任何一行都需要滚动才能居中。
         */}
         <div
           ref={boxRef}
           className="h-56 overflow-y-auto px-6 py-[7rem] [mask-image:linear-gradient(to_bottom,transparent,black_15%,black_85%,transparent)]"
         >
-          {lines.length === 0 ? (
-            <p className="py-16 text-center text-sm text-gray-400">这首歌暂时没有歌词</p>
-          ) : (
-            <div className="space-y-3 text-center">
-              {lines.map((line, index) => (
-                <p
-                  key={`${line.time}-${index}`}
-                  data-line={index}
-                  className={
-                    index === activeIndex
-                      ? "text-[15px] font-medium text-gray-900 transition-colors"
-                      : "text-sm text-gray-400 transition-colors"
-                  }
-                >
-                  {line.text}
-                </p>
-              ))}
-            </div>
-          )}
+          <div className="min-h-[28rem]">
+            {lines.length === 0 ? (
+              <p className="py-16 text-center text-sm text-gray-400">这首歌暂时没有歌词</p>
+            ) : (
+              <div className="space-y-3 text-center">
+                {lines.map((line, index) => (
+                  <p
+                    key={`${line.time}-${index}`}
+                    data-line={index}
+                    className={
+                      index === activeIndex
+                        ? "text-[15px] font-medium text-gray-900 transition-colors"
+                        : "text-sm text-gray-400 transition-colors"
+                    }
+                  >
+                    {line.text}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

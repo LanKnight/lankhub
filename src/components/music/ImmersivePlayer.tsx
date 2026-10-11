@@ -164,16 +164,16 @@ export default function ImmersivePlayer({
         {/* 左：唱片 */}
         <div className="flex shrink-0 flex-col items-center">
           {/*
-            尺寸：唱片要比原来大一倍左右。
-            但只在 desktop（左右分栏、横向有空间）放大 ——
-            窄屏是上下堆叠，唱片太大就会把歌词挤没。
+            尺寸：唱片要比原来大一倍左右。窄屏另有小档位（那里是上下堆叠，
+            唱片太大会把歌词挤没）。
           */}
           <div className="relative aspect-square w-52 sm:w-64 md:w-[26rem] lg:w-[30rem]">
             {/*
               黑胶本体：深色底 + 几道同心纹路，全用 CSS 画，不需要额外图片资源。
-              封面**不铺在盘面上**，而是放在中心那张圆标里 —— 现实中的唱片就是
-              「黑胶 + 中心贴纸」，而且这样不必再叠一层径向遮罩去假装中间的洞，
-              少一层图、少一处会错位的地方。
+
+              封面**同时**出现在两处：盘面（透过纹路看，有唱片的味道）
+              与中心圆标（清晰可见）。原来只放在圆标里、而圆标只占盘面 37%，
+              唱片一放大就显得图片很小 —— 现在盘面铺底 + 圆标放大到 50%。
 
               旋转用 CSS 动画（transform 走合成层，比 JS 每帧改样式省得多）。
               暂停靠 `is-paused` 这个类，**不是**再叠一个
@@ -186,12 +186,22 @@ export default function ImmersivePlayer({
               }`}
               style={{
                 backgroundColor: "#1c1c1e",
-                backgroundImage:
-                  "repeating-radial-gradient(circle at center, rgba(255,255,255,0.07) 0 1px, rgba(0,0,0,0) 1px 5px)",
+                // 顺序：纹路在上、封面在下（封面被纹路压着，像透过黑胶看过去）
+                backgroundImage: current.coverUrl
+                  ? `repeating-radial-gradient(circle at center, rgba(255,255,255,0.07) 0 1px, rgba(0,0,0,0) 1px 5px), url(${current.coverUrl})`
+                  : "repeating-radial-gradient(circle at center, rgba(255,255,255,0.07) 0 1px, rgba(0,0,0,0) 1px 5px)",
+                backgroundSize: current.coverUrl ? "auto, cover" : undefined,
+                backgroundPosition: "center",
+                backgroundRepeat: "repeat, no-repeat",
               }}
             >
-              {/* 中心圆标（唱片贴纸）与轴心 */}
-              <div className="absolute inset-[31.5%] overflow-hidden rounded-full bg-gray-100 ring-1 ring-black/20">
+              {/*
+                中心圆标：占盘面 50%（原来 37%）。
+                用 w-1/2 h-1/2 + 居中定位，而不是 inset-[31.5%] ——
+                后者是「正方形套正方形」，圆形标签的真实直径只有盘面的 37%，
+                想让它精确占一半，直接给宽高比例反而更清楚。
+              */}
+              <div className="absolute left-1/2 top-1/2 h-1/2 w-1/2 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full ring-1 ring-black/20">
                 {current.coverUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -200,12 +210,12 @@ export default function ImmersivePlayer({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center text-gray-300">
-                    <ListMusic size={26} />
+                  <div className="flex h-full w-full items-center justify-center bg-gray-100 text-gray-300">
+                    <ListMusic size={44} />
                   </div>
                 )}
               </div>
-              <div className="absolute left-1/2 top-1/2 h-[5%] w-[5%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/90 shadow-inner" />
+              <div className="absolute left-1/2 top-1/2 h-[4%] w-[4%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/90 shadow-inner" />
             </div>
           </div>
 
@@ -217,43 +227,54 @@ export default function ImmersivePlayer({
 
         {/*
           右：歌词。
-          上下留白必须**约等于容器高度的一半**，否则第一行与最后一行永远无法居中
-          （滚到顶就是极限了）。所以留白按实测的容器高度动态算，而不是写一个
-          py-[38vh] —— 那个在窄屏（歌词区很矮）会算出过量留白、在超宽屏又不够。
 
-          之前「完全没有滚动」的根因也在这里：容器高度是「内容自适应」而不是
-          填满可用空间时就没有溢出，scrollTo 自然什么也不做。
-          现在 min-h-0 + flex-1 让它一定填满，留白保证了任何一行都能居中。
+          ⚠️ 两个必须同时满足的条件，少一个就会出现「高亮行没滚到中间」：
+
+          1. **内容必须比容器高（一定要溢出）**。
+             `scrollIntoView({ block: "center" })` 在目标已经可见时**什么都不做** ——
+             它不是「把目标移到中间」，而是「把目标滚进视野，尽量居中」。
+             PC 上歌词区更宽更矮，多数行本来就在可见范围内，于是它一次也不动，
+             看着就像「固定停在文本中间」（那其实是初始 padding 撑出来的位置，
+             跟高亮行无关）。移动端容器矮、确实溢出，所以那边一直是好的。
+             → 所以给内层一个**至少两倍容器高**的 minHeight，保证永远溢出。
+
+          2. **上下留白约等于容器高度的一半**，否则第一行与最后一行无法居中
+             （滚到顶就是极限）。留白按实测容器高度动态算，而不是写死 py-[38vh]。
         */}
         <div
           ref={lyricBoxRef}
           className="min-h-0 w-full flex-1 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_18%,black_82%,transparent)] md:max-w-lg"
-          style={{
-            paddingTop: lyricBoxHeight ? lyricBoxHeight / 2 : 0,
-            paddingBottom: lyricBoxHeight ? lyricBoxHeight / 2 : 0,
-          }}
         >
-          {lyricLines.length === 0 ? (
-            <p className="text-center text-sm text-gray-400">
-              {current.lyric ? "歌词暂时无法解析" : "这首歌暂时没有歌词"}
-            </p>
-          ) : (
-            <div className="space-y-4 px-2 text-center">
-              {lyricLines.map((line, index) => (
-                <p
-                  key={`${line.time}-${index}`}
-                  data-line={index}
-                  className={
-                    index === activeIndex
-                      ? "text-base font-medium leading-relaxed text-gray-900 transition-colors md:text-lg"
-                      : "text-sm leading-relaxed text-gray-400 transition-colors md:text-base"
-                  }
-                >
-                  {line.text}
-                </p>
-              ))}
-            </div>
-          )}
+          <div
+            style={{
+              paddingTop: lyricBoxHeight ? lyricBoxHeight / 2 : 0,
+              paddingBottom: lyricBoxHeight ? lyricBoxHeight / 2 : 0,
+              // 撑到两倍容器高，确保任何一行都需要滚动才能居中
+              minHeight: lyricBoxHeight ? lyricBoxHeight * 2 : undefined,
+            }}
+          >
+            {lyricLines.length === 0 ? (
+              <p className="text-center text-sm text-gray-400">
+                {current.lyric ? "歌词暂时无法解析" : "这首歌暂时没有歌词"}
+              </p>
+            ) : (
+              <div className="space-y-4 px-2 text-center">
+                {lyricLines.map((line, index) => (
+                  <p
+                    key={`${line.time}-${index}`}
+                    data-line={index}
+                    className={
+                      index === activeIndex
+                        ? "text-base font-medium leading-relaxed text-gray-900 transition-colors md:text-lg"
+                        : "text-sm leading-relaxed text-gray-400 transition-colors md:text-base"
+                    }
+                  >
+                    {line.text}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
