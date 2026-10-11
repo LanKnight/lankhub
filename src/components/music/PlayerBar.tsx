@@ -92,16 +92,19 @@ export default function PlayerBar() {
   /**
    * 当前歌词行滚到中间（底部抽屉）。
    *
-   * 与沉浸层用同一套做法：`scrollIntoView({ block: "center" })` +
-   * 上下留白（留白写在 LyricsDrawer 里，约等于容器高度的一半）——
-   * 没有留白的话第一行与最后一行永远无法居中。
+   * 与沉浸层同一套做法：**直接写歌词框的 scrollTop**，不用 `scrollIntoView` ——
+   * 后者按定义会沿祖先链滚动所有可滚动容器，会把整个页面也滚起来
+   * （沉浸层就这么炸过一次：滚歌词的时候唱片跟着滚上去）。
    */
   useEffect(() => {
     if (panel !== "lyrics" || activeIndex < 0) return
-    const line = lyricBoxRef.current?.querySelector<HTMLElement>(
-      `[data-line="${activeIndex}"]`
-    )
-    line?.scrollIntoView({ block: "center", behavior: "smooth" })
+    const box = lyricBoxRef.current
+    const line = box?.querySelector<HTMLElement>(`[data-line="${activeIndex}"]`)
+    if (!box || !line) return
+    box.scrollTo({
+      top: line.offsetTop - (box.clientHeight - line.offsetHeight) / 2,
+      behavior: "smooth",
+    })
   }, [activeIndex, panel, lyricLines])
 
   if (!current) return null

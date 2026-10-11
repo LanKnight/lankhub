@@ -70,21 +70,31 @@ export default function ImmersivePlayer({
   }, [open])
 
   /**
-   * 把当前行滚到正中间。
+   * 把当前行滚到歌词框的正中间。
    *
-   * 用 `scrollIntoView({ block: "center" })` 而不是自己算偏移：
-   * 自己算要处理「行的 offsetTop 相对谁」「容器 padding」这些细节，
-   * 差一点就会出现「没滚到中间」甚至「完全不滚」。交给浏览器判断最稳。
+   * ⚠️ **不能用 `scrollIntoView`。** 它按定义会沿祖先链**逐个滚动所有可滚动的容器**
+   * —— 不只滚歌词框，还会把**页面本身**也滚起来（好把目标带进视口中间）。
+   * 页面一滚，`relative` 定位的顶栏与整个主体就跟着往上走，
+   * 表现就是「滚歌词的时候唱片也跟着滚上去了」。
+   *
+   * 直接写 `scrollTop` 只可能影响这一个元素，不触碰任何祖先，也没有平滑
+   * 滚动被其它滚动打断的问题。
+   *
+   * `relative` + `offsetTop`：offsetTop 是相对最近的**定位祖先**的，
+   * 所以歌词框必须是 `relative`（已加），否则会相对更外层的祖先算，数值就错了。
    *
    * 依赖里带上 lyricLines：切歌时歌词整体换掉，当前行可能没变（都是第 0 行），
    * 那时 activeIndex 不变、effect 不会重跑，得靠歌词本身变化把它带起来。
    */
   useEffect(() => {
     if (!open || activeIndex < 0) return
-    const line = lyricBoxRef.current?.querySelector<HTMLElement>(
-      `[data-line="${activeIndex}"]`
-    )
-    line?.scrollIntoView({ block: "center", behavior: "smooth" })
+    const box = lyricBoxRef.current
+    const line = box?.querySelector<HTMLElement>(`[data-line="${activeIndex}"]`)
+    if (!box || !line) return
+    box.scrollTo({
+      top: line.offsetTop - (box.clientHeight - line.offsetHeight) / 2,
+      behavior: "smooth",
+    })
   }, [activeIndex, open, lyricLines])
 
   /** Esc 退出；左右方向键切歌 —— 沉浸层里没有别的东西，用方向键很自然 */
@@ -142,9 +152,13 @@ export default function ImmersivePlayer({
         </div>
       )}
 
-      {/* 顶栏 */}
+      {/*
+        顶栏。
+        歌名与歌手**只在移动端**留在这里 —— 那边空间紧，塞到唱片下面会把歌词
+        挤得更矮。PC 上移到唱片下方（见左边那一列），顶栏只剩退出按钮。
+      */}
       <div className="relative flex shrink-0 items-center gap-3 px-4 py-3 md:px-8">
-        <div className="min-w-0">
+        <div className="min-w-0 md:hidden">
           <p className="truncate text-sm font-medium text-gray-900">{current.title}</p>
           <p className="truncate text-xs text-gray-500">{current.artist}</p>
         </div>
@@ -219,7 +233,17 @@ export default function ImmersivePlayer({
             </div>
           </div>
 
-          {/* 唱片下方只放一行状态；歌名与歌手已在顶栏，不重复 */}
+          {/*
+            歌名与歌手（PC 才显示）：与旋转的唱片居中对称，最像播放器。
+            移动端不显示 —— 那边在顶栏里，把高度留给歌词。
+          */}
+          <div className="mt-6 hidden max-w-[26rem] text-center md:block lg:mt-8">
+            <p className="truncate text-lg font-medium text-gray-900 lg:text-xl">
+              {current.title}
+            </p>
+            <p className="mt-1 truncate text-sm text-gray-500">{current.artist}</p>
+          </div>
+
           {error && (
             <p className="mt-4 max-w-[16rem] text-center text-xs text-red-500">{error}</p>
           )}
@@ -228,29 +252,25 @@ export default function ImmersivePlayer({
         {/*
           右：歌词。
 
-          ⚠️ 两个必须同时满足的条件，少一个就会出现「高亮行没滚到中间」：
+          上下留白必须**约等于容器高度的一半**，否则第一行与最后一行无法居中
+          （滚到顶就是极限）。留白按实测容器高度动态算，而不是写死 py-[38vh]。
 
-          1. **内容必须比容器高（一定要溢出）**。
-             `scrollIntoView({ block: "center" })` 在目标已经可见时**什么都不做** ——
-             它不是「把目标移到中间」，而是「把目标滚进视野，尽量居中」。
-             PC 上歌词区更宽更矮，多数行本来就在可见范围内，于是它一次也不动，
-             看着就像「固定停在文本中间」（那其实是初始 padding 撑出来的位置，
-             跟高亮行无关）。移动端容器矮、确实溢出，所以那边一直是好的。
-             → 所以给内层一个**至少两倍容器高**的 minHeight，保证永远溢出。
+          `relative` 是必需的：滚动时用 `line.offsetTop` 定位，
+          而 offsetTop 是相对最近的**定位祖先**的 —— 少了它，数值会相对更外层的
+          祖先算，滚出来的位置就是错的。
 
-          2. **上下留白约等于容器高度的一半**，否则第一行与最后一行无法居中
-             （滚到顶就是极限）。留白按实测容器高度动态算，而不是写死 py-[38vh]。
+          注意**不需要**再把内容撑高（之前加过一个「两倍容器高」的 minHeight，
+          那是在用 scrollIntoView 时的权宜之计；现在直接写 scrollTop，
+          没有溢出也不会误滚祖先）。
         */}
         <div
           ref={lyricBoxRef}
-          className="min-h-0 w-full flex-1 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_18%,black_82%,transparent)] md:max-w-lg"
+          className="relative min-h-0 w-full flex-1 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,black_18%,black_82%,transparent)] md:max-w-lg"
         >
           <div
             style={{
               paddingTop: lyricBoxHeight ? lyricBoxHeight / 2 : 0,
               paddingBottom: lyricBoxHeight ? lyricBoxHeight / 2 : 0,
-              // 撑到两倍容器高，确保任何一行都需要滚动才能居中
-              minHeight: lyricBoxHeight ? lyricBoxHeight * 2 : undefined,
             }}
           >
             {lyricLines.length === 0 ? (

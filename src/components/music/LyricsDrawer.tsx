@@ -49,17 +49,17 @@ export default function LyricsDrawer({
           上下留白约等于容器高度的一半（h-56 = 224px → py 各 112px），
           这样第一行与最后一行也能滚到正中间。
 
-          ⚠️ `min-h-[28rem]`（两倍容器高）不是装饰：
-          `scrollIntoView({ block: "center" })` 在目标**已经可见**时什么都不做 ——
-          它不是「把目标移到中间」，而是「滚进视野、尽量居中」。
-          内容不够高就不会溢出，于是它一次也不动，看起来就是「一直停在文本中间」。
-          撑到两倍高才能保证任何一行都需要滚动才能居中。
+          `relative` 是必需的：滚动时用 `line.offsetTop` 定位，
+          而 offsetTop 相对的是最近的**定位祖先** —— 少了它会算错位置。
+
+          不需要再把内容撑高（加过 min-h-[28rem]，那是用 scrollIntoView 时的
+          权宜之计；现在直接写 scrollTop，没溢出也不会误滚祖先）。
         */}
         <div
           ref={boxRef}
-          className="h-56 overflow-y-auto px-6 py-[7rem] [mask-image:linear-gradient(to_bottom,transparent,black_15%,black_85%,transparent)]"
+          className="relative h-56 overflow-y-auto px-6 py-[7rem] [mask-image:linear-gradient(to_bottom,transparent,black_15%,black_85%,transparent)]"
         >
-          <div className="min-h-[28rem]">
+          <div>
             {lines.length === 0 ? (
               <p className="py-16 text-center text-sm text-gray-400">这首歌暂时没有歌词</p>
             ) : (
