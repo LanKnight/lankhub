@@ -173,10 +173,27 @@ export default function ImmersivePlayer({
         </button>
       </div>
 
-      {/* 主体：桌面左右分栏，窄屏上下堆叠 */}
-      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-5 overflow-hidden px-4 py-2 md:flex-row md:gap-12 md:px-10 lg:gap-16">
-        {/* 左：唱片 */}
-        <div className="flex shrink-0 flex-col items-center">
+      {/*
+        主体：桌面左右分栏，窄屏上下堆叠。
+
+        ⚠️ `items-center` **只能在移动端生效**，所以写成
+        `items-center md:items-stretch`。这是「PC 上歌词永远滚不到高亮行」
+        的真正根因，实测数据（headless Edge 量的）：
+
+          items-center（PC） → main 高 623px，歌词框却高 5040px（= 内容全高），最大可滚 0
+          去掉它（PC）       → 歌词框高 607px，最大可滚 2520px，滚动到位 ✓
+
+        `align-items: center` 让 flex 子项**按内容尺寸摆放**，而不是拉伸到容器高度，
+        于是歌词框永远没有溢出、`scrollTop` 怎么设都不动 ——
+        看起来就是「一直停在文本中间」（那其实是 padding 撑出来的初始位置）。
+        注意 `min-h-0` 只解除「最小高度」限制，**管不了「不拉伸」**。
+
+        移动端是 `flex-col`，`items-center` 作用在横轴（宽度）上、纵向不受影响，
+        所以那边一直是好的 —— 这正是这个 bug 只在 PC 出现的原因。
+      */}
+      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-5 overflow-hidden px-4 py-2 md:flex-row md:items-stretch md:gap-12 md:px-10 lg:gap-16">
+        {/* 左：唱片。PC 上自己纵向居中（父级已不再是 items-center） */}
+        <div className="flex shrink-0 flex-col items-center md:justify-center">
           {/*
             尺寸：唱片要比原来大一倍左右。窄屏另有小档位（那里是上下堆叠，
             唱片太大会把歌词挤没）。
@@ -210,12 +227,13 @@ export default function ImmersivePlayer({
               }}
             >
               {/*
-                中心圆标：占盘面 50%（原来 37%）。
-                用 w-1/2 h-1/2 + 居中定位，而不是 inset-[31.5%] ——
-                后者是「正方形套正方形」，圆形标签的真实直径只有盘面的 37%，
-                想让它精确占一半，直接给宽高比例反而更清楚。
+                中心圆标：占盘面 50%。
+                用 `inset-[25%]`（四边各留 25% 的方框，内接圆正好是 50% 直径），
+                **不要用 `h-1/2`** —— `h-*` 的百分比高度会输给 `text-lg` 的
+                `line-height`（Tailwind 里 `h-*` 排在 `line-height` 之前），
+                结果是个椭圆而不是圆。
               */}
-              <div className="absolute left-1/2 top-1/2 h-1/2 w-1/2 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full ring-1 ring-black/20">
+              <div className="absolute inset-[25%] overflow-hidden rounded-full ring-1 ring-black/20">
                 {current.coverUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
