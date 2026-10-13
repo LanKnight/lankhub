@@ -453,8 +453,77 @@ npm run update              # 一键更新：拉取 → 安装 → 推送DB → 
 它同时是排查入口：音乐、合集、简历等功能的行为边界与已知限制也记在里面。
 
 
-### 维护模式（临时挂出维护页）
+### 启用 HTTPS（分两步，别跳步）
 
+站点默认跑在 **HTTP（80）**。要上 HTTPS，用 `scripts/https/` 下的脚本。
+
+```bash
+# 第一步：只加 443，80 保持原样可用
+sudo npm run https:on -- \
+  --cert /etc/nginx/cert/www.lankhub.xyz.pem \
+  --key  /etc/nginx/cert/www.lankhub.xyz.key
+
+# 验证 https 真的可用之后，第二步：80 → 443 跳转
+sudo npm run https:redirect
+
+# 回退
+sudo npm run https:off                  # 回到只有 http
+```
+
+> **为什么必须分两步**：这个项目上一次把整站打挂，根因就是「跳到了一个没人监听的端口」。
+> 第一步只加 443、**不做任何跳转**，所以万一 https 不通，80 仍然可用，你不会被锁在外面。
+>
+> `https:redirect` 还会**主动检查 443 配置是否存在**，不存在就拒绝执行 ——
+> 从机制上防止「跳到空端口」。
+
+#### 第一步会校验什么（任何一项不过都不 reload）
+
+| 检查 | 为什么 |
+| --- | --- |
+| **证书与私钥是否配对** | 用 `openssl modulus` 比对。不配对的话 nginx 直接起不来 |
+| **证书是否覆盖所有要用的域名** | 不覆盖的话那些域名的访客会看到证书错误。缺了会明确报出是哪个域名 |
+| **443 端口是否被别的程序占用** | 被占用时 nginx 起不来 |
+| **证书链是否完整** | 只有 1 段时警告可能缺中间证书（阿里云 nginx 版正常是 2 段） |
+| `nginx -t` | **不过检查绝不 reload**；失败自动回滚，80 不受影响 |
+
+要覆盖的域名默认是 `www.<域名>` 与 `<域名>`；证书只签了一个时用 `--domains` 指定：
+
+```bash
+sudo npm run https:on -- --cert ... --key ... --domains www.lankhub.xyz
+```
+
+#### 生成的配置做了什么
+
+- 放在**独立文件** `/etc/nginx/sites-available/zz-lankhub-https.conf`
+  （软链名 `zz-` 开头，保证排在站点自己的配置之后加载，避免重复 `server_name` 抢占）
+- **不动你现有的 80 配置**
+- 证书拷到 `/etc/nginx/ssl/`，私钥权限 `600`（原文件不动）
+- 转发 `X-Forwarded-Proto $scheme` —— **没有它，登录后可能被跳回 http**
+- 只启用 `TLSv1.2` / `TLSv1.3`（覆盖 nginx.conf 里还开着 TLSv1/1.1 的全局设置）
+- HTTP/2 用 `listen 443 ssl http2`（老写法）—— 独立的 `http2 on;` 需要 nginx 1.25.1+，
+  而线上是 1.24
+- **故意不含 HSTS**。HSTS 会让浏览器在有效期内强制只用 https，
+  一旦证书出问题或被撤销，访客会被硬锁在外面、而你无法远程解除。
+  等 https 稳定运行一段时间再考虑。
+
+#### 两个容易踩的点
+
+1. **阿里云安全组要放行 443**。配置写得再对，安全组不放行就是「无法访问」——
+   这与上次维护模式打挂站点的现象一模一样。**先放行再启用。**
+2. **证书要覆盖你实际在用的域名**。若证书只签了 `www.lankhub.xyz`，
+   那 `https://lankhub.xyz/`（不带 www）会报证书错误 ——
+   此时**不要**把不带 www 的域名加进跳转。
+
+#### 备份放在哪
+
+改配置前都会备份，**备份不在 `sites-enabled/` 里**，而在 `/etc/nginx/lankhub-backups/`：
+
+> ⚠️ 这一点很重要：nginx 是 `include /etc/nginx/sites-enabled/*`，
+> 那个目录里**任何**文件都会被当配置加载。备份文件里同样有 `server` 块，
+> 放进去会造成**重复的 `server_name`**，行为变得不可预测。
+> **永远不要把备份写进 `sites-enabled/`。**
+
+### 维护模式（临时挂出维护页）
 需要临时停止对外服务时，可以让全站只显示一张维护页。
 
 ```bash

@@ -1697,3 +1697,93 @@ sudo nginx -T | grep -E 'listen|ssl_certificate'
 - 真启动后四种请求全部符合 25.6 的期望
 - 开关脚本端到端 **22 项**全过：软链双命名的三种场景、`nginx -t` 失败回滚、
   `dry-run` 无副作用、`status` 识别两个命名并告警重复
+
+---
+
+## 26. v0.11.0：启用 HTTPS（分两步 + 证书校验）
+
+### 26.1 文件
+
+| 路径 | 职责 |
+| --- | --- |
+| `scripts/https/enable.sh` | **第一步**：只加 443，不跳转。校验证书/域名/端口 → 生成独立配置 → `nginx -t` → reload |
+| `scripts/https/enable-redirect.sh` | **第二步**：往现有 80 块插 301 跳转（幂等、支持 `--undo`） |
+| `scripts/https/disable.sh` | 回退：**先撤跳转、再删 443**（顺序关键） |
+
+### 26.2 ⚠️ 为什么强制分两步
+
+**这个项目刚因为「跳到没人监听的端口」把整站打挂（第 25 节）。** 所以：
+
+- 第一步**只加 443、零跳转** → 万一 https 不通，80 仍可用，不会被锁在外面
+- 第二步会**主动检查 443 配置是否存在**，不存在就拒绝执行
+
+**这条设计不是啰嗦，是上一个事故的直接对策。改动它之前请先读第 25 节。**
+
+### 26.3 第一步的校验清单（任何一项不过都不 reload）
+
+| 检查 | 实现 |
+| --- | --- |
+| 证书/私钥配对 | `openssl x509 -modulus` 与 `openssl rsa -modulus` 比对 md5 |
+| 证书覆盖域名 | 解析 `subjectAltName`（老 openssl 退回 `-text`），逐个核对并报出缺失的 |
+| 443 未被占用 | `ss -tlnp` / `netstat`，若是 nginx 自己占用则提示可能已有 https 配置 |
+| 证书链段数 | `grep -c 'BEGIN CERTIFICATE'`，只有 1 段时警告 |
+
+### 26.4 生成配置的要点
+
+- **独立文件** `sites-available/zz-lankhub-https.conf`，**不改动现有 80 配置**
+- 软链名以 **`zz-`** 开头 —— 保证排在站点自己的配置**之后**加载。
+  同端口重复 `server_name` 时 nginx 只用先加载的，`zz-` 可避免我们抢占站点的块
+- 证书拷到 `/etc/nginx/ssl/`，**私钥 600**（原文件不动）
+- **`X-Forwarded-Proto $scheme` 必须有** —— 否则 Next.js / Auth.js 可能生成
+  http 的回调地址，登录后被跳回 http
+- TLS **只留 1.2/1.3**（nginx.conf 里的全局设置还开着 TLSv1/1.1，这里覆盖）
+- HTTP/2 用 `listen 443 ssl http2`（老写法）—— 见第 23 节，1.24 不认 `http2 on;`
+- **故意不含 HSTS**：HSTS 让浏览器在有效期内强制 https，证书一旦出问题
+  访客被硬锁在外面、且**无法远程解除**。要加也得等 https 稳定运行之后
+
+### 26.5 ⚠️⚠️ 备份绝不能放进 sites-enabled
+
+我最初把备份写成 `lankhub.xyz.lankhub-bak.*`，就在 `sites-enabled/` 里。
+**nginx 是 `include /etc/nginx/sites-enabled/*`，那个目录里任何文件都会被当配置加载。**
+备份里同样有 `server` 块 → **重复的 `server_name`** → 行为不可预测。
+
+**现在统一放 `/etc/nginx/lankhub-backups/`。**
+（这个 bug 只在本地测试暴露，没上过服务器 —— 但它是本轮最危险的一个。）
+
+### 26.6 ⚠️ 标记剥离必须用 range 模式
+
+`enable-redirect.sh` / `disable.sh` 靠一对标记注释定位插入的片段。
+我第一版用 `index($0, mark) == 1`（要求标记在**行首**）—— 但标记是**缩进**的，
+永远匹配不上 → 剥离静默失败 → **重复执行插入两份片段**、`--undo` 也删不掉。
+
+**正确做法**（range 模式，只要求行内包含标记）：
+
+```awk
+awk -v b="$BEGIN_MARK" -v e="$END_MARK" '
+  index($0,b) { skip=1; next }
+  index($0,e) { skip=0; next }
+  !skip { print }
+' "$file"
+```
+
+### 26.7 验证方式：真实 nginx 启动 + 真实证书校验
+
+语法通过**不代表**能握手。所以验证脚本做的是：
+
+1. 跑真实的 `enable.sh`（PATH 前置假的 nginx/systemctl/ss/curl，隔离到 `/tmp`）
+2. **恢复干净 PATH**，用 `/usr/sbin/nginx` 真启动（⚠️ 别用 `command -v nginx` ——
+   PATH 里假的还在前面，会抓到 stub，产生「nginx 没起来」这种假失败）
+3. `curl --cacert <自签证书>` **真实校验证书链与域名匹配**（不是 `-k` 跳过）
+4. 检查 HTTP/2 协商、服务端返回的证书主体、TLSv1 是否被拒、80 是否仍未跳转
+
+实测：`nginx -t` 通过、进程起来、两个域名都握手成功、`HTTP/2` 协商为 `2`、
+证书主体 `CN=www.lankhub.xyz`、**TLSv1 被拒绝**、**80 仍直接服务**。
+
+### 26.8 ⚠️ 站长的两个前置条件（本地无法代验）
+
+1. **阿里云安全组要放行 443**。配置再对，不放行就是「无法访问」——
+   与上次打挂站点的现象一模一样。**先放行再启用。**
+2. **证书要覆盖实际在用的域名**。文件名是 `www.lankhub.xyz.pem`，
+   若只签了 `www`，则 `https://lankhub.xyz/` 会报证书错误。
+   脚本会解析 SAN 并核对，缺了会拒绝启用并报出是哪个域名。
+   此时可用 `--domains www.lankhub.xyz` 只保留证书覆盖的域名。
