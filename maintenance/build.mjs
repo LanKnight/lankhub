@@ -30,8 +30,32 @@ function arg(name, fallback) {
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback
 }
 
+/**
+ * 自动探测证书路径。
+ *
+ * ⚠️ 为什么需要这个：域名与证书路径**因部署环境而异**，而这正是上一次翻车的点 ——
+ * 线上证书在 /etc/letsencrypt/live/lankhub.xyz/（**不带 www**），
+ * 而脚本默认按 www 拼路径，两边不一致就会在 reload 前才报错。
+ *
+ * certbot 的目录名就是证书里的域名，所以「带 www」与「不带 www」两种都得试。
+ * 都找不到时返回默认值（带 www），由 enable.sh 的「证书存在」检查兜住并给出提示。
+ */
+function detectCert(domain) {
+  const bare = domain.replace(/^www\./, "")
+  const live = "/etc/letsencrypt/live"
+  const candidates = [...new Set([domain, bare, `www.${bare}`])].map(
+    (d) => `${live}/${d}/fullchain.pem`
+  )
+  for (const c of candidates) {
+    if (existsSync(c)) return c
+  }
+  return candidates[0]
+}
+
 const domain = arg("domain", "www.lankhub.xyz")
-const cert = arg("cert", `/etc/letsencrypt/live/${domain}/fullchain.pem`)
+const detected = detectCert(domain)
+// 显式传了 --cert 就用它；没传则用探测到的
+const cert = arg("cert", detected)
 const webRoot = arg("webroot", "/var/www/lankhub-maintenance")
 
 if (!existsSync(IMAGE_SRC)) {
@@ -193,12 +217,21 @@ writeFileSync(
 )
 
 const kb = (n) => `${Math.round(n / 1024)}KB`
+const certIsDetected = !process.argv.includes("--cert")
 console.log("✅ 维护页已生成")
 console.log("   图片来源：docs/photo/update.jpg  (" + kb(image.length) + ")")
 console.log("   维护页  ：maintenance/__maintenance.html  (" + kb(Buffer.byteLength(html)) + "，图片已内联)")
 console.log("   Nginx   ：maintenance/lankhub-maintenance.conf")
 console.log(`             域名 ${domain}`)
-console.log(`             证书 ${cert}`)
+console.log(
+  `             证书 ${cert}${certIsDetected && detected === cert ? "（自动探测到）" : ""}`
+)
 console.log(`             站点根 ${webRoot}`)
+if (certIsDetected && !existsSync(cert)) {
+  console.log("")
+  console.log("⚠️  上面这个证书路径在本机**不存在**。")
+  console.log("    如果这是你的服务器，请确认实际路径，必要时显式指定：")
+  console.log("      node maintenance/build.mjs --cert /你的路径/fullchain.pem")
+}
 console.log("")
 console.log("下一步：在服务器上执行 bash scripts/maintenance/enable.sh")

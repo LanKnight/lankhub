@@ -54,3 +54,14 @@ data/uploads/
 
 # 本地素材（宣传视频等，不入库）
 /video/
+
+# 维护模式的**生成物**（由 maintenance/build.mjs 产出，不入库）
+#
+# ⚠️ 为什么必须忽略：这两个文件是**按部署环境生成**的 —— 域名、证书路径
+# 每台服务器都可能不同。一旦提交进仓库，服务器上用 --cert 重新生成后，
+# 下一次 git pull 就会因为「本地改动会被覆盖」而**直接失败**（真实踩过）。
+#
+# 源图 docs/photo/update.jpg 与生成脚本 maintenance/build.mjs **要入库**，
+# 生成物由 npm run maintenance:build 现场产出。
+/maintenance/lankhub-maintenance.conf
+/maintenance/__maintenance.html

@@ -34,6 +34,57 @@
 
 ---
 
+## v0.10.2 — 2026-10-13
+
+### 修复：生成物被提交进仓库，导致服务器 `git pull` 失败
+
+**适用对象：所有人。** 只影响维护模式的脚本与生成物。
+
+站长在服务器上拉更新时报：
+
+```
+error: Your local changes to the following files would be overwritten by merge:
+        maintenance/lankhub-maintenance.conf
+Please commit your changes or stash them before you merge.
+Aborting
+```
+
+**根因是我的设计有问题**：`lankhub-maintenance.conf` 是 `build.mjs` 生成的，
+而它**因部署环境而异**（域名、证书路径）。服务器上用 `--cert` 重新生成过它，
+仓库里也有一份 —— 于是必然冲突。更糟的是 **`git pull` 失败导致 `http2` 的修复没生效**，
+所以紧接着那次 `maintenance:on` 又报了同样的 `unknown directive "http2"`。
+
+#### 改法：生成物不再入库
+
+- `maintenance/lankhub-maintenance.conf` 与 `maintenance/__maintenance.html`
+  从 git 移除并加入 `.gitignore`
+- **入库的只有**：生成脚本 `maintenance/build.mjs` 与源图 `docs/photo/update.jpg`
+- `enable.sh` 现在会在生成物缺失时**自动执行 `node maintenance/build.mjs`**，
+  所以新克隆的仓库直接用 `sudo npm run maintenance:on` 就能跑，不需要记得先 build
+
+#### 顺带：证书路径自动探测
+
+`build.mjs` 现在会依次尝试 `/etc/letsencrypt/live/{域名, 去 www 的域名, www.域名}/fullchain.pem`，
+取第一个真实存在的。这正是这次差异的来源 —— 线上实际是**不带 `www`** 的
+`/etc/letsencrypt/live/lankhub.xyz/`，而脚本默认按带 `www` 拼。
+都找不到时会如实提示，并给出 `--cert` 的用法。
+
+#### 顺带修掉一个脚本自身的 bug
+
+`enable.sh` 里读证书/域名/日志路径的 `grep` **没有 `|| true`**。
+脚本是 `set -euo pipefail`，**管道里任何一环返回非 0 都会终止整个脚本**，
+而 `grep` 找不到匹配就返回 1 —— 于是配置里没有证书段（纯 HTTP 部署）时，
+脚本会**无声无息地停在半路**，只打印到「Nginx 目录结构符合预期」就没了。
+这种「看起来该继续却停了」最难查。现在三处 `grep` 都加了 `|| true` 与 `2>/dev/null`。
+
+#### 教训
+
+**构建产物不要入库，尤其当它包含环境相关信息时。**
+一旦入库，只要有哪台机器本地重新生成过，`git pull` 就会失败；
+而失败又常常被忽略（终端滚过去了），表现为「改了却好像没生效」。
+
+---
+
 ## v0.10.1 — 2026-10-13
 
 ### 修复：维护配置在 Nginx 1.24 上语法报错（`http2 on;` 不被支持）

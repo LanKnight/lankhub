@@ -59,14 +59,28 @@ fi
 echo "  ✓ 权限"
 
 # 允许从仓库根或 scripts/maintenance 下运行，两种情况都能找到
+#
+# 生成物不入库（见 .gitignore），所以新克隆的仓库里没有它们。
+# 这里自动补生成一次，避免「第一次用维护模式就必须记得先跑 build」这种坑；
+# 顺带也修好「换了电脑/重新克隆后配置不在」的情况。
+if [ ! -f "$CONF_SRC" ] || [ ! -f "$PAGE_SRC" ]; then
+  echo "  生成物不在，正在自动生成（node maintenance/build.mjs）..."
+  if [ ! -f "$REPO_ROOT/maintenance/build.mjs" ]; then
+    echo "  ✗ 找不到 $REPO_ROOT/maintenance/build.mjs —— 仓库不完整？"
+    exit 1
+  fi
+  if ! (cd "$REPO_ROOT" && node maintenance/build.mjs); then
+    echo "  ✗ 生成失败。请手动执行并看报错：cd $REPO_ROOT && node maintenance/build.mjs"
+    exit 1
+  fi
+  echo ""
+fi
 if [ ! -f "$CONF_SRC" ]; then
-  echo "  ✗ 找不到 $CONF_SRC"
-  echo "    请先在仓库里生成：node maintenance/build.mjs"
+  echo "  ✗ 仍然找不到 $CONF_SRC"
   exit 1
 fi
 if [ ! -f "$PAGE_SRC" ]; then
-  echo "  ✗ 找不到 $PAGE_SRC"
-  echo "    请先在仓库里生成：node maintenance/build.mjs"
+  echo "  ✗ 仍然找不到 $PAGE_SRC"
   exit 1
 fi
 echo "  ✓ 维护配置与维护页都在"
@@ -78,21 +92,26 @@ if [ ! -d /etc/nginx/sites-enabled ]; then
 fi
 echo "  ✓ Nginx 目录结构符合预期"
 
+# ⚠️ 这两处 grep 必须带 `|| true`。
+# 本脚本是 `set -euo pipefail`，**管道里任何一环返回非 0 都会终止整个脚本** ——
+# grep 找不到匹配就是返回 1。少了 `|| true`，配置里没有证书段（纯 HTTP 部署）时
+# 脚本会**无声无息地停下**，只打印到一半，非常难查（实测踩到过）。
+#
 # 证书文件必须存在，否则 reload 会失败并可能把站点弄挂
-CERT=$(grep -oP '^\s*ssl_certificate\s+\K\S+' "$CONF_SRC" | head -1 | tr -d ';')
+CERT=$(grep -oP '^\s*ssl_certificate\s+\K\S+' "$CONF_SRC" 2>/dev/null | head -1 | tr -d ';' || true)
 if [ -n "$CERT" ] && [ ! -f "$CERT" ]; then
   echo "  ✗ 配置里引用的证书不存在：$CERT"
   echo "    请确认域名/证书路径。可重新生成："
   echo "      node maintenance/build.mjs --domain 你的域名 --cert /path/to/fullchain.pem"
   exit 1
 fi
-echo "  ✓ 证书路径存在：${CERT:-（未使用 HTTPS）}"
+echo "  ✓ 证书路径存在：${CERT:-（配置里没有证书段，按纯 HTTP 处理）}"
 
 # 域名从配置里取，避免脚本里再硬编码一份（两处写域名迟早不一致）
-DOMAIN=$(grep -m1 -oP '^\s*server_name\s+\K[^;]+' "$CONF_SRC" | awk '{print $1}')
+DOMAIN=$(grep -m1 -oP '^\s*server_name\s+\K[^;]+' "$CONF_SRC" 2>/dev/null | awk '{print $1}' || true)
 echo "  ✓ 域名：${DOMAIN:-（未识别）}"
 
-LOG=$(grep -m1 -oP '^\s*access_log\s+\K\S+' "$CONF_SRC" | tr -d ';')
+LOG=$(grep -m1 -oP '^\s*access_log\s+\K\S+' "$CONF_SRC" 2>/dev/null | tr -d ';' || true)
 
 if [ -L "$LINK" ] || [ -e "$LINK" ]; then
   echo ""

@@ -1518,3 +1518,87 @@ http2 on;
 
 ⚠️ **待站长在服务器上复验**：重新 `git pull` 后执行
 `sudo npm run maintenance:on`，应能看到语法检查通过并 reload 成功。
+
+---
+
+## 24. v0.10.2：生成物入库导致 `git pull` 失败（连带 http2 修复没生效）
+
+### 24.1 事故经过
+
+站长 `git pull` 报：
+
+```
+error: Your local changes to the following files would be overwritten by merge:
+        maintenance/lankhub-maintenance.conf
+Aborting
+```
+
+紧接着 `maintenance:on` **又报同一个 `unknown directive "http2"`** ——
+因为 **pull 失败 ⇒ 修复根本没下来**。
+
+### 24.2 根因：我把「生成物」提交进了仓库
+
+`lankhub-maintenance.conf` 是 `build.mjs` 生成的，而它**因部署环境而异**
+（域名、证书路径）。服务器上用 `--cert` 重新生成过它，仓库里也有一份 → 必然冲突。
+
+**这个错误会反复发生**：只要服务器重新生成过一次，之后每次 pull 都会撞。
+所以当时的判断是「这次改完就好了」是错的 —— 得从根上不跟踪它。
+
+### 24.3 改法
+
+| 文件 | 是否入库 |
+| --- | --- |
+| `maintenance/build.mjs`（生成脚本） | ✅ 入库 |
+| `docs/photo/update.jpg`（源图） | ✅ 入库 |
+| `maintenance/lankhub-maintenance.conf`（生成物） | ❌ 已移除并 gitignore |
+| `maintenance/__maintenance.html`（生成物） | ❌ 已移除并 gitignore |
+
+**`enable.sh` 现在会在生成物缺失时自动执行 `node maintenance/build.mjs`**，
+所以新克隆的仓库直接 `sudo npm run maintenance:on` 就能跑，
+不必记得「先 build」。这一条也是这次事故的直接教训：**别让用户记顺序。**
+
+### 24.4 证书路径自动探测
+
+`build.mjs` 按顺序试：
+
+```
+/etc/letsencrypt/live/<域名>/fullchain.pem
+/etc/letsencrypt/live/<去掉 www 的域名>/fullchain.pem
+/etc/letsencrypt/live/www.<去掉 www 的域名>/fullchain.pem
+```
+
+取第一个存在的。**线上实际是不带 `www` 的** `/etc/letsencrypt/live/lankhub.xyz/`，
+而脚本原先默认按带 `www` 拼 —— 这正是差异来源。
+都找不到时如实提示，并给出 `--cert` 用法。
+
+### 24.5 ⚠️ 又一个脚本自身的 bug：`set -euo pipefail` + `grep` 无匹配
+
+`enable.sh` 读证书/域名/日志的三处 `grep` 没写 `|| true`。
+脚本是 `set -euo pipefail`，**管道里任何一环返回非 0 都会终止整个脚本**，
+而 `grep` 找不到匹配就返回 1 ⇒ 配置里没有证书段时，脚本**无声无息地停在半路**
+（只打印到「Nginx 目录结构符合预期」就没了，退出码还是 1，但看起来像正常结束）。
+
+**教训**：`set -e` + `grep` 组合必须显式处理「没找到」这条正常路径。
+凡是「匹配不到也算正常」的 `grep`/`sed`，一律加 `|| true`。
+
+### 24.6 验证结果
+
+- 三个脚本 `bash -n` 通过、行尾均 LF
+- 配置确认：无 `http2 on;`、HTTP/2 用 listen 老写法、`nginx -t` 通过
+- 真启动 curl：**503**、**HTTP/2 协商为 2**、`Retry-After` 在、响应体含内联图片
+- `enable.sh` 在生成物缺失时：检测到 → 调用 `node maintenance/build.mjs` →
+  **继续走完流程（软链已建）**
+- `git ls-files maintenance/` 只剩 `build.mjs`；本地生成物仍在（只是不再跟踪）
+
+### 24.7 ⚠️ 站长需要在服务器上做的（一次性）
+
+因为 `git pull` 被自己本地改动挡住，需要先丢弃那份已不再跟踪的文件：
+
+```bash
+cd ~/lankhub
+git checkout -- maintenance/lankhub-maintenance.conf   # 丢弃本地改动
+git pull                                              # 这次会成功
+sudo npm run maintenance:on                           # 会自动重新生成配置（含 http2 修复）
+```
+
+之后 `maintenance:on` / `off` 可以正常用；生成物以后再也不会挡住 pull。
