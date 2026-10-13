@@ -1445,3 +1445,76 @@ location = /__maintenance.html {
 2. `sudo npm run maintenance:on` 之后访问 `https://www.lankhub.xyz/` 是否看到维护页
 3. 关闭后站点是否恢复正常
 4. `certbot renew --dry-run` 在维护模式下是否能过（验证 ACME 路径真的放行了）
+
+---
+
+## 23. v0.10.1：`http2 on;` 在 Nginx 1.24 上炸了（版本差异漏检）
+
+### 23.1 事故经过
+
+站长在服务器上执行 `sudo npm run maintenance:on`，报：
+
+```
+[emerg] unknown directive "http2" in /etc/nginx/sites-enabled/lankhub-maintenance:36
+nginx: configuration file /etc/nginx/nginx.conf test failed
+```
+
+### 23.2 根因：我按**本机** nginx 版本写了配置
+
+`http2 on;` 是 **nginx 1.25.1** 才引入的独立指令。线上是 **1.24.0**，不认它。
+而我本地 WSL 是 **1.30**，所以本机 `nginx -t` 全部通过 ——
+**「本机验证通过」在版本不同的前提下完全没有意义。**
+
+### 23.3 修法与版本对照
+
+```nginx
+# ✅ 跨版本兼容：1.9.5+ 与 1.25.1+ 都能用
+listen 443 ssl http2;
+
+# ❌ 1.25.1+ 专用，1.24 会报 unknown directive
+http2 on;
+```
+
+1.30 上老写法只给一条 `deprecation` **警告**（不是错误），
+实测 HTTP/2 仍正常协商（`curl -w '%{http_version}'` 得到 `2`）。
+
+### 23.4 ⚠️ 回滚机制按设计工作了
+
+语法检查没过 → **没有 reload** → 自动删掉软链 → **站点全程未受影响**。
+这正是把 `nginx -t` 设成硬门槛、并让失败路径回滚的意义。
+**任何改动这个脚本的人，都不要去掉 `-t` 这道门。**
+
+### 23.5 ⚠️ 教训：写 Nginx 配置前先问版本
+
+线上：`nginx -V` → **1.24.0 (Ubuntu)**（`--with-http_v2_module` 是编译进去的，
+所以 HTTP/2 能力没问题，问题只在**指令语法的新旧**）。
+
+以后写 Nginx 配置的规矩：
+
+1. **先问版本**（`nginx -V`），或
+2. **直接用跨版本兼容的写法**（像 `listen ... http2` 这种老而仍被支持的）
+3. 校验脚本里加**针对线上版本的静态检查**（本次已加：出现 `http2 on;`
+   或其它 1.24 不支持的指令会在本机就报出来）
+
+同类「本机版本 ≠ 线上版本」的坑还包括：Node 版本、Prisma 版本、glibc 版本。
+
+### 23.6 顺带补强
+
+- `build.mjs` 找不到维护图时，现在会**列出 `docs/photo/` 里实际的文件名**，
+  并提示 `git check-ignore`，而不是只报一句「找不到」
+- 维护图片 `docs/photo/update.jpg` **必须提交进仓库**（站长已加，在提交 `0e4df2d`）——
+  否则服务器上 `git pull` 后没有它，`build.mjs` 就会失败。
+  好消息是失败是**显式**的（脚本直接退出），不会悄悄生成一张没有图的维护页
+
+### 23.7 验证结果
+
+- 版本兼容性静态检查：无 `http2 on;`、HTTP/2 用的是 listen 老写法、无其它 1.24 不支持的指令
+- `nginx -t` 通过（1.30 上仅 deprecation 警告）
+- `nginx -T` 逐条确认：`error_page 503`、`return 503`、`internal;`、两个响应头、
+  ACME 放行、域名、证书路径、无残留占位符
+- 真启动后 curl 实测：503、`retry-after: 3600`、`cache-control: no-store`、
+  响应体含内联图片（355488 bytes）、`/__maintenance.html` 404、HTTP 301、
+  **HTTP/2 协商为 `2`**
+
+⚠️ **待站长在服务器上复验**：重新 `git pull` 后执行
+`sudo npm run maintenance:on`，应能看到语法检查通过并 reload 成功。

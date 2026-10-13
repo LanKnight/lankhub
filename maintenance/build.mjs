@@ -15,7 +15,7 @@
  * 为什么配置文件里域名用 __DOMAIN__ 占位、而不是直接把域名提交进仓库：
  * 让脚本在安装时替换，仓库里不写死部署信息。
  */
-import { readFileSync, writeFileSync, existsSync } from "node:fs"
+import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { dirname, join } from "node:path"
 
@@ -35,7 +35,18 @@ const cert = arg("cert", `/etc/letsencrypt/live/${domain}/fullchain.pem`)
 const webRoot = arg("webroot", "/var/www/lankhub-maintenance")
 
 if (!existsSync(IMAGE_SRC)) {
-  console.error(`✗ 找不到维护图片：${IMAGE_SRC}`)
+  const dir = join(root, "docs", "photo")
+  console.error("✗ 找不到维护图片。")
+  console.error(`  期望位置：${IMAGE_SRC}`)
+  if (existsSync(dir)) {
+    const entries = readdirSync(dir)
+    console.error(`  docs/photo/ 目录存在，里面有：${entries.length ? entries.join("、") : "（空）"}`)
+    console.error("  如果文件名不是 update.jpg，请改名或改这个脚本里的 IMAGE_SRC。")
+  } else {
+    console.error("  docs/photo/ 目录也不存在。")
+    console.error("  这个图片必须提交进仓库 —— 否则服务器上 git pull 后没有它，构建就会失败。")
+    console.error("  检查一下它有没有被 .gitignore 挡掉：git check-ignore -v docs/photo/update.jpg")
+  }
   process.exit(1)
 }
 
@@ -100,9 +111,16 @@ server {
 }
 
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
+    # ⚠️ HTTP/2 必须用**老写法**：把 http2 写在 listen 这一行里。
+    #
+    # 不要用独立的 http2 on; 指令 —— 那是 nginx 1.25.1 才引入的，
+    # 线上是 1.24.0，会直接报 unknown directive "http2" 并让 nginx -t 失败。
+    # （这次就是这么踩的：本机 WSL 是 1.30 所以没暴露，服务器上才炸。）
+    #
+    # 写在 listen 里的形式 1.9.5 起就支持，1.25.1+ 也仍然可用，
+    # 是唯一两边都通吃的写法。ssl 与 http2 必须与 listen 在同一行。
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name __DOMAIN__;
 
     ssl_certificate     __CERT__;
