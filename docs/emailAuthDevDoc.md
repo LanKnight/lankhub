@@ -600,8 +600,35 @@ npm run db:cleanup-codes        # 删除超过 24 小时的验证码记录
 | `npm run db:cleanup-codes` | 删除超 24 小时的验证码记录；顺带报告近 24 小时发码量，便于核对 Resend 配额 |
 | `npm run email:test 你的邮箱` | **发一封测试邮件**，验证 Resend 链路真的通。手动执行、需服务器权限（**刻意不做成公开接口**，否则任何人都能拿你邮箱刷额度） |
 | `npm run email:check` | **密钥泄露防线**：查自检接口行为、源码脱敏约定，并扫描全部 git 跟踪文件里有没有真实密钥。需应用在 3000 端口运行 |
+| `npx tsx scripts/verify-code-test.mts` | **验证码核心逻辑的 57 项测试**（阶段 4 的产物）。见下方说明 |
 
 后两个脚本都支持 `--dry-run`（只打印、不写库）与 `--hours N`（改保留时长）。
+
+### 7.6 验证码逻辑的测试方式（阶段 4）
+
+```bash
+npx tsx scripts/verify-code-test.mts
+```
+
+**57 项断言**，覆盖第六节安全清单里的每一条。关键设计：
+
+1. **不消耗 Resend 额度**：脚本起一个本地 mock HTTP 服务冒充 Resend，
+   把 `RESEND_API_BASE` 指向它。正式的部署**不要设**这个变量。
+2. **验证码从 mock 收到的请求体里读出来** —— 因为库里存的是 HMAC 哈希，
+   读不出来。这也顺带证明了「库里确实没有明文」。
+3. **跑完把测试数据删干净**，并断言库里记录数回到测试前的值。
+
+其中最值得关注的几条（都是真实容易写错的）：
+
+| 断言 | 为什么重要 |
+| :--- | :--- |
+| 库里存的是哈希、且查不到明文 | 库泄露 ≠ 验证码泄露 |
+| 达到错误次数上限后**即使输对也无法通过** | 只累加计数而不作废记录是常见错误 |
+| 5 个并发校验请求**只有 1 个成功** | 原子消费（`updateMany` + `consumedAt: null` 条件）挡住了重放 |
+| 发信失败时**删掉刚写的记录** | 否则用户卡在冷却里却什么都没收到，还白占一次配额 |
+| 冷却期间**不写库、不发信** | 限流被拒的请求不该留下痕迹 |
+| 过期 / 已用 / 次数超限 / 不对 **对外文案完全一致** | 区分开来等于告诉攻击者「这个码确实存在」 |
+| `EMAIL_ENABLED=false` 时文案提示**改用密码登录** | 这就是保留密码登录的价值 |
 
 > ### ⚠️⚠️ `db push` 之后必须再跑 `db generate`
 >
@@ -726,8 +753,8 @@ npm run email:check                                    # 期望全部通过
 | **1** | 吊销旧 Key、生成新 Key、写入 `.env`、`pm2 restart --update-env` | `/api/auth/email-health` 返回 `keyLoaded: true` | ⏳ 等站长在服务器执行（见下） |
 | **2** | 发信模块 + 邮件模板 + 自检接口 + 手动测试脚本 | 服务器上 `npm run email:test 你的邮箱` 真的收到信 | ✅ **代码已完成**，待阶段 1 后实测 |
 | **3** | Prisma：`User.emailVerifiedAt` + `EmailCode` 表 + 清理脚本 + 存量标记脚本 | `npm run db:push` 通过；`db:check-limits` 通过 | ✅ **已完成**（35 项验证全过） |
-| **4** | `src/lib/email/verify-code.ts`：发码/校验/消费 + 三级限流 + 配额 | 单元级验证：冷却、上限、过期、用后即焚、错误次数全覆盖 | |
-| **5** | 接口：`send-code` / `verify-code` / `register`（改造）/ `forgot-password` / `reset-password` | curl 逐个场景走通（含错误分支） | |
+| **4** | `src/lib/email/verify-code.ts`：发码/校验/消费 + 三级限流 + 配额 | 单元级验证：冷却、上限、过期、用后即焚、错误次数全覆盖 | ✅ **已完成**（57 项验证全过） |
+| **5** | 接口：`send-code` / `verify-code` / `register`（改造）/ `forgot-password` / `reset-password` | curl 逐个场景走通（含错误分支） | ⏳ 下一步 |
 | **6** | Auth.js：新增 `email-code` provider + `loginByCodeAction` | 验证码能真正建立会话 | |
 | **7** | 前端：登录页双标签、注册两步、忘记密码页、settings 改密码 | 浏览器手测全流程 | |
 | **8** | 文档与脱敏：README 免责声明、登录页小字、确认仓库无真实前缀 | `npm run email:check` 通过 | |

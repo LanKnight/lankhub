@@ -62,6 +62,8 @@ model EmailCode {
   expiresAt DateTime
   /// 已尝试比对次数。达到上限后该记录**直接作废**（不再看是否还在有效期内）
   attempts  Int       @default(0)
+  /// 请求发码的客户端 IP。用于「单 IP 日限」配额，也便于排查异常刷量
+  ip        String?
   /// 用后即焚：消费后写入时间戳，同一码不可二次使用
   consumedAt DateTime?
   createdAt DateTime  @default(now())
@@ -70,6 +72,8 @@ model EmailCode {
   @@index([email, scene, createdAt])
   /// 全站配额统计与清理任务按时间扫
   @@index([createdAt])
+  /// 单 IP 日限要按 ip + 时间筛
+  @@index([ip, createdAt])
 }
 
 model Session {

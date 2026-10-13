@@ -19,6 +19,21 @@
 const RESEND_ENDPOINT = "https://api.resend.com/emails"
 
 /**
+ * 实际使用的端点。允许用 `RESEND_API_BASE` 覆盖，**默认仍是真实 Resend**。
+ *
+ * 为什么留这个开关：验证码逻辑（限流、有效期、用后即焚、错误次数）需要
+ * 反复跑测试，每次真的发一封邮件既慢又消耗免费额度（100 封/天）。
+ * 有了它，测试可以指向本地 mock 服务，既快又不花额度。
+ *
+ * 注意它**不是**给生产用的：正式部署不要设这个变量，
+ * 否则验证码邮件会被发到一个错误的地方（甚至泄露验证码）。
+ */
+function endpoint(): string {
+  const base = process.env.RESEND_API_BASE?.trim()
+  return base ? `${base.replace(/\/+$/, "")}/emails` : RESEND_ENDPOINT
+}
+
+/**
  * 发送超时。
  *
  * 必须设：Resend 若卡住而我们不设超时，请求会一直挂着占住 Node 的句柄。
@@ -92,7 +107,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
   try {
-    const res = await fetch(RESEND_ENDPOINT, {
+    const res = await fetch(endpoint(), {
       method: "POST",
       headers: {
         Authorization: `Bearer ${key}`,
