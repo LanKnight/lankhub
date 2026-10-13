@@ -90,6 +90,32 @@ tr '\0' '\n' < /proc/$(pgrep -f "next-app" | head -1)/environ | grep -i resend
 - **有输出** → 可以继续，但仍建议按第七节改为 `.env`（更可控）
 - **无输出** → 必须改，否则本次功能一定失败
 
+> **✅ 实测结论（2026-10-13）**：站长在服务器上执行 `pm2 env 0 | grep -i resend`
+> **无输出** —— 证实了上述推断，Key 确实没有被 PM2 进程读到。
+> 因此本次一律改为 `.env` 方案（第七节）。
+
+### 1.6 「PM2 读不到 .env」的完整原因链与自检
+
+`.env` 能被读到有个**前提**：PM2 启动进程时的**工作目录必须是项目根**。
+Next.js 是按工作目录去找 `.env` 的，工作目录不对就找不到、而且**不报错**。
+
+```bash
+pm2 describe next-app | grep -E "script path|exec cwd|script args"
+```
+
+- `exec cwd` 应当是项目根（如 `/root/lankhub`）
+- 若不是，用这条纠正（在项目根目录下执行）：
+  ```bash
+  cd /root/lankhub
+  pm2 delete next-app
+  pm2 start npm --name next-app -- start
+  pm2 save
+  ```
+
+**判断「进程到底读到了什么」的唯一可靠方式**是 `/api/auth/email-health`
+（见 7.2），它比 `echo $VAR`、比 `pm2 env` 都更接近真相 ——
+因为它是**跑在 PM2 里的那个 Node 进程自己**回答的。
+
 ---
 
 ## 二、本阶段范围
@@ -524,6 +550,20 @@ npm run db:cleanup-codes        # 删除超过 24 小时的验证码记录
 35 4 * * * cd /root/lankhub && /usr/bin/npm run db:cleanup-codes >> /var/log/lankhub-cleanup.log 2>&1
 ```
 
+### 7.5 本阶段新增的命令
+
+| 命令 | 作用 |
+| :--- | :--- |
+| `npm run email:test 你的邮箱` | **发一封测试邮件**，验证 Resend 链路真的通。手动执行、需服务器权限（**刻意不做成公开接口**，否则任何人都能拿你邮箱刷额度） |
+| `npm run email:check` | **密钥泄露防线**：查自检接口行为、源码脱敏约定，并扫描全部 git 跟踪文件里有没有真实密钥。需应用在 3000 端口运行 |
+
+```bash
+# 服务器上按顺序验证（阶段 1 做完后）
+curl -s http://127.0.0.1:3000/api/auth/email-health   # 期望 keyLoaded: true
+npm run email:test 你的邮箱@example.com               # 期望真的收到信
+npm run email:check                                    # 期望全部通过
+```
+
 ---
 
 ## 八、邮件模板
@@ -611,20 +651,42 @@ npm run db:cleanup-codes        # 删除超过 24 小时的验证码记录
 
 ## 十一、实施顺序（每一步都可独立验证，避免"写完全部再调"）
 
-| 阶段 | 内容 | 完成判据 |
-| :--- | :--- | :--- |
-| **0** | 先做 1.5 的环境变量验证 | `pm2 env 0 \| grep -i resend` 有输出，或决定改用 `.env` |
-| **1** | 吊销旧 Key、生成新 Key、写入 `.env`、`pm2 restart --update-env` | `/api/auth/email-health` 返回 `keyLoaded: true` |
-| **2** | 装环境变量 + `src/lib/email/`（发信客户端 + 模板） + 自检接口 | 服务器上能发出一封测试邮件（用一个临时脚本触发） |
-| **3** | Prisma：`User.emailVerifiedAt` + `EmailCode` 表 + 两个清理脚本 + 存量标记脚本 | `npm run db:push` 通过；`db:check-limits` 通过 |
-| **4** | `src/lib/email/verify-code.ts`：发码/校验/消费 + 三级限流 + 配额 | **单元级验证**：冷却、上限、过期、用后即焚、错误次数全部覆盖 |
-| **5** | 接口：`send-code` / `verify-code` / `register`（改造）/ `forgot-password` / `reset-password` | 用 curl 逐个场景走通（含错误分支） |
-| **6** | Auth.js：新增 `email-code` provider + `loginByCodeAction` | 验证码能真正建立会话 |
-| **7** | 前端：登录页双标签、注册两步、忘记密码页、setthings 改密码 | 浏览器手测全流程 |
-| **8** | 文档与脱敏：README 免责声明、登录页小字、删除旧文档里的真实前缀 | 全仓库 grep 不到真实 Key 前缀 |
-| **9** | 部署验证 | 线上走一遍四个场景 |
+| 阶段 | 内容 | 完成判据 | 状态 |
+| :--- | :--- | :--- | :--- |
+| **0** | 验证 PM2 是否已有 Key | `pm2 env 0 \| grep -i resend` | ✅ **已做：无输出，证实必须改 `.env`** |
+| **1** | 吊销旧 Key、生成新 Key、写入 `.env`、`pm2 restart --update-env` | `/api/auth/email-health` 返回 `keyLoaded: true` | ⏳ 等站长在服务器执行（见下） |
+| **2** | 发信模块 + 邮件模板 + 自检接口 + 手动测试脚本 | 服务器上 `npm run email:test 你的邮箱` 真的收到信 | ✅ **代码已完成**，待阶段 1 后实测 |
+| **3** | Prisma：`User.emailVerifiedAt` + `EmailCode` 表 + 清理脚本 + 存量标记脚本 | `npm run db:push` 通过；`db:check-limits` 通过 | ⏳ 下一步 |
+| **4** | `src/lib/email/verify-code.ts`：发码/校验/消费 + 三级限流 + 配额 | 单元级验证：冷却、上限、过期、用后即焚、错误次数全覆盖 | |
+| **5** | 接口：`send-code` / `verify-code` / `register`（改造）/ `forgot-password` / `reset-password` | curl 逐个场景走通（含错误分支） | |
+| **6** | Auth.js：新增 `email-code` provider + `loginByCodeAction` | 验证码能真正建立会话 | |
+| **7** | 前端：登录页双标签、注册两步、忘记密码页、settings 改密码 | 浏览器手测全流程 | |
+| **8** | 文档与脱敏：README 免责声明、登录页小字、确认仓库无真实前缀 | `npm run email:check` 通过 | |
+| **9** | 部署验证 | 线上走一遍四个场景 | |
 
 > **阶段 0 与 1 不可跳过**。跳过它们的后果是「代码全对、线上 401」。
+
+### 11.1 阶段 2 的产物（已完成，供阶段 1 之后验证）
+
+| 文件 | 作用 |
+| :--- | :--- |
+| `src/lib/email/sender.ts` | Resend HTTP API 客户端。`fetch` 直调，**不引入 resend SDK** |
+| `src/lib/email/templates.ts` | 四场景共用一份邮件模板，同时输出 HTML 与纯文本 |
+| `src/app/api/auth/email-health/route.ts` | 只读自检接口，**只回 Key 长度、不回任何字符** |
+| `scripts/email-test.mts` | 手动发一封测试邮件（`npm run email:test 你的邮箱`） |
+| `scripts/email-check.mts` | **密钥泄露防线**：自检接口行为 + 源码脱敏约定 + 全仓库密钥扫描（`npm run email:check`） |
+
+> ⚠️ **两个写这个项目时踩到的坑，改这几个文件前必看**：
+>
+> 1. **`scripts/` 下的 `.ts`/`.mts` 会被 `next build` 的类型检查扫到**
+>    （tsconfig 的 include 是 `**/*.ts` 与 `**/*.mts`）。
+>    所以这类脚本必须**类型干净**（strict 下无类型会让 build 直接失败），
+>    并且要能用 ESM 语义（顶层 await 需要 `.mts`）。
+> 2. **注释里不要用反引号包裹片段**。实测：注释里写了 `` `**/*.ts` `` 这样的片段后，
+>    `next build` 的类型检查阶段会在那**注释行**上报
+>    「Expression expected / ';' expected」一连串语法错误，
+>    而 `tsc --noEmit` 却**通过**——排查成本极高。
+>    模板字符串里用反引号没问题，**只有注释里要避开**。
 
 ---
 

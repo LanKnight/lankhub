@@ -28,7 +28,9 @@
     "maintenance:status": "bash scripts/maintenance/status.sh",
     "https:on": "bash scripts/https/enable.sh",
     "https:redirect": "bash scripts/https/enable-redirect.sh",
-    "https:off": "bash scripts/https/disable.sh"
+    "https:off": "bash scripts/https/disable.sh",
+    "email:test": "tsx scripts/email-test.mts",
+    "email:check": "tsx scripts/email-check.mts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
