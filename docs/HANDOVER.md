@@ -1787,3 +1787,85 @@ awk -v b="$BEGIN_MARK" -v e="$END_MARK" '
    若只签了 `www`，则 `https://lankhub.xyz/` 会报证书错误。
    脚本会解析 SAN 并核对，缺了会拒绝启用并报出是哪个域名。
    此时可用 `--domains www.lankhub.xyz` 只保留证书覆盖的域名。
+
+---
+
+## 27. v0.11.1：`https:redirect` 的 `duplicate location "/"`（2026-10-13）
+
+### 27.1 事故
+
+站长执行 `sudo npm run https:redirect`：
+
+```
+[emerg] duplicate location "/" in /etc/nginx/sites-enabled/lankhub.xyz:10
+nginx: configuration file /etc/nginx/nginx.conf test failed
+```
+
+**但没有造成任何影响** —— `nginx -t` 拦住、**没有 reload**、自动还原了配置。
+（这句要留着：它是「语法检查当硬门槛 + 失败自动回滚」这套设计的实战证明。）
+
+### 27.2 根因：插入 ≠ 替换
+
+我原本是把 301 片段**插在**原有 `location /` **前面**：
+
+```nginx
+location / { return 301 https://www.lankhub.xyz$request_uri; }   # 我插的
+location / {  proxy_pass http://127.0.0.1:3000;  ...  }           # 原有的
+```
+
+**nginx 不允许同一个 server 块里出现两个相同的 location** → `duplicate location "/"`。
+
+### 27.3 改法：整段替换 + 状态文件
+
+正确做法是把原有 `location /` 块**整段换成** 301。两个必须解决的细节：
+
+**① 块边界的识别**
+
+原来的块是多行的，且内部可能有嵌套。用「**去掉空白后的花括号计数**」配对：
+
+```awk
+depth += gsub(/\{/, "{") - gsub(/\}/, "}")
+if (depth == 0) { /* 块结束 */ }
+```
+
+只找一行是不行的 —— 这是最容易写错的地方。
+
+**② 撤销必须把原块放回去**
+
+**不能只删跳转** —— 那样 80 会失去 `proxy_pass`，站点直接 **502**。
+所以新增状态文件保存被替换掉的原块：
+
+```
+/etc/nginx/lankhub-state/<配置文件>.redirect-state
+```
+
+`--undo` 与 `disable.sh` 都从它把原块**原样放回**。
+
+> 状态文件放在 `/etc/nginx/lankhub-state/`，**不在 `sites-enabled/` 里** ——
+> 同 `lankhub-backups`，原因见第 26.5 节：那个目录里任何文件都会被当配置加载。
+
+### 27.4 教训：改 Nginx 配置要想「这个 location 是不是已经存在」
+
+插入一段 `location` 之前，先确认原来的块怎么处理。同一个 server 块里
+**同一个 location 只能有一个** —— 要么替换，要么用 `location = /` 之类区分。
+我第一版只想着「把跳转加上去」，没想到它与原有的 `location /` 冲突。
+
+**另外**：`nginx -t` 抓到了它。如果当时没有这道门，reload 之后站点会直接挂。
+
+### 27.5 验证结果
+
+**端到端 25 项**（用站长真实的 80 配置内容）：
+
+- 替换后只有 **1** 个 `location /`、代理块已移除
+- 原块完整存进状态文件（首行 `location / {`、末行 `}`、11 行、含 `proxy_cache_bypass`）
+- 幂等：重复执行仍只有一份片段
+- **`--undo` 后与原始配置逐字一致**（`diff` 无差异）；`disable` 同样逐字还原
+- `nginx -t` 失败时还原并**清掉状态文件**（避免脏状态）
+- 没有 443 配置时拒绝执行；状态文件缺失时**拒绝执行并提示**（不静默弄成 502）
+
+**真实 nginx 启动验证**：
+
+- `nginx -t` 通过（旧写法在这里就会报 `duplicate location`）、进程真起来
+- `http://www.lankhub.xyz/` → **301**，`Location: https://www.lankhub.xyz/`
+- **路径与查询串完整保留**：`/foo/bar?x=1` → `https://www.lankhub.xyz/foo/bar?x=1`
+- https 侧 TLS 与代理都通

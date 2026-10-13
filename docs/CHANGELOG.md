@@ -34,6 +34,70 @@
 
 ---
 
+## v0.11.1 — 2026-10-13
+
+### 修复：`https:redirect` 插入跳转导致 `duplicate location "/"`
+
+**适用对象：所有人。** 只改 HTTPS 脚本。
+
+站长执行 `sudo npm run https:redirect` 时报：
+
+```
+[emerg] duplicate location "/" in /etc/nginx/sites-enabled/lankhub.xyz:10
+nginx: configuration file /etc/nginx/nginx.conf test failed
+```
+
+> ✅ **没有造成影响**：`nginx -t` 拦住了、**没有 reload**、并自动还原了配置。
+> 站点全程正常。这印证了「语法检查作为硬门槛 + 失败自动回滚」的价值。
+
+#### 根因
+
+我把 301 片段是**插入**在原有的 `location /` **之前**：
+
+```nginx
+location / { return 301 https://www.lankhub.xyz$request_uri; }   # 我插的
+location / {                                                      # 原来的
+    proxy_pass http://127.0.0.1:3000;
+    ...
+}
+```
+
+**nginx 不允许同一个 server 块里出现两个相同的 location** —— 于是 `duplicate location "/"`。
+
+#### 改法：**替换**而不是插入
+
+正确的做法是把原有的 `location /` 块**整段换成** 301。于是需要解决两个问题：
+
+1. **识别整个块的边界** —— 用「去掉空白后的花括号计数」配对，
+   而不是只找一行（原来的块是多行、且内部还有 `{}` 嵌套在同级指令里）
+2. **撤销时要把原块放回去** —— 不能只删跳转，否则 80 会失去 `proxy_pass` 而返回 **502**
+
+所以新增状态文件：`/etc/nginx/lankhub-state/<配置文件>.redirect-state`，
+保存被替换掉的原块。`--undo` 与 `disable.sh` 都靠它**原样放回**。
+
+> 状态文件故意放在 `/etc/nginx/lankhub-state/`，**不在 `sites-enabled/` 里**
+> （同 `lankhub-backups`，原因见 v0.11.0：那个目录里任何文件都会被当配置加载）。
+
+#### 顺带加固
+
+- `enable-redirect.sh` 与 `disable.sh` 在 `nginx -t` 前都会**数一下 `location /` 的个数**
+  并打印出来；多于 1 个时明确提示「大概率重复」
+- 状态文件缺失时，`--undo` 与 `disable.sh` 都会**拒绝执行并提示**，
+  而不是静默地把 80 弄成 502
+
+#### 验证
+
+- **端到端 25 项**，用站长真实的 80 配置内容：
+  替换后只有 1 个 `location /`、代理块已移除、原块完整存进状态文件（首行 `location / {`、
+  末行 `}`、11 行）、幂等（重复执行仍只有一份）、
+  **`--undo` 后与原始配置逐字一致**、`disable` 同样逐字还原、
+  `nginx -t` 失败时还原并清掉状态文件、没有 443 时拒绝执行、状态文件缺失时拒绝执行
+- **真实 nginx 启动验证**：`nginx -t` 通过（旧写法在这里就会报 duplicate location）、
+  进程真起来、`http://www.lankhub.xyz/` 返回 **301** 且 `Location: https://www.lankhub.xyz/`、
+  **路径与查询串完整保留**（`/foo/bar?x=1`）、https 侧 TLS 与代理都通
+
+---
+
 ## v0.11.0 — 2026-10-13
 
 ### 新功能：启用 HTTPS（分两步，带证书校验）
