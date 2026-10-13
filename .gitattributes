@@ -1,0 +1,26 @@
+# Shell 脚本必须始终保持 LF。
+#
+# ⚠️ 为什么必须显式写这条：Windows 上 git 的 core.autocrlf 默认会把文本文件
+# 转成 CRLF，而 **CRLF 的 .sh 在 Linux 上会因为行尾的 \r 直接报错**：
+#   bash: ./enable.sh: /bin/bash^M: bad interpreter
+# 这类问题在本地完全看不出来，只有部署到服务器才炸。
+*.sh text eol=lf
+
+# 其它常见文本文件也用 LF，避免同样的转换差异
+*.mjs text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.css text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.conf text eol=lf
+*.prisma text eol=lf
+
+# 图片等二进制，禁止任何转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.gif binary

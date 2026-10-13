@@ -34,6 +34,68 @@
 
 ---
 
+## v0.10.0 — 2026-10-13
+
+### 新功能：维护模式（临时挂出维护页）
+
+**适用对象：所有人。** 新增功能，**没有 schema 变更**。开关脚本需在**服务器上**执行。
+
+需要临时停止对外服务时，让全站只显示一张维护页（`docs/photo/update.jpg`）。
+
+```bash
+npm run maintenance:build        # 生成维护页与 Nginx 配置（本地或服务器都行）
+sudo npm run maintenance:on      # 开启维护
+sudo npm run maintenance:off     # 关闭维护
+npm run maintenance:status       # 查看状态（只读，不需 sudo）
+```
+
+#### 为什么走 Nginx 而不是应用层中间件
+
+| 理由 | 说明 |
+| --- | --- |
+| **Node 挂了也能显示维护页** | 真在挨打时 Node 很可能已经上不来气；走应用层的方案会跟着一起挂，等于想挂维护页却挂不上 |
+| **几乎不吃 CPU** | 维护页是静态文件，攻击流量在 Nginx 这一层就被挡住，落不到 Node |
+| **不动现有配置** | 开/关 = 建/删一个软链，完全不碰 `sites-available/lankhub`（那份被 certbot 改过，脚本动它风险大） |
+
+#### 行为
+
+- 响应码 **503** —— 搜索引擎视为「暂时不可用」，**不会把站点从索引里摘掉**
+- 响应头 `Retry-After: 3600` + `Cache-Control: no-store`
+- **所有人都挡**（包括站长）。要在服务器上验证真实站点：`curl -I http://127.0.0.1:3000`
+
+#### ⚠️ 维护期间证书续期
+
+维护配置对所有请求回 503，所以**必须单独放行 `/.well-known/acme-challenge/`**，
+否则维护期间证书无法续期，等恢复站点时证书可能已经过期。配置里已处理好。
+
+#### 两个安全设计
+
+1. **`nginx -t` 是硬门槛**：不过检查**绝不 reload**；失败时自动回滚（删软链与维护页），
+   站点不受影响 —— 不会出现「想挂维护页结果把站点弄挂」
+2. **维护页是 `internal`**：外部直接请求 `/__maintenance.html` 得到 404，
+   只能通过 `error_page 503` 这条内部路径返回
+
+#### 开发过程中实测踩到的两个坑（已修）
+
+1. **`try_files $uri /index.html = 503` 返回的是 200，不是 503。**
+   用真实 nginx 1.30 跑出来才发现：文件真实存在时那个 `= 503` 参数不生效，
+   于是「503 + Retry-After」完全失效 —— 搜索引擎会把维护页当正常页面收录，
+   而响应头里却挂着 `Retry-After`，自相矛盾。
+   改用 `return 503` + `error_page 503 /__maintenance.html`。
+2. **`error_page` 之后 `add_header` 不会从 server 层继承。**
+   第一版只在 server 层写 `Retry-After`/`Cache-Control`，维护页虽然返回 503，
+   但两个头都丢了（`add_header` 的继承是「子级自己写了就整体覆盖父级」，不合并）。
+   现在两个 location 里都写一遍。
+
+#### 顺带修掉一个部署隐患
+
+仓库**原本没有 `.gitattributes`**，而 Windows 上 `core.autocrlf` 默认会让
+`.sh` 在克隆时变成 CRLF —— **CRLF 的 shell 脚本在 Linux 上会直接报
+`bad interpreter: /bin/bash^M`**，本地完全看不出来、只有部署到服务器才炸。
+现在锁死 `*.sh text eol=lf`（另含 `.mjs`/`.ts`/`.conf` 等与图片 binary）。
+
+---
+
 ## v0.9.6 — 2026-10-09
 
 ### 改进：沉浸式里点播放列表不再退回原页面（改为右侧抽屉）

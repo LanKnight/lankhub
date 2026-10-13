@@ -1310,3 +1310,138 @@ onClick={() => { onClose(); onOpenQueue() }}   // 先退出沉浸层，再弹底
 2. PC 上点遮罩收起抽屉后，**是否仍留在沉浸层**
 3. 抽屉里点一首，是否**切歌并自动收起**
 4. 抽屉开着时按 `Esc`，是否**只关抽屉**、不退出沉浸层
+
+---
+
+## 22. v0.10.0：维护模式（2026-10-13）
+
+### 22.1 需求
+
+「网站有时候需要维护，在此期间我不希望正常访问，而是显示一张图片：
+`docs/photo/update.jpg`（站长自己从 2.66MB PNG 压成了 260KB JPG）。」
+
+确认的方案：**Nginx 层拦截**、**谁都挡**、**503 + Retry-After**、不加小字。
+
+### 22.2 为什么是 Nginx 而不是应用层中间件
+
+| 理由 | 说明 |
+| --- | --- |
+| **Node 挂了也能显示维护页** | 真在挨打时 Node 很可能已经上不来气；走应用层的方案会跟着一起挂，**等于想挂维护页却挂不上** |
+| **几乎不吃 CPU** | 维护页是静态文件，流量在 Nginx 这层就被挡住，落不到 Node |
+| **不动现有配置** | 开/关 = 建/删一个软链，完全不碰 `sites-available/lankhub`（那份被 certbot 改过 443 与证书段，脚本改它风险大） |
+
+> ⚠️ 因为选了「谁都挡」，维护是**无条件**的，所以它**不能做成「Node 挂了自动显示维护页」**——
+> 那需要健康探测，而探测本身依赖 Node，两件事会互相纠缠。它是**手动开关**。
+
+### 22.3 文件
+
+| 路径 | 职责 |
+| --- | --- |
+| `docs/photo/update.jpg` | 维护图（源图，260KB） |
+| `maintenance/build.mjs` | 生成维护页与 Nginx 配置；`--domain` / `--cert` / `--webroot` 可覆盖 |
+| `maintenance/__maintenance.html` | 生成的维护页（**图片 base64 内联**，347KB） |
+| `maintenance/lankhub-maintenance.conf` | 生成的 Nginx 配置（域名已填成 `www.lankhub.xyz`） |
+| `scripts/maintenance/enable.sh` | 安装 + 建软链 + `nginx -t` + reload |
+| `scripts/maintenance/disable.sh` | 删软链 + `nginx -t` + reload（`--purge` 连维护页一起删） |
+| `scripts/maintenance/status.sh` | 只读状态检查（不需 sudo） |
+
+**为什么图片要内联**：维护配置对**所有**请求回 503（含静态资源路径）。若用
+`<img src="/update.jpg">`，图片请求本身也是 503，浏览器是否肯渲染就不确定了。
+内联成一个文件就不存在这个问题。
+
+### 22.4 ⚠️ 实测踩到的两个 nginx 坑（都已修，别再改回去）
+
+**坑 1：`try_files $uri /index.html = 503` 返回的是 200，不是 503。**
+
+第一版这么写，用真实 nginx 1.30 跑起来发现响应码是 **200** ——
+那个 `= code` 参数在文件真实存在时不生效，「503 + Retry-After」完全失效，
+**搜索引擎会把维护页当正常页面收录**，而响应头里却挂着 `Retry-After`，自相矛盾。
+
+正确写法：
+
+```nginx
+location / {
+    return 503;
+    add_header Retry-After 3600 always;
+    add_header Cache-Control "no-store" always;
+}
+error_page 503 /__maintenance.html;
+
+location = /__maintenance.html {
+    internal;
+    add_header Retry-After 3600 always;
+    add_header Cache-Control "no-store" always;
+    root __WEBROOT__;
+}
+```
+
+**坑 2：`error_page` 之后 `add_header` 不会从 server 层继承。**
+
+第一版把 `add_header` 只写在 server 层，结果维护页返回 503 但
+`Retry-After` / `Cache-Control` **两个头都丢了**。
+原因是 `add_header` 的继承规则：**子级只要自己写了 `add_header`，父级的就整体被覆盖**，不合并。
+所以两个 location 里都要写一遍。
+
+> 附带一条：`internal` location 被外部访问时 nginx 返回 **404**（不是 503）。
+> 我第一版断言写成「应返回 503」，方向反了 —— 404 恰恰是 `internal` 生效的证据。
+
+### 22.5 ⚠️ 维护期间证书续期（最容易埋的坑）
+
+维护配置对所有请求回 503，**必须单独放行 `/.well-known/acme-challenge/`**，
+否则**维护期间证书无法续期**，等恢复站点时证书可能已经过期。
+配置里已处理好，改动这个文件时别把它删掉。
+
+### 22.6 两个安全设计
+
+1. **`nginx -t` 是硬门槛**：不过检查**绝不 reload**；失败时自动**回滚**
+   （删软链 + 删维护页），站点不受影响。绝不会出现「想挂维护页结果把站点弄挂」。
+   另外 `enable.sh` 在 reload 前会**检查证书文件真实存在**，核对不上直接退出。
+2. **维护页是 `internal`**：外部直接请求 `/__maintenance.html` 得到 404，
+   只能通过 `error_page 503` 这条内部路径返回。
+
+### 22.7 顺带修掉一个部署隐患：缺失的 `.gitattributes`
+
+仓库原本**没有 `.gitattributes`**，而 Windows 上 `core.autocrlf` 默认会让
+`.sh` 在克隆时变成 CRLF。**CRLF 的 shell 脚本在 Linux 上会直接报
+`bad interpreter: /bin/bash^M`** —— 本地完全看不出来，只有部署到服务器才炸。
+现在锁死 `*.sh text eol=lf`（另含 `.mjs`/`.ts`/`.conf` 等，图片则是 `binary`）。
+
+### 22.8 ⚠️ 本节最有价值的东西：本地可以真跑 nginx 与测脚本
+
+**本机 WSL（kali-linux）里有 nginx 1.30**，于是不必等部署到服务器才发现配置写错。
+
+**① 用真实 nginx 校验配置 + 真跑起来 curl 验证**：
+
+- 在 `/tmp` 下搭一个完整测试 root（`nginx.conf` + `logs/` + `webroot/` + 占位证书）
+- 用 `openssl` 造自签证书、造 `options-ssl-nginx.conf` 与 `ssl-dhparams.pem` 占位
+- `sed` 把配置里的绝对路径改到测试 root
+- `nginx -t -p $T -c $T/nginx.conf` 验语法；`nginx -T` 导出全部生效配置逐条断言
+- 再 `nginx -p ... -c ...` 真启动，用 `curl -k` 验响应码 / 响应体 / 响应头
+
+**② 端到端测开关脚本（不碰真实系统）**：
+
+- 把脚本里的绝对路径与 root 检查 `sed` 到隔离目录
+- `PATH` 前面放**假的 `nginx` / `systemctl` / `curl`**，把调用记进日志
+- 于是能断言「**先 `-t` 后 reload**」「`-t` 失败时**没 reload 且已回滚**」这类关键行为
+
+> 坑记录：`curl -D` 存下来的响应头**每行结尾带 `\r`**，
+> grep 断言必须 `tr -d '\r'`，否则会误报「缺少响应头」。
+> 另外 `PowerShell → wsl.exe → bash` 三层引号转义极易搞坏命令，
+> **把要跑的东西写成脚本文件再执行**，别硬塞一行。
+
+### 22.9 验证结果
+
+- **Nginx 真实验证**：`nginx -t` 通过；`nginx -T` 逐条确认
+  `error_page 503`、`return 503`、`internal;`、两个响应头、ACME 放行、域名与证书路径、无残留占位符；
+  **真启动后** curl 实测：HTTPS 返回 **503**、`retry-after: 3600`、`cache-control: no-store`、
+  响应体含内联图片（355488 bytes）、HTTP 返回 301、`/__maintenance.html` 返回 404（internal 生效）、
+  ACME 路径返回 404（放行到磁盘而非 503）
+- **开关脚本端到端 24 项全过**：正常开启、重复开启拒绝、**`-t` 失败回滚且不 reload**、
+  关闭、`--purge`、未开启时友好退出、`--dry-run` 不改动任何东西、状态脚本两种状态
+- **静态检查**：三个脚本 `bash -n` 通过、行尾均为 LF、无 BOM
+
+⚠️ **仍需在真实服务器上确认**（本地无法覆盖）：
+1. 你的 `sites-available/lankhub` 里证书路径是否与生成配置一致（不一致就改 `--cert` 重新生成）
+2. `sudo npm run maintenance:on` 之后访问 `https://www.lankhub.xyz/` 是否看到维护页
+3. 关闭后站点是否恢复正常
+4. `certbot renew --dry-run` 在维护模式下是否能过（验证 ACME 路径真的放行了）

@@ -453,6 +453,67 @@ npm run update              # 一键更新：拉取 → 安装 → 推送DB → 
 它同时是排查入口：音乐、合集、简历等功能的行为边界与已知限制也记在里面。
 
 
+### 维护模式（临时挂出维护页）
+
+需要临时停止对外服务时，可以让全站只显示一张维护页。
+
+```bash
+npm run maintenance:build              # 生成维护页（图片内联，347KB）与 Nginx 配置
+
+sudo npm run maintenance:on            # 开启维护
+sudo npm run maintenance:off           # 关闭维护
+npm run maintenance:status             # 查看当前状态（只读，不需要 sudo）
+
+# 传递参数要给 npm 加 --
+sudo npm run maintenance:on -- --dry-run    # 只看会做什么，不改任何东西
+sudo npm run maintenance:off -- --purge     # 关闭时顺便删掉维护页文件
+```
+
+> 脚本要写 `/etc/nginx` 与 `/var/www`，所以**必须在服务器上跑**（不能在你本地 Windows 上跑）。
+
+#### 为什么走 Nginx 而不是应用层
+
+维护模式是往 `/etc/nginx/sites-enabled` 放一份**独立的** server 配置，再 reload Nginx：
+
+- **那个维护页是静态文件，几乎不吃 CPU** —— 攻击流量在 Nginx 这一层就被挡住，根本落不到 Node 上
+- **Node 挂了也能显示维护页**。这一条是关键：真在挨打时 Node 很可能已经上不来气，
+  走应用层的方案会跟着一起挂，等于你想挂维护页却挂不上
+- **开/关 = 建/删一个软链**，完全不动 `sites-available/lankhub`。
+  那份配置被 certbot 改过（加了 443 与证书段），脚本去改它风险很大
+
+#### 行为
+
+| 项 | 值 |
+| --- | --- |
+| 响应码 | **503**（搜索引擎视为「暂时不可用」，**不会把站点从索引里摘掉**） |
+| 响应头 | `Retry-After: 3600`、`Cache-Control: no-store` |
+| 谁能访问 | **所有人**（包括你自己）。要在服务器上验证真实站点，绕过 Nginx 直接打 Node：`curl -I http://127.0.0.1:3000` |
+| 访问日志 | 单独一份 `/var/log/nginx/lankhub-maintenance.log` |
+
+> **为什么必须放行 `/.well-known/acme-challenge/`**：维护配置对所有请求都回 503，
+> 若不单独放行这条路径，**维护期间证书无法续期** —— 等你恢复站点时证书可能已经过期。
+> 这是维护模式最容易埋的坑，配置里已经处理好。
+
+#### 两个安全设计
+
+1. **`nginx -t` 是硬门槛**：不过检查**绝不 reload**。如果检查失败，脚本会自动
+   **回滚**（删掉软链与维护页），站点不受影响 —— 绝不会出现「想挂维护页结果把站点弄挂」。
+2. **维护页是 `internal`**：外部直接请求 `/__maintenance.html` 会得到 404，
+   只可能通过 `error_page 503` 这条内部路径返回。
+
+#### 改域名或证书
+
+脚本默认按 `docs/photo/update.jpg` 生成维护页，域名与证书路径可在生成时指定：
+
+```bash
+node maintenance/build.mjs --domain www.lankhub.xyz --cert /etc/letsencrypt/live/www.lankhub.xyz/fullchain.pem
+```
+
+`enable.sh` 在 reload 前会**检查证书文件是否真的存在**、域名是否从配置里读得到；
+核对不上就直接退出，不会带着坏配置去 reload。
+
+想换维护页图片：替换 `docs/photo/update.jpg` 后重新 `npm run maintenance:build`。
+
 ### PM2 常用命令
 
 | 命令 | 说明 |
