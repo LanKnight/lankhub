@@ -18,6 +18,14 @@ model User {
   avatar      String?
   bio         String?
   permissions String?
+  /// 邮箱验证时间。null = 未验证（注册后还没输验证码）。
+  ///
+  /// 为什么用 DateTime 而不是 Boolean：顺带留下「何时验证的」审计信息，
+  /// 而且与 Auth.js 的 emailVerified 语义相容，将来换 adapter 不用改字段含义。
+  ///
+  /// 加这个字段之后，**存量账号必须先跑 npm run db:verify-existing 标记为已验证**，
+  /// 否则他们会被「请先完成邮箱验证」挡在门外。
+  emailVerifiedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   articles    Article[]
@@ -27,6 +35,41 @@ model User {
   songs       Song[]
   sessions    Session[]
   accounts    Account[]
+
+  /// 清理「未验证账号」的任务要按这个字段筛
+  @@index([emailVerifiedAt])
+}
+
+/// 邮箱验证码。四个场景（注册 / 验证码登录 / 重置密码 / 改密码）**共用一张表**，
+/// 用 scene 区分 —— 字段完全一致，只用途不同；统一表能让限流与配额统计只用一套查询。
+///
+/// ⚠️ 这里存的是 **HMAC 哈希，不是明文**：
+///   hash = HMAC-SHA256(AUTH_SECRET, `${email}:${scene}:${code}`)
+/// 用 HMAC 而不是 bcrypt 的理由：验证码只有 6 位（100 万种），真正的防线是
+/// 「错误次数上限」而不是哈希强度；HMAC 让「6 位码 → 库里的值」不可逆就足够了，
+/// 且不必为每次比对付 bcrypt 约 100ms 的开销。
+/// 代价是库里看不到明文，排查问题不能直接读库（开发环境另允许打日志）。
+///
+/// 注意这里**不建到 User 的外键**：注册场景要能为「还没有账号的邮箱」存码，
+/// 登录/改密码场景也只需要按 email 查。用 email 关联更简单也更通用。
+model EmailCode {
+  id        Int       @id @default(autoincrement())
+  email     String
+  /// register | login | reset | change
+  /// 用字符串而不是 enum：SQLite 下 Prisma enum 支持有限，且加场景时不必改表
+  scene     String
+  codeHash  String
+  expiresAt DateTime
+  /// 已尝试比对次数。达到上限后该记录**直接作废**（不再看是否还在有效期内）
+  attempts  Int       @default(0)
+  /// 用后即焚：消费后写入时间戳，同一码不可二次使用
+  consumedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  /// 最高频查询是「取该邮箱该场景最新的有效码」
+  @@index([email, scene, createdAt])
+  /// 全站配额统计与清理任务按时间扫
+  @@index([createdAt])
 }
 
 model Session {

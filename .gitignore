@@ -47,6 +47,13 @@ next-env.d.ts
 *.db
 dev.db.bak.*
 uploads.bak.*.tar.gz
+# ⚠️ 数据库的任何派生副本都不能入库：库里含账号密码哈希与全部站内内容。
+# 原来的 *.db 只匹配以 .db **结尾**的名字，所以 dev.db.before-xxx 这类
+# 「带后缀的备份」是漏网的 —— 实测 dev.db 被忽略、dev.db.before-emailcode 却没被忽略。
+# 下面这条把「文件名的某处含 dev.db」全部挡住。
+# （scripts/backup.sh 用的命名是 dev.db.bak.<时间戳>，本来就在上面那条覆盖内）
+dev.db.*
+*.db.*
 
 # user uploads
 public/images/uploads/

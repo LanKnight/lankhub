@@ -533,8 +533,22 @@ curl -s http://127.0.0.1:3000/api/auth/email-health | head
 
 ```bash
 npm run db:push              # 加 emailVerifiedAt 字段与 EmailCode 表
+npm run db:generate          # ⚠️ 必须紧接着跑！db push 不会更新生成的客户端
 npm run db:verify-existing   # 把存量账号标记为已验证（避免把老人挡在门外）
 ```
+
+### 7.3.0 ⚠️ 数据库备份文件的命名有个漏网之鱼（已修）
+
+`.gitignore` 原本是 `*.db`，它**只匹配以 `.db` 结尾**的名字。所以
+`dev.db.before-emailcode` 这类「带后缀的备份」**没被忽略** ——
+实测 `dev.db` 被忽略、`dev.db.before-emailcode` 却没有，
+一旦 `git add .` 就会把**含账号密码哈希与全部站内内容的数据库**
+提交进公开仓库。
+
+已补两条规则把「文件名某处含 `.db`」全部挡住：`dev.db.*` 与 `*.db.*`。
+
+> 教训：本地改 schema 前备份数据库是对的，但**备份的命名要落在忽略规则内**。
+> 做破坏性操作前先 `git status` 看一眼有没有新的未跟踪文件。
 
 ### 7.3.1 ⚠️⚠️ 新增路由后**必须重新构建**，`pm2 restart` 不够
 
@@ -581,8 +595,36 @@ npm run db:cleanup-codes        # 删除超过 24 小时的验证码记录
 
 | 命令 | 作用 |
 | :--- | :--- |
+| `npm run db:verify-existing` | **功能上线前必须跑一次**：把存量账号标记为「邮箱已验证」（见 4.1）。否则包括站长在内的老用户会被「请先完成邮箱验证」挡在门外，而他们根本没收到过验证码 |
+| `npm run db:cleanup-unverified` | 删除注册后超 24 小时仍未验证的僵尸账号（**绝不碰已验证用户**） |
+| `npm run db:cleanup-codes` | 删除超 24 小时的验证码记录；顺带报告近 24 小时发码量，便于核对 Resend 配额 |
 | `npm run email:test 你的邮箱` | **发一封测试邮件**，验证 Resend 链路真的通。手动执行、需服务器权限（**刻意不做成公开接口**，否则任何人都能拿你邮箱刷额度） |
 | `npm run email:check` | **密钥泄露防线**：查自检接口行为、源码脱敏约定，并扫描全部 git 跟踪文件里有没有真实密钥。需应用在 3000 端口运行 |
+
+后两个脚本都支持 `--dry-run`（只打印、不写库）与 `--hours N`（改保留时长）。
+
+> ### ⚠️⚠️ `db push` 之后必须再跑 `db generate`
+>
+> `prisma db push` 只同步**数据库结构**，**不会更新生成的客户端**。
+> 所以改完 schema 直接跑脚本会报：
+>
+> ```
+> PrismaClientValidationError: Invalid `prisma.user.findMany()` invocation
+>   where: { emailVerifiedAt: null }
+>   ~~~~~~~~~~~~~~~
+> ```
+>
+> —— 它列出的可用字段里**没有**你刚加的那个。
+>
+> **正确顺序**（`npm run db:push` 不会自动 generate）：
+>
+> ```bash
+> npm run db:push       # 同步数据库结构
+> npm run db:generate   # ⚠️ 重新生成客户端，少这一步必报上面的错
+> ```
+>
+> 这是开发中真实踩到的：三个新脚本一开始全部退出码 1，
+> 而报错信息看起来像「字段不存在」，很容易怀疑是 schema 写错了。
 
 ```bash
 # 服务器上按顺序验证（阶段 1 做完后）
@@ -683,7 +725,7 @@ npm run email:check                                    # 期望全部通过
 | **0** | 验证 PM2 是否已有 Key | `pm2 env 0 \| grep -i resend` | ✅ **已做：无输出，证实必须改 `.env`** |
 | **1** | 吊销旧 Key、生成新 Key、写入 `.env`、`pm2 restart --update-env` | `/api/auth/email-health` 返回 `keyLoaded: true` | ⏳ 等站长在服务器执行（见下） |
 | **2** | 发信模块 + 邮件模板 + 自检接口 + 手动测试脚本 | 服务器上 `npm run email:test 你的邮箱` 真的收到信 | ✅ **代码已完成**，待阶段 1 后实测 |
-| **3** | Prisma：`User.emailVerifiedAt` + `EmailCode` 表 + 清理脚本 + 存量标记脚本 | `npm run db:push` 通过；`db:check-limits` 通过 | ⏳ 下一步 |
+| **3** | Prisma：`User.emailVerifiedAt` + `EmailCode` 表 + 清理脚本 + 存量标记脚本 | `npm run db:push` 通过；`db:check-limits` 通过 | ✅ **已完成**（35 项验证全过） |
 | **4** | `src/lib/email/verify-code.ts`：发码/校验/消费 + 三级限流 + 配额 | 单元级验证：冷却、上限、过期、用后即焚、错误次数全覆盖 | |
 | **5** | 接口：`send-code` / `verify-code` / `register`（改造）/ `forgot-password` / `reset-password` | curl 逐个场景走通（含错误分支） | |
 | **6** | Auth.js：新增 `email-code` provider + `loginByCodeAction` | 验证码能真正建立会话 | |
