@@ -26,6 +26,29 @@ function isCredentialsSignin(error: unknown): boolean {
   )
 }
 
+/**
+ * 从登录失败里取出 Auth.js 给的 `code`。
+ *
+ * ⚠️ **直接读 `error.code` 属性**，不要去解析 message。
+ *
+ * 实测（用诊断路由把错误对象原样打印出来）：
+ * ```
+ * { type: "CredentialsSignin", code: "credentials", kind: "signIn",
+ *   message: "Read more at https://errors.authjs.dev#credentialssignin" }
+ * ```
+ * 注意 `message` 里**根本没有** `code=...`（那只是跳转 URL 里的形式）。
+ * 我第一版就是去 message 里正则匹配 `code=xxx`，结果永远匹配不上、
+ * 所有失败都落到兜底文案 —— 而症状是「验证码错误时提示不准确」，
+ * 很容易误判成前端问题。
+ *
+ * `code` 是我们自己在 provider 里显式赋的值（见 auth.ts 的 credentialsError），
+ * 所以能区分「邮箱未验证」与「验证码错误」。
+ */
+function credentialsErrorCode(error: unknown): string | null {
+  const code = (error as { code?: unknown }).code
+  return typeof code === "string" ? code : null
+}
+
 /** Prisma 的唯一约束冲突 */
 function isUniqueViolation(error: unknown): boolean {
   return (
@@ -67,9 +90,83 @@ export async function loginAction(email: string, password: string) {
     return { success: true }
   } catch (error) {
     if (isCredentialsSignin(error)) {
+      /*
+       * 「邮箱未验证」要单独给一条可操作的提示，而不是混进
+       * 「邮箱或密码错误」—— 后者会让用户反复试密码，
+       * 而真正的问题是他没去收验证码。
+       */
+      if (credentialsErrorCode(error) === "email-not-verified") {
+        return {
+          success: false,
+          error: "该邮箱尚未完成验证",
+          needVerify: true,
+        }
+      }
       return { success: false, error: "邮箱或密码错误" }
     }
     console.error("[loginAction] error:", error)
+    return { success: false, error: "登录失败，请稍后重试" }
+  }
+}
+
+/**
+ * 验证码登录（免密码）。
+ *
+ * 为什么是 Server Action 而不是 Route Handler：
+ * 建立会话需要 `signIn()`，它只能在 Server Action / 认证流程里调用。
+ * 做成公开的「校验通过就登录」接口，等于开放一个免密登录入口。
+ *
+ * 限流在 `email-code` provider 内做（与密码登录同一套强度）；
+ * 这里只做一次「不计数」的预探，好在被限流时给出明确提示。
+ */
+export async function loginByCodeAction(email: string, code: string) {
+  const normalizedEmail = email.trim().toLowerCase()
+
+  const ip = getClientIp(await headers())
+  const checks = [
+    peekRateLimit(`login-code:${normalizedEmail}:${ip}`, LOGIN_ACCOUNT_MAX),
+    peekRateLimit(`login-code-ip:${ip}`, LOGIN_IP_MAX),
+  ]
+  const blocked = checks.find((c) => !c.allowed)
+  if (blocked && !blocked.allowed) {
+    return {
+      success: false,
+      error: `尝试过于频繁，请 ${blocked.retryAfter} 秒后再试`,
+    }
+  }
+
+  // 形状先挡一层：明显不是 6 位数字就不必走认证流程
+  if (!/^\d{6}$/.test(code.trim())) {
+    return { success: false, error: "请输入 6 位数字验证码" }
+  }
+
+  try {
+    await signIn("email-code", {
+      email: normalizedEmail,
+      code: code.trim(),
+      // ⚠️ mode 让本 provider 的错误 code 与密码登录区分开。
+      // 不传的话两个 provider 都用默认 code，前端无法判断是哪种失败。
+      mode: "code",
+      redirect: false,
+    })
+    return { success: true }
+  } catch (error) {
+    if (isCredentialsSignin(error)) {
+      const code2 = credentialsErrorCode(error)
+      if (code2 === "email-not-verified") {
+        return {
+          success: false,
+          error: "该邮箱尚未完成验证",
+          needVerify: true,
+        }
+      }
+      if (code2 === "invalid-code") {
+        // 与接口层保持同一句文案：不区分「过期/已用/错误」
+        return { success: false, error: "验证码错误或已失效，请重新获取" }
+      }
+      return { success: false, error: "验证码登录失败，请重试" }
+    }
+    console.error("[loginByCodeAction] error:", error)
     return { success: false, error: "登录失败，请稍后重试" }
   }
 }

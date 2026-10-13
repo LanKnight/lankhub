@@ -393,6 +393,57 @@ authorize():
 > 这个 provider **不经过任何 HTTP 路由**，前端拿不到它的 CSRF token，
 > 所以不存在「暴露一个免密登录接口」的风险。
 
+#### ⚠️ 自定义错误码有两个坑（都实测踩过，务必按下面写）
+
+**坑 1：`CredentialsSignin` 的构造参数会被忽略，必须显式赋值 `.code`**
+
+```ts
+// ❌ 自定义码会丢，前端收到的是 code=credentials
+throw new CredentialsSignin("email-not-verified")
+
+// ✅ 正解
+const err = new CredentialsSignin("email-not-verified")
+err.code = "email-not-verified"   // 必须显式赋值
+throw err
+```
+
+原因：`CredentialsSignin` 的构造函数是 `super(...arguments)`，参数被丢弃，
+而 `code` 在类里被固定初始化成 `"credentials"`。
+Auth.js 只读**实例属性**（`@auth/core/index.js` 里 `params.set("code", error.code)`），
+所以只有显式赋值才会进跳转 URL。
+
+**坑 2：`error.message` 里没有 code，别去解析字符串**
+
+实测把错误对象原样打印出来是：
+
+```json
+{
+  "type": "CredentialsSignin",
+  "code": "credentials",
+  "kind": "signIn",
+  "message": "Read more at https://errors.authjs.dev#credentialssignin"
+}
+```
+
+`code=xxx` 那种形式**只出现在跳转 URL 里**，`message` 里没有。
+所以要从错误对象上**直接读 `.code` 属性**。
+
+> 我第一版就是拿正则去 `message` 里匹配 `code=xxx`，结果永远匹配不上，
+> 所有失败都落到兜底文案 —— 表现为「验证码错误时提示不准确」，
+> 很容易误判成前端文案问题。是靠一个临时诊断路由把错误对象打出来才定位的。
+
+#### 为什么「未验证」要单独给一条提示
+
+登录失败统一返回 null 时，前端只能显示「邮箱或密码错误」——
+而用户真正的问题是他没去收验证码，反复试密码永远解决不了。
+所以未验证时抛 `email-not-verified`，前端据此显示
+「该邮箱尚未完成验证」+ 一个「重新发送验证码」的入口。
+
+**但顺序是「先验密码，再查验证状态」**：反过来的话，
+任何人都能凭一个未验证邮箱问出「这个账号验证过没有」，那是一条信息泄露。
+实测确认：未验证账号 + 错误密码 → 「邮箱或密码错误」（不泄露状态）；
+未验证账号 + 验证码登录 → 「该邮箱尚未完成验证」（可操作提示）。
+
 ### 5.6 已废弃的规划（保留说明，避免以后有人按旧文档实现）
 
 | 原规划 | 实际 | 原因 |
@@ -844,8 +895,8 @@ npm run email:check                                    # 期望全部通过
 | **3** | Prisma：`User.emailVerifiedAt` + `EmailCode` 表 + 清理脚本 + 存量标记脚本 | `npm run db:push` 通过；`db:check-limits` 通过 | ✅ **已完成**（35 项验证全过） |
 | **4** | `src/lib/email/verify-code.ts`：发码/校验/消费 + 三级限流 + 配额 | 单元级验证：冷却、上限、过期、用后即焚、错误次数全覆盖 | ✅ **已完成**（57 项验证全过） |
 | **5** | 接口：`send-code` / `verify-email` / `register`（改造）/ `forgot-password` / `reset-password` / `change-password` | curl 逐个场景走通（含错误分支） | ✅ **已完成**（50 项端到端全过） |
-| **6** | Auth.js：新增 `email-code` provider + `loginByCodeAction` | 验证码能真正建立会话 | ⏳ 下一步 |
-| **7** | 前端：登录页双标签、注册两步、忘记密码页、settings 改密码 | 浏览器手测全流程 | |
+| **6** | Auth.js：新增 `email-code` provider + 密码登录校验邮箱已验证 | 验证码能真正建立会话 | ✅ **已完成**（20 项端到端全过） |
+| **7** | 前端：登录页双标签、注册两步、忘记密码页、settings 改密码 | 浏览器手测全流程 | ⏳ 下一步 |
 | **8** | 文档与脱敏：README 免责声明、登录页小字、确认仓库无真实前缀 | `npm run email:check` 通过 | |
 | **9** | 部署验证 | 线上走一遍四个场景 | |
 
