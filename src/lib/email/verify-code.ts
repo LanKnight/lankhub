@@ -131,6 +131,17 @@ export type SendCodeParams = {
   scene: EmailScene
   /** 客户端 IP，用于单 IP 配额。拿不到时传 null（该维度不计数） */
   ip: string | null
+  /**
+   * 跳过 60 秒冷却。**仅非生产环境生效**。
+   *
+   * 为什么需要它：端到端测试经常要对**同一个邮箱**连续触发几次发码
+   * （例如「注册 → 没验证 → 再注册」，或验证「覆盖未验证账号」这条路径），
+   * 而冷却会把这些调用挡掉，让断言看起来像功能坏了。
+   *
+   * 安全性：生产环境下这个参数被**忽略**（见下面的实现），
+   * 所以即使客户端伪造它也无法绕过冷却。
+   */
+  skipCooldown?: boolean
 }
 
 /**
@@ -142,23 +153,32 @@ export type SendCodeParams = {
 async function checkSendAllowed(
   email: string,
   scene: EmailScene,
-  ip: string | null
+  ip: string | null,
+  skipCooldown: boolean
 ): Promise<SendResult> {
   const now = Date.now()
 
   // ① 冷却：同一邮箱同一场景 60 秒内只能发一次
-  const last = await prisma.emailCode.findFirst({
-    where: { email, scene },
-    orderBy: { createdAt: "desc" },
-    select: { createdAt: true },
-  })
-  if (last) {
-    const elapsed = now - last.createdAt.getTime()
-    if (elapsed < COOLDOWN_SECONDS * 1000) {
-      return {
-        ok: false,
-        reason: "cooldown",
-        retryAfterSeconds: Math.ceil((COOLDOWN_SECONDS * 1000 - elapsed) / 1000),
+  //
+  // ⚠️ skipCooldown 只在**非生产环境**被承认。
+  // 写成 `process.env.NODE_ENV !== "production" && skipCooldown` 而不是
+  // 直接信任调用方传的值 —— 否则只要有人把这个参数接到请求体上，
+  // 就等于把冷却关掉了。
+  const cooldownDisabled = skipCooldown && process.env.NODE_ENV !== "production"
+  if (!cooldownDisabled) {
+    const last = await prisma.emailCode.findFirst({
+      where: { email, scene },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    })
+    if (last) {
+      const elapsed = now - last.createdAt.getTime()
+      if (elapsed < COOLDOWN_SECONDS * 1000) {
+        return {
+          ok: false,
+          reason: "cooldown",
+          retryAfterSeconds: Math.ceil((COOLDOWN_SECONDS * 1000 - elapsed) / 1000),
+        }
       }
     }
   }
@@ -219,7 +239,7 @@ export async function sendCode(params: SendCodeParams): Promise<SendResult> {
     return { ok: false, reason: "email-disabled" }
   }
 
-  const allowed = await checkSendAllowed(email, scene, ip)
+  const allowed = await checkSendAllowed(email, scene, ip, params.skipCooldown === true)
   if (!allowed.ok) return allowed
 
   const code = generateCode()
@@ -394,7 +414,9 @@ export function describeFail(reason: FailReason): string {
       // 刻意统一：不泄露「码是否存在 / 是否过期 / 是否被用过」
       return "验证码错误或已失效，请重新获取"
     case "send-failed":
-      return "验证码发送失败，请稍后重试"
+      // 必须点明「邮件服务」而不是笼统的「发送失败」——
+      // 否则用户会把它与「验证码错误」混淆，反复重输那个根本没发出来的码。
+      return "邮件服务暂时不可用，请稍后重试"
   }
 }
 

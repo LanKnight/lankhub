@@ -45,8 +45,11 @@ const NicknameSchema = z
  *
  * 规范化必须在这里做完：SQLite 的 unique 是大小写敏感的，
  * 不在入口统一小写就会出现 A@x.com 与 a@x.com 两个账号。
+ *
+ * 导出是因为接口层（forgot-password、verify-email）需要单独校验一个邮箱字段，
+ * 而不想为此再造一个规则（两套规则必然漂移）。
  */
-const EmailSchema = z
+export const EmailSchema = z
   .string()
   .trim()
   .toLowerCase()
@@ -74,6 +77,68 @@ export const ProfileUpdateSchema = z.object({
 /** 修改密码 */
 export const ChangePasswordSchema = z.object({
   oldPassword: z.string().min(1, "请输入当前密码"),
+  newPassword: PasswordSchema,
+})
+
+/*
+ * ============================================================
+ * 邮箱验证码相关
+ * ============================================================
+ */
+
+/**
+ * 验证码：6 位纯数字。
+ *
+ * 这里只做**形状**校验（位数、是否数字）——
+ * 正确性必须由服务端存的那份比对得出，绝不能在前端或校验层「判断对错」。
+ */
+export const VerifyCodeSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{6}$/, "验证码应为 6 位数字")
+
+/** 发码：邮箱 + 场景 */
+export const SendCodeSchema = z.object({
+  email: EmailSchema,
+  scene: z.enum(["register", "login", "reset", "change"]),
+})
+
+/** 仅邮箱（忘记密码的「请求重置」一步） */
+export const EmailOnlySchema = z.object({
+  email: EmailSchema,
+})
+
+/**
+ * 注册（第一步）：昵称 + 邮箱 + 密码。
+ *
+ * 与 RegisterSchema 的差别只在语义 —— 这里的成功不代表账号可用，
+ * 而是「账号已创建但未验证，验证码已发送」。
+ * 刻意**复用**同一组字段规则，不另写一套（否则两处规则迟早漂移）。
+ */
+export const RegisterRequestSchema = z.object({
+  name: NicknameSchema,
+  email: EmailSchema,
+  password: PasswordSchema,
+})
+
+/** 校验验证码（注册第二步 / 验证码登录 共用） */
+export const VerifyEmailCodeSchema = z.object({
+  email: EmailSchema,
+  scene: z.enum(["register", "login", "reset", "change"]),
+  code: VerifyCodeSchema,
+})
+
+/** 用验证码重置密码（忘记密码的第二步） */
+export const ResetPasswordSchema = z.object({
+  email: EmailSchema,
+  code: VerifyCodeSchema,
+  newPassword: PasswordSchema,
+})
+
+/** 登录用户的改密码（旧密码 + 邮箱验证码 + 新密码） */
+export const ChangePasswordWithCodeSchema = z.object({
+  oldPassword: z.string().min(1, "请输入当前密码"),
+  code: VerifyCodeSchema,
   newPassword: PasswordSchema,
 })
 

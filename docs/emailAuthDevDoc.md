@@ -312,7 +312,96 @@ model EmailCode {
 
 ## 五、接口设计
 
-### 5.1 统一的发码接口
+> **本节的接口清单已按实际实现更新**（阶段 5 完成后回填）。
+> 原文档里规划的名字（`login-by-code`、`verify-code`）与最终实现不同，
+> 差异的原因写在各小节里。
+
+### 5.1 实际实现的接口清单
+
+| 接口 | 方法 | 说明 | 状态 |
+| :--- | :--- | :--- | :--- |
+| `/api/auth/send-code` | POST | 发码。`{ email, scene }`，各场景返回策略不同（见 5.3） | ✅ |
+| `/api/auth/register` | POST | 注册第一步：建（或覆盖）**未验证**账号 + 发码 | ✅ |
+| `/api/auth/verify-email` | POST | 注册第二步：校验码并写 `emailVerifiedAt` | ✅ |
+| `/api/auth/forgot-password` | POST | 请求重置码（**防账号枚举**，见 5.4） | ✅ |
+| `/api/auth/reset-password` | POST | 校验码 + 重置密码（**同一请求内完成**） | ✅ |
+| `/api/auth/change-password` | POST | 已登录改密：旧密码 + 验证码 + 新密码 | ✅ |
+| `/api/auth/email-health` | GET | 邮件配置自检（只回长度，不回 Key） | ✅ |
+| 验证码登录 | —— | **不设 HTTP 接口**，改由 Server Action 实现（见 5.5） | ⏳ 阶段 6 |
+
+### 5.2 ⚠️ 校验与消费验证码必须在**同一个请求**里
+
+原计划拆成「先校验拿凭证 → 再带凭证改密/重置」，实现时否掉了：
+
+- 拆开就要引入一个「已验证凭证」的中间态（存哪、多久过期、能否重放），
+  这是**纯增加的攻击面，收益为零**
+- 所以 `reset-password` 与 `change-password` 都是**一次请求内**完成
+  「校验 → 消费 → 改密码」
+- 连带影响：`verify-email` 的职责被收窄成**只服务注册第二步**，
+  名字也从规划时的 `verify-code` 改成 `verify-email`（名副其实）
+
+> 这个矛盾是我在写 `verify-code` 时自己发现的：注释里一边写「校验通过」，
+> 一边写「已经消费掉了」—— 那就意味着随后的改密请求无码可用。
+
+### 5.3 发码接口按场景的返回策略
+
+| 场景 | 账号不存在 | 邮箱被【已验证】账号占用 |
+| :--- | :--- | :--- |
+| `register` | 发码（账号已在第一步建好） | **409「该邮箱已注册，请直接登录」** |
+| `login` | 200 + **统一话术，不发信** | 发码 |
+| `reset` | 200 + **统一话术，不发信** | 发码（未验证账号也不发） |
+| `change` | ——（收件人固定为当前登录用户，不接受客户端指定） | —— |
+
+统一话术是「**若该邮箱已注册**，验证码已发送，请查收」——
+既让真实用户知道去查收，又不告诉探测者该邮箱是否在库里。
+
+配额类失败（冷却 / 日限 / 月限）**如实返回**，不套用模糊话术 ——
+否则用户永远等不到邮件，却不知道原因。
+
+`login` / `reset` 场景对不存在的邮箱**不发信**：否则攻击者能用这个接口
+把任意邮箱当日志刷（收件人会在毫不知情的情况下收到本站邮件）。
+
+### 5.4 注册：为什么未验证账号可以被「覆盖」重新注册
+
+```
+第一次注册            → 建账号（emailVerifiedAt = null）+ 发码
+                        用户没验证就放弃了 …
+第二次注册同一邮箱    → ① 已被【已验证】账号占用？→ 409「该邮箱已注册」
+                        ② 被【未验证】账号占用？  → 覆盖它（改昵称/密码）再发码
+                        ③ 没有账号                → 新建
+```
+
+**为什么覆盖而不报错**：那种账号是「注册到一半放弃」留下的，
+用户自己也登不上（未验证会被登录拦），若报「已注册」就成了一个**没有出口的死角**。
+覆盖是唯一不卡人的做法，而**已验证账号绝不会被覆盖**（走 ① 分支）。
+
+### 5.5 验证码登录（阶段 6 的实现方式）
+
+Auth.js 的 `signIn()` 在 Server Action 里可用，Route Handler 里不行。
+因此验证码登录做成与现有 `loginAction` 并列的 **Server Action**
+（`loginByCodeAction`），内部调 `signIn("email-code", { email, code })`。
+
+为此需要一个**只在服务端内部使用**的 Credentials provider（id = `email-code`）：
+
+```
+authorize():
+  1. 校验并消费验证码（scene = login）
+  2. 检查 emailVerifiedAt 非空 —— 未验证则拒绝，并提示去完成验证
+  3. 通过 → 返回与现有 credentials provider 相同 shape 的 user
+```
+
+> 这个 provider **不经过任何 HTTP 路由**，前端拿不到它的 CSRF token，
+> 所以不存在「暴露一个免密登录接口」的风险。
+
+### 5.6 已废弃的规划（保留说明，避免以后有人按旧文档实现）
+
+| 原规划 | 实际 | 原因 |
+| :--- | :--- | :--- |
+| `POST /api/auth/verify-code`（带 scene） | 收窄为 `/api/auth/verify-email` | 见 5.2：改密/重置必须同请求完成校验 |
+| `POST /api/auth/login-by-code` | 不设 HTTP 接口，改 Server Action | 见 5.5：免密登录不能是公开接口 |
+| `register` 场景由 `send-code` 建号 | 由 `/api/auth/register` 建号 | 避免「光发码就产生一堆 user 记录」 |
+
+#### 原始规划（存档）
 
 ```
 POST /api/auth/send-code
@@ -754,8 +843,8 @@ npm run email:check                                    # 期望全部通过
 | **2** | 发信模块 + 邮件模板 + 自检接口 + 手动测试脚本 | 服务器上 `npm run email:test 你的邮箱` 真的收到信 | ✅ **代码已完成**，待阶段 1 后实测 |
 | **3** | Prisma：`User.emailVerifiedAt` + `EmailCode` 表 + 清理脚本 + 存量标记脚本 | `npm run db:push` 通过；`db:check-limits` 通过 | ✅ **已完成**（35 项验证全过） |
 | **4** | `src/lib/email/verify-code.ts`：发码/校验/消费 + 三级限流 + 配额 | 单元级验证：冷却、上限、过期、用后即焚、错误次数全覆盖 | ✅ **已完成**（57 项验证全过） |
-| **5** | 接口：`send-code` / `verify-code` / `register`（改造）/ `forgot-password` / `reset-password` | curl 逐个场景走通（含错误分支） | ⏳ 下一步 |
-| **6** | Auth.js：新增 `email-code` provider + `loginByCodeAction` | 验证码能真正建立会话 | |
+| **5** | 接口：`send-code` / `verify-email` / `register`（改造）/ `forgot-password` / `reset-password` / `change-password` | curl 逐个场景走通（含错误分支） | ✅ **已完成**（50 项端到端全过） |
+| **6** | Auth.js：新增 `email-code` provider + `loginByCodeAction` | 验证码能真正建立会话 | ⏳ 下一步 |
 | **7** | 前端：登录页双标签、注册两步、忘记密码页、settings 改密码 | 浏览器手测全流程 | |
 | **8** | 文档与脱敏：README 免责声明、登录页小字、确认仓库无真实前缀 | `npm run email:check` 通过 | |
 | **9** | 部署验证 | 线上走一遍四个场景 | |
