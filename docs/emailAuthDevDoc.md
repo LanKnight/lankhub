@@ -536,6 +536,33 @@ npm run db:push              # 加 emailVerifiedAt 字段与 EmailCode 表
 npm run db:verify-existing   # 把存量账号标记为已验证（避免把老人挡在门外）
 ```
 
+### 7.3.1 ⚠️⚠️ 新增路由后**必须重新构建**，`pm2 restart` 不够
+
+**这是开发中真实踩到的坑，务必记住。**
+
+```bash
+git pull
+npm run build          # ← 少了这一步，新路由根本不存在
+pm2 restart next-app
+```
+
+**为什么**：`.next/` 是构建产物，`next start` 只是**读**它。
+新增路由/页面/接口后 `pm2 restart` 不会重新构建，服务器上跑的仍是旧产物。
+
+**症状极具误导性**：请求新接口时**不会** 404，而是落到 Auth.js 的
+catch-all `/api/auth/[...nextauth]` 上，它返回
+
+```
+400 "Bad request."
+```
+
+—— 看起来像「Auth.js 拒绝了我」，而不是「这个路由不存在」。
+本地怎么测都正常（因为本地构建过），只有服务器上是旧的
+（因为服务上只 `git pull` + `pm2 restart`，没 `npm run build`）。
+
+> 判据：如果本地同一个 commit 能通、服务器不通，**先怀疑服务器没重建**，
+> 而不是怀疑路由怎么写。`ls -l .next/BUILD_ID` 的修改时间能一眼看出构建新旧。
+
 ### 7.4 清理任务
 
 ```bash
