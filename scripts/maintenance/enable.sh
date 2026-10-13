@@ -23,9 +23,43 @@ MAINT_DIR="$REPO_ROOT/maintenance"
 CONF_SRC="$MAINT_DIR/lankhub-maintenance.conf"
 PAGE_SRC="$MAINT_DIR/__maintenance.html"
 WEB_ROOT="/var/www/lankhub-maintenance"
-LINK="/etc/nginx/sites-enabled/lankhub-maintenance"
-LINK_NAME="$(basename "$LINK")"
 LOG="/var/log/nginx/lankhub-maintenance.log"
+
+# ⚠️ 维护配置在 sites-enabled 里可能是**两个名字之一**，两个都必须处理。
+#
+# 为什么会有两个：软链名 = 源文件名。历史上源文件叫过 lankhub-maintenance.conf，
+# 现在叫 lankhub-maintenance —— 一旦环境里残留过另一个名字，就会出现
+# **两个软链同时存在**，于是 Nginx 加载两份相同的 server 块（域名重复定义），
+# 而关闭脚本只删其中一个 → **关了维护但仍显示维护页**（真实踩过）。
+LINK_DIR="/etc/nginx/sites-enabled"
+LINK_A="$LINK_DIR/lankhub-maintenance"
+LINK_B="$LINK_DIR/lankhub-maintenance.conf"
+LINKS=("$LINK_A" "$LINK_B")
+
+# 删掉所有维护软链（不存在的静默跳过），并报告删了哪些
+remove_all_links() {
+  local removed=0
+  for l in "${LINKS[@]}"; do
+    if [ -e "$l" ] || [ -L "$l" ]; then
+      if [ "$DRY_RUN" = "1" ]; then
+        echo "    [dry-run] rm -f $l"
+      else
+        rm -f "$l"
+      fi
+      echo "  已删除 $l"
+      removed=1
+    fi
+  done
+  return 0
+}
+
+# 任一个软链存在即视为「维护模式已开启」
+link_exists() {
+  for l in "${LINKS[@]}"; do
+    if [ -e "$l" ] || [ -L "$l" ]; then return 0; fi
+  done
+  return 1
+}
 
 DRY_RUN=0
 for a in "$@"; do
@@ -92,31 +126,23 @@ if [ ! -d /etc/nginx/sites-enabled ]; then
 fi
 echo "  ✓ Nginx 目录结构符合预期"
 
-# ⚠️ 这两处 grep 必须带 `|| true`。
-# 本脚本是 `set -euo pipefail`，**管道里任何一环返回非 0 都会终止整个脚本** ——
-# grep 找不到匹配就是返回 1。少了 `|| true`，配置里没有证书段（纯 HTTP 部署）时
-# 脚本会**无声无息地停下**，只打印到一半，非常难查（实测踩到过）。
-#
-# 证书文件必须存在，否则 reload 会失败并可能把站点弄挂
-CERT=$(grep -oP '^\s*ssl_certificate\s+\K\S+' "$CONF_SRC" 2>/dev/null | head -1 | tr -d ';' || true)
-if [ -n "$CERT" ] && [ ! -f "$CERT" ]; then
-  echo "  ✗ 配置里引用的证书不存在：$CERT"
-  echo "    请确认域名/证书路径。可重新生成："
-  echo "      node maintenance/build.mjs --domain 你的域名 --cert /path/to/fullchain.pem"
-  exit 1
-fi
-echo "  ✓ 证书路径存在：${CERT:-（配置里没有证书段，按纯 HTTP 处理）}"
-
 # 域名从配置里取，避免脚本里再硬编码一份（两处写域名迟早不一致）
 DOMAIN=$(grep -m1 -oP '^\s*server_name\s+\K[^;]+' "$CONF_SRC" 2>/dev/null | awk '{print $1}' || true)
 echo "  ✓ 域名：${DOMAIN:-（未识别）}"
 
 LOG=$(grep -m1 -oP '^\s*access_log\s+\K\S+' "$CONF_SRC" 2>/dev/null | tr -d ';' || true)
 
-if [ -L "$LINK" ] || [ -e "$LINK" ]; then
+if link_exists; then
   echo ""
-  echo "⚠️  维护模式**已经是开启状态**（$LINK 已存在）。"
-  echo "    要关闭请执行：sudo bash scripts/maintenance/disable.sh"
+  echo "⚠️  维护模式**已经是开启状态**，不重复操作。"
+  echo "    当前存在的维护软链："
+  for l in "${LINKS[@]}"; do
+    if [ -e "$l" ] || [ -L "$l" ]; then echo "      $l"; fi
+  done
+  echo ""
+  echo "    如果站点表现不对（比如关了维护还显示维护页），说明可能**两个命名同时残留**，"
+  echo "    请先执行关闭脚本 —— 它会把两个名字都删掉："
+  echo "      sudo npm run maintenance:off"
   exit 0
 fi
 echo "  ✓ 当前未处于维护模式"
@@ -133,9 +159,11 @@ echo "  ✓ 已安装（$(du -h "$PAGE_SRC" | cut -f1)）"
 echo ""
 
 # ---- 3. 建软链 ----
+# 软链名与源文件同名（lankhub-maintenance.conf），
+# 这正是历史上出现「两种命名」的原因；related 的两个名字都在 LINKS 里统一处理。
 echo "③ 启用维护配置（软链到 sites-enabled）"
-run ln -s "$CONF_SRC" "$LINK"
-echo "  ✓ $LINK -> $CONF_SRC"
+run ln -s "$CONF_SRC" "$LINK_A"
+echo "  ✓ $LINK_A -> $CONF_SRC"
 echo ""
 
 # ---- 4. 语法检查：硬门槛 ----
@@ -147,7 +175,7 @@ else
     echo ""
     echo "  ✗ 语法检查失败 —— **没有 reload**，站点未受影响。"
     echo "    正在回滚刚才的改动..."
-    rm -f "$LINK"
+    remove_all_links >/dev/null || true
     rm -rf "$WEB_ROOT"
     echo "  ✓ 已回滚（维护模式未生效）"
     exit 1

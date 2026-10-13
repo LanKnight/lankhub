@@ -30,33 +30,26 @@ function arg(name, fallback) {
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback
 }
 
-/**
- * 自动探测证书路径。
+/*
+ * 只有域名与站点根可配。
  *
- * ⚠️ 为什么需要这个：域名与证书路径**因部署环境而异**，而这正是上一次翻车的点 ——
- * 线上证书在 /etc/letsencrypt/live/lankhub.xyz/（**不带 www**），
- * 而脚本默认按 www 拼路径，两边不一致就会在 reload 前才报错。
- *
- * certbot 的目录名就是证书里的域名，所以「带 www」与「不带 www」两种都得试。
- * 都找不到时返回默认值（带 www），由 enable.sh 的「证书存在」检查兜住并给出提示。
+ * ⚠️ 原来这里还有一个 --cert / 证书自动探测，**已经删掉**：
+ * 这份配置是 HTTP-only 的（站长的站点只用 80），根本没有任何 ssl 指令，
+ * 再保留证书参数只会让人以为「维护配置和证书有关」，
+ * 从而重复踩「80 跳 443 但 443 无人监听」那个把站点打挂的坑。
+ * 将来真上 HTTPS 时再加回来，且必须同时补 443 块。
  */
-function detectCert(domain) {
-  const bare = domain.replace(/^www\./, "")
-  const live = "/etc/letsencrypt/live"
-  const candidates = [...new Set([domain, bare, `www.${bare}`])].map(
-    (d) => `${live}/${d}/fullchain.pem`
-  )
-  for (const c of candidates) {
-    if (existsSync(c)) return c
-  }
-  return candidates[0]
-}
-
 const domain = arg("domain", "www.lankhub.xyz")
-const detected = detectCert(domain)
-// 显式传了 --cert 就用它；没传则用探测到的
-const cert = arg("cert", detected)
 const webRoot = arg("webroot", "/var/www/lankhub-maintenance")
+
+/*
+ * server_name 要同时覆盖**带 www 与不带 www** 两种写法。
+ *
+ * ⚠️ 只写一个的话，另一个会落到站点自己的 server 块、看到正常页面 ——
+ * 维护模式就等于只挡了一半（站长的站点正是两个名字都在同一个块里）。
+ * 去重是为了万一 --domain 传的就是不带 www 时不会写出重复项。
+ */
+const serverNames = [...new Set([domain, domain.replace(/^www\./, "")])].join(" ")
 
 if (!existsSync(IMAGE_SRC)) {
   const dir = join(root, "docs", "photo")
@@ -104,57 +97,35 @@ const html = `<!doctype html>
 
 const nginxTemplate = `# lankHub 维护模式 —— 由 scripts/maintenance/enable.sh 安装
 #
-# ⚠️ 这个文件是**独立**的一份 server 配置，不改动 sites-available/lankhub。
-# 原因：线上那份被 certbot 改过（加了 443 与证书段），脚本去改它风险很大。
-# 独立文件的好处是开/关 = 建/删一个软链，certbot 的修改完全不受影响。
+# 这是一份**独立**的 server 配置，不改动你自己的 site 配置。
+# 开/关 = 建/删一个软链（见 enable.sh / disable.sh）。
 #
-# 生效方式：软链到 sites-enabled 后 nginx -s reload
-# 关闭方式：scripts/maintenance/disable.sh（删软链并 reload）
-
-# 让 Nginx 能读 /var/www 下的文件（默认 www-data 对 755 目录就够了，
-# 但如果你的发行版把 nginx 跑在别的用户下，这里放开更省事）
-# user www-data;
+# ⚠️⚠️ 这里是 **HTTP-only** 站点，配置文件里**故意没有**任何 443 / ssl 内容。
+#
+# 曾经写成「80 上 301 跳 HTTPS + 443 上放维护页」，结果**把站点整个打挂**：
+# 那个站点只用 80、根本没有监听 443，于是所有域名请求被 301 跳到一个
+# 死端口（浏览器表现为「无法访问」），而用 IP 访问因为匹配不到 server_name
+# 反而落到了 default_server（看起来正常）—— 症状极具误导性。
+#
+# 结论：**维护配置必须和站点实际使用的协议一致**。
+# 换环境前先确认：这个站到底是 HTTP 还是 HTTPS？
+#   sudo nginx -T | grep -E 'listen|ssl_certificate'
+# 若将来真的上了 HTTPS，再往这里加 443 块，不要提前写跳转。
 
 server {
     listen 80;
     listen [::]:80;
-    server_name __DOMAIN__;
+    server_name __SERVERNAMES__;
 
-    # ⚠️ 证书续期必须放行。
-    # 维护模式对所有请求都回 503，若不单独放行这个路径，
-    # **维护期间证书无法续期**，等你恢复站点时证书可能已经过期了。
+    # ⚠️ 证书续期路径放行。
+    # 现在虽然是 HTTP-only，但保留这一段：将来上 HTTPS 时不必回头改文件。
+    # 另外若这个站点以后签了证书，维护期间不放开这条就会让续期失败。
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/html;
         default_type "text/plain";
     }
 
-    # 其余一律跳 HTTPS；证书还没签下来时把它换成下面那两行直接回 503
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-
-server {
-    # ⚠️ HTTP/2 必须用**老写法**：把 http2 写在 listen 这一行里。
-    #
-    # 不要用独立的 http2 on; 指令 —— 那是 nginx 1.25.1 才引入的，
-    # 线上是 1.24.0，会直接报 unknown directive "http2" 并让 nginx -t 失败。
-    # （这次就是这么踩的：本机 WSL 是 1.30 所以没暴露，服务器上才炸。）
-    #
-    # 写在 listen 里的形式 1.9.5 起就支持，1.25.1+ 也仍然可用，
-    # 是唯一两边都通吃的写法。ssl 与 http2 必须与 listen 在同一行。
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name __DOMAIN__;
-
-    ssl_certificate     __CERT__;
-    ssl_certificate_key __KEY__;
-    # certbot 一般也写了这两行，重复声明无害
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
     root __WEBROOT__;
-    index index.html;
 
     # 维护期间的访问日志单独一份：方便看还有多少流量在打进来
     access_log /var/log/nginx/lankhub-maintenance.log;
@@ -164,12 +135,12 @@ server {
     # 维护页不该被缓存 —— 否则恢复站点后访客仍看到旧页面
     add_header Cache-Control "no-store" always;
 
-    # 所有人（包括站长）都只看到维护页（站长选的「谁都挡」）。
+    # 所有人（包括站长）都只看到维护页。
     # 要验证真实站点是否正常，在服务器上绕过 Nginx 直接打 Node：
     #   curl -I http://127.0.0.1:3000
     #
     # ⚠️ 这里**不能**写成 try_files $uri /index.html = 503。
-    # 实测（nginx 1.30）那个写法在 /index.html 真实存在时返回的是 **200**，
+    # 实测（nginx 1.30）那个写法在文件真实存在时返回的是 **200**，
     # 于是「503 + Retry-After」完全失效 —— 搜索引擎会把维护页当正常页面收录，
     # 而响应头里却挂着 Retry-After，自相矛盾。
     # 正确做法：return 503 给出状态码，再用 error_page 把响应体换成维护页。
@@ -177,7 +148,7 @@ server {
     location / {
         return 503;
         # 响应头在这两个 location 都写一遍。
-        # error_page 是**内部重定向**，响应最终由 /__maintenance.html 产生；
+        # error_page 是**内部重定向**，响应最终由内部 location 产生；
         # 而 add_header 的继承是「子级自己写了就整体覆盖父级」，不合并。
         # 只写一边都可能丢，所以两边都写 —— 谁产生响应谁就带上它。
         add_header Retry-After 3600 always;
@@ -194,44 +165,39 @@ server {
 }
 `
 
-const confPath = join(here, "lankhub-maintenance.conf")
-/*
- * 文件名用 `__maintenance.html` 而不是 `index.html`：
+/**
+ * 维护页文件名。
+ *
+ * 用 `__maintenance.html` 而不是 `index.html`：
  * 配置里 `error_page 503 /__maintenance.html` 指向的是一个 `internal` location，
- * 用这个带前缀的名字是为了**不与将来可能出现的其它 index.html 混淆**，
+ * 带前缀的名字**不与将来可能出现的其它 index.html 混淆**，
  * 也让人一眼看出它是维护模式的专用文件。
  */
-const htmlPath = join(here, "__maintenance.html")
+const MAINTENANCE_PAGE = "__maintenance.html"
 
-// 证书 key 由 fullchain 路径推导：certbot 的命名约定是 privkey.pem
-const key = arg("key", cert.replace(/fullchain\.pem$/, "privkey.pem"))
+const confPath = join(here, "lankhub-maintenance.conf")
+const htmlPath = join(here, MAINTENANCE_PAGE)
 
 writeFileSync(htmlPath, html)
 writeFileSync(
   confPath,
   nginxTemplate
-    .replace(/__DOMAIN__/g, domain)
-    .replace(/__CERT__/g, cert)
-    .replace(/__KEY__/g, key)
+    .replace(/__SERVERNAMES__/g, serverNames)
     .replace(/__WEBROOT__/g, webRoot)
 )
 
 const kb = (n) => `${Math.round(n / 1024)}KB`
-const certIsDetected = !process.argv.includes("--cert")
-console.log("✅ 维护页已生成")
+console.log("✅ 维护页与配置已生成")
 console.log("   图片来源：docs/photo/update.jpg  (" + kb(image.length) + ")")
 console.log("   维护页  ：maintenance/__maintenance.html  (" + kb(Buffer.byteLength(html)) + "，图片已内联)")
 console.log("   Nginx   ：maintenance/lankhub-maintenance.conf")
-console.log(`             域名 ${domain}`)
-console.log(
-  `             证书 ${cert}${certIsDetected && detected === cert ? "（自动探测到）" : ""}`
-)
-console.log(`             站点根 ${webRoot}`)
-if (certIsDetected && !existsSync(cert)) {
-  console.log("")
-  console.log("⚠️  上面这个证书路径在本机**不存在**。")
-  console.log("    如果这是你的服务器，请确认实际路径，必要时显式指定：")
-  console.log("      node maintenance/build.mjs --cert /你的路径/fullchain.pem")
-}
+console.log(`             域名     ${serverNames}`)
+console.log(`             站点根   ${webRoot}`)
+console.log("             协议     HTTP-only（只监听 80，不做任何跳转）")
 console.log("")
+console.log("⚠️ 这份配置是 **HTTP-only** 的：没有 443、没有 ssl_certificate、没有 301 跳转。")
+console.log("   如果你改用 HTTPS，必须往配置里补 443 块 —— 直接让 80 跳 443")
+console.log("   而 443 无人监听，会把整个站点打挂（真实踩过）。")
+console.log("")
+console.log("生成物不入库（见 .gitignore），改动模板后要重新跑一次本脚本。")
 console.log("下一步：在服务器上执行 bash scripts/maintenance/enable.sh")

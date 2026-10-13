@@ -12,8 +12,21 @@
 # ============================================
 set -euo pipefail
 
-LINK="/etc/nginx/sites-enabled/lankhub-maintenance"
+# ⚠️ 维护软链可能是**两个名字之一**，两个都必须删。
+#
+# 为什么会有两个：软链名 = 源文件名，历史上源文件叫过 lankhub-maintenance.conf。
+# 只要环境里残留过另一个名字，就可能出现两个软链同时存在，
+# 而只删一个 → **关了维护但仍显示维护页**（真实踩过，站长就是这么撞上的）。
+LINK_DIR="/etc/nginx/sites-enabled"
+LINKS=("$LINK_DIR/lankhub-maintenance" "$LINK_DIR/lankhub-maintenance.conf")
 WEB_ROOT="/var/www/lankhub-maintenance"
+
+any_link_exists() {
+  for l in "${LINKS[@]}"; do
+    if [ -e "$l" ] || [ -L "$l" ]; then return 0; fi
+  done
+  return 1
+}
 
 DRY_RUN=0
 PURGE=0
@@ -41,8 +54,10 @@ if [ "$DRY_RUN" = "0" ] && [ "$(id -u)" != "0" ]; then
   echo "  ✗ 需要 root 权限。请用 sudo 运行。"
   exit 1
 fi
-if [ ! -e "$LINK" ]; then
-  echo "  ⚠️  维护模式**本来就没开启**（$LINK 不存在）。"
+if ! any_link_exists; then
+  echo "  ⚠️  维护模式**本来就没开启**（sites-enabled 里没有维护软链）。"
+  echo "    已检查这两个名字："
+  for l in "${LINKS[@]}"; do echo "      $l"; done
   echo "    如果你的站点仍然显示维护页，请检查别处是否也配了 503，"
   echo "    或者在浏览器里强制刷新（维护页带 Cache-Control: no-store，一般不需要）。"
   exit 0
@@ -50,9 +65,16 @@ fi
 echo "  ✓ 维护模式当前是开启状态"
 echo ""
 
-echo "② 删除软链"
-run rm -f "$LINK"
-echo "  ✓ 已删除 $LINK"
+echo "② 删除软链（两个命名都检查）"
+LINK_COUNT=0
+for l in "${LINKS[@]}"; do
+  if [ -e "$l" ] || [ -L "$l" ]; then
+    run rm -f "$l"
+    echo "  ✓ 已删除 $l"
+    LINK_COUNT=$((LINK_COUNT + 1))
+  fi
+done
+[ "$LINK_COUNT" -gt 1 ] && echo "  （删除了 $LINK_COUNT 个 —— 之前存在重复软链，已一并清理）"
 echo ""
 
 echo "③ 语法检查（不过就不 reload）"
@@ -92,11 +114,18 @@ if [ "$DRY_RUN" = "0" ]; then
   else
     echo "  ✓ 应用有响应（HTTP $CODE）"
   fi
+  # 走 Nginx 再确认一次：现在应该不再是 503
+  NGX=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/ 2>/dev/null || echo "000")
+  case "$NGX" in
+    503) echo "  ⚠️  走 Nginx 仍是 503 —— 可能还有别处的维护配置残留，检查：sudo ls -l /etc/nginx/sites-enabled/" ;;
+    000) echo "  ?   走 Nginx 拿不到结果（不影响，可在浏览器确认）" ;;
+    *)   echo "  ✓ 走 Nginx 已恢复正常（HTTP $NGX）" ;;
+  esac
 fi
 echo ""
 echo "==========================================="
 echo "  ✅ 维护模式已关闭"
 echo "==========================================="
 echo ""
-echo "现在用浏览器访问 https://www.lankhub.xyz/ 确认已恢复正常。"
+echo "现在用浏览器访问你的站点确认已恢复正常（http://www.lankhub.xyz/）。"
 echo ""

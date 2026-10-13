@@ -1602,3 +1602,98 @@ sudo npm run maintenance:on                           # 会自动重新生成配
 ```
 
 之后 `maintenance:on` / `off` 可以正常用；生成物以后再也不会挡住 pull。
+
+---
+
+## 25. 🚨 v0.10.3：维护模式把整站打挂（HTTP-only 被 301 跳到不存在的 443）
+
+### 25.1 事故
+
+站长执行 `sudo npm run maintenance:on` 后**域名直接无法访问**，
+而用外网 IP 访问却显示正常页面。`maintenance:off` **也没能恢复**。
+
+### 25.2 根因：我没确认站点用 HTTP 还是 HTTPS
+
+站长的 `sudo nginx -T` 显示：**全局没有任何 `listen 443`、没有任何 `ssl_certificate`**
+—— 站点是 **HTTP-only**。而我的维护配置写成：
+
+```nginx
+server {
+    listen 80;
+    server_name www.lankhub.xyz;
+    location / { return 301 https://$host$request_uri; }   # ← 全部跳 443
+}
+server { listen 443 ssl http2; ... }                        # ← 443 根本没人监听
+```
+
+**域名请求 → 维护块 → 301 → 443 死端口 → 浏览器「无法访问」。**
+
+**IP 为什么正常**：`server_name www.lankhub.xyz` 匹配不到 IP 请求，
+IP 落到 `default_server`（`root /var/www/html`）—— **症状极具误导性**，
+会让人以为是证书或 443 的问题，而不是那个 301。
+
+### 25.3 ⚠️ 教训：维护配置必须与站点实际协议一致
+
+**写任何 Nginx 配置之前，先看这个站到底在监听什么**：
+
+```bash
+sudo nginx -T | grep -E 'listen|ssl_certificate'
+```
+
+- 站点只有 80 → 维护配置**只写 80，绝不写跳转**
+- 站点有 443 → 才考虑放 443 块；即便如此也**不要**在维护配置里写 80→443 跳转，
+  除非你已确认 443 正在正常服务
+
+**维护配置是「临时顶替」，不是「升级协议」的地方。** 想上 HTTPS 是另一件事。
+
+### 25.4 改法
+
+- 配置改为 **HTTP-only**：只 `listen 80`，零跳转，无证书，无 `http2`
+- 删掉 `--cert` 参数（配置里已无证书相关内容，留着只会误导）
+- `maintenance:build` 每次都会打印警告：这是 HTTP-only 配置，
+  将来改用 HTTPS 时必须补 443 块，**不要直接让 80 跳 443**
+
+### 25.5 顺带修掉两个相关 bug
+
+**① `server_name` 只覆盖了一半域名**
+
+原来只写 `www.lankhub.xyz`，于是 **`http://lankhub.xyz/`（不带 www）
+落到站点自己的块、显示正常页面** —— 维护只挡了一半。
+现在生成 `server_name www.lankhub.xyz lankhub.xyz;`。
+
+**② 两个软链命名 → `maintenance:off` 不生效**
+
+软链名 = 源文件名，历史上叫过 `lankhub-maintenance.conf`。
+环境里可能残留两个，而关闭脚本只删一个 → **关了维护仍显示维护页**。
+现在三个脚本都处理两个名字（`disable` 全删并提示，`status` 告警重复，
+`enable` 指出残留的是哪个）。
+
+> 顺带清掉一段**永远走不到的死代码**：我原先在 `enable.sh` 里加了
+> 「自动清理另一种命名残留」，但它位于「已开启则退出」检查**之后**，
+> 执行不到。是测试用例把它暴露出来的。
+
+### 25.6 ⚠️ 本节最有价值的东西：复刻症状需要的完整环境
+
+这次能定位准，是因为**用真实 nginx 复刻了站长的三个 server 块**
+（`default_server` + 主站块 + 维护块），再用 `curl -H 'Host: ...'` 分别打：
+
+| 请求 | 期望 | 本次实测 |
+| --- | --- | --- |
+| `Host: www.lankhub.xyz` | 503 + 维护页，且**无跳 https 的 Location 头** | ✅ |
+| `Host: lankhub.xyz` | 503 + 维护页（不能漏） | ✅ |
+| `Host: 1.2.3.4` | 200 默认页（不受影响） | ✅ |
+| `https://127.0.0.1/` | 无响应（与线上一致） | ✅ |
+
+**关键点**：把他那份 `nginx -T` 输出里的 `default_server` 块与主站块都复刻进来，
+否则复现不出「IP 正常、域名挂了」这个分裂现象 —— 而那个分裂正是最强的线索。
+另外主站块里 `proxy_pass` 指向一个**故意不存在的后端**，
+这样若请求错误地走到主站块就会得到 502，一眼可辨。
+
+### 25.7 验证结果
+
+- 静态检查：维护配置的**指令行**里无 `listen 443` / `ssl_certificate` /
+  `return 301` / `http2` / `letsencrypt`（只查指令行，不查注释 —— 注释里正好在讲这些）
+- `nginx -t` 通过；`nginx -T` 确认无 443 监听、无 301
+- 真启动后四种请求全部符合 25.6 的期望
+- 开关脚本端到端 **22 项**全过：软链双命名的三种场景、`nginx -t` 失败回滚、
+  `dry-run` 无副作用、`status` 识别两个命名并告警重复

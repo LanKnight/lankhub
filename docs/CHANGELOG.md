@@ -34,6 +34,85 @@
 
 ---
 
+## v0.10.3 — 2026-10-13
+
+### 🚨 严重修复：维护模式把整站打挂（HTTP-only 站点被 301 跳到不存在的 443）
+
+**适用对象：所有人。** 站长报告：执行 `maintenance:on` 后**域名直接无法访问**。
+
+#### 事故与根因
+
+维护配置写成：
+
+```nginx
+server {
+    listen 80;
+    server_name www.lankhub.xyz;
+    location / { return 301 https://$host$request_uri; }   # ← 全部跳 443
+}
+server { listen 443 ssl http2; ... }                        # ← 但站点根本没监听 443
+```
+
+而站长的站点**只用 HTTP**（`sudo nginx -T` 确认：全局没有任何 `listen 443`、
+没有任何 `ssl_certificate`）。于是：
+
+**域名请求 → 匹配维护块 → 301 跳到 443 → 443 是死端口 → 浏览器「无法访问」。**
+
+「用 IP 访问反而正常」的原因是：`server_name www.lankhub.xyz` 匹配不到 IP 请求，
+IP 落到了 `default_server`（`root /var/www/html`）—— 症状极具误导性。
+
+**我的错误**：没有先确认站点用的是 HTTP 还是 HTTPS，就按 HTTPS 写了配置，
+还加了一条 80→443 的跳转。对 HTTP-only 站点，那条跳转等于**把整站打到死端口上**。
+
+#### 改法：配置改为 HTTP-only
+
+- **只监听 80**，不做任何跳转
+- 去掉全部 `listen 443` / `ssl_certificate` / `ssl_dhparam` / `http2` / certbot include
+- 去掉 `--cert` 参数（配置里已无任何证书相关内容，留着只会误导）
+- 每次 `maintenance:build` 都会**打印一行警告**：这是 HTTP-only 配置，
+  若将来改用 HTTPS 必须补 443 块，**不要直接让 80 跳 443**
+
+#### 顺带修复：`server_name` 只覆盖了一半域名
+
+原来只写 `www.lankhub.xyz`，于是访问 **`http://lankhub.xyz/`（不带 www）**
+会落到站点自己的 server 块、看到**正常页面** —— 维护模式只挡了一半。
+现在生成 `server_name www.lankhub.xyz lankhub.xyz;`（去重，`--domain` 传任意一个都对）。
+
+#### 顺带修复：两个软链命名导致 `maintenance:off` 不生效
+
+维护软链名 = 源文件名，历史上源文件叫过 `lankhub-maintenance.conf`。
+环境里可能**同时残留两个软链**，而关闭脚本只删一个 →
+**关了维护但仍显示维护页**（站长遇到的正是这个：`off` 之后域名还是打不开）。
+
+现在三个脚本都同时处理两个名字：
+
+- `disable.sh` 两个都删，并在删除数 > 1 时提示「之前存在重复软链」
+- `status.sh` 会检测并**告警重复软链**（Nginx 会加载重复的 server 块）
+- `enable.sh` 检测到已开启时**指出具体是哪个名字残留**，并提示先执行关闭脚本
+
+> 顺带清掉一段**永远走不到的死代码**：我原先在 `enable.sh` 里加了「自动清理
+> 另一种命名残留」，但它位于「已开启则退出」检查**之后** —— 那段执行不到。
+> 测试用例把它暴露了出来。清理两种命名是 `disable` 的职责。
+
+#### 验证（用真实 nginx 复刻站长的完整环境）
+
+搭建了与他服务器一致的三个 server 块（`default_server` + 主站块 + 维护块），
+并用 `curl -H 'Host: ...'` 分别验证：
+
+| 请求 | 结果 | 期望 |
+| --- | --- | --- |
+| `Host: www.lankhub.xyz` | **503** + 维护页 | ✅ 且**响应头里没有跳 https 的 Location** |
+| `Host: lankhub.xyz`（不带 www） | **503** + 维护页 | ✅ |
+| `Host: 1.2.3.4`（IP） | **200** 默认页 | ✅ 未受影响 |
+| `https://127.0.0.1/` | 无响应 | ✅ 与线上一致——正因如此，任何 80→443 跳转都会打挂站点 |
+
+另加静态检查：维护配置的**指令行**里不得出现 `listen 443` / `ssl_certificate` /
+`return 301` / `http2` / `letsencrypt`。
+
+开关脚本端到端 **22 项**全过，含软链双命名的三种场景与 `nginx -t` 失败回滚。
+
+---
+
 ## v0.10.2 — 2026-10-13
 
 ### 修复：生成物被提交进仓库，导致服务器 `git pull` 失败

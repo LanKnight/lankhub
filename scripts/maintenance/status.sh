@@ -9,7 +9,10 @@
 # ============================================
 set -uo pipefail
 
-LINK="/etc/nginx/sites-enabled/lankhub-maintenance"
+# ⚠️ 维护软链可能是两个名字之一（软链名 = 源文件名），两个都要检查。
+# 只检查一个的话，遇到另一种命名会误报「未开启」。
+LINK_DIR="/etc/nginx/sites-enabled"
+LINKS=("$LINK_DIR/lankhub-maintenance" "$LINK_DIR/lankhub-maintenance.conf")
 WEB_ROOT="/var/www/lankhub-maintenance"
 LOG="/var/log/nginx/lankhub-maintenance.log"
 
@@ -18,14 +21,25 @@ echo "  lankHub 维护模式 —— 状态"
 echo "==========================================="
 echo ""
 
-if [ -L "$LINK" ]; then
-  echo "状态：🔴 维护模式【已开启】"
-  echo "  $LINK -> $(readlink "$LINK")"
-elif [ -e "$LINK" ]; then
-  echo "状态：🔴 维护模式【已开启】（但不是软链，是普通文件）"
-  echo "  $LINK"
-else
+FOUND=0
+for l in "${LINKS[@]}"; do
+  if [ -e "$l" ] || [ -L "$l" ]; then
+    FOUND=$((FOUND + 1))
+    if [ -L "$l" ]; then
+      echo "状态：🔴 维护模式【已开启】"
+      echo "  $l -> $(readlink "$l")"
+    else
+      echo "状态：🔴 维护模式【已开启】（不是软链，是普通文件）"
+      echo "  $l"
+    fi
+  fi
+done
+if [ "$FOUND" = "0" ]; then
   echo "状态：🟢 维护模式【未开启】（站点应正常访问）"
+elif [ "$FOUND" -gt 1 ]; then
+  echo ""
+  echo "⚠️  发现 $FOUND 个维护软链 —— Nginx 会加载**重复的 server 块**（域名重复定义）。"
+  echo "    请执行关闭脚本，它会把两个都删掉：sudo npm run maintenance:off"
 fi
 echo ""
 
@@ -58,10 +72,13 @@ else
 fi
 echo ""
 
-echo "外部访问（走 Nginx）："
-EXT=$(curl -s -k -o /dev/null -w '%{http_code}' --max-time 5 https://127.0.0.1/ -H 'Host: www.lankhub.xyz' 2>/dev/null || echo "000")
+echo "外部访问（走 Nginx，用域名做 Host）："
+# ⚠️ 这里必须是 http:// 而不是 https:// —— 本站是 HTTP-only，
+# 用 https 探测会拿不到结果（443 根本没人监听），从而误报。
+EXT=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1/ -H 'Host: www.lankhub.xyz' 2>/dev/null || echo "000")
 case "$EXT" in
   503) echo "  🔴 503 —— 维护页正在生效" ;;
+  502) echo "  🔴 502 —— 维护页生效了，但后端 Node 没响应，检查 pm2 status" ;;
   000) echo "  ?  本机自检拿不到结果（server_name 不匹配时会这样，正常）" ;;
   *)   echo "  🟢 HTTP $EXT —— 站点正常服务" ;;
 esac

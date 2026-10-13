@@ -478,21 +478,31 @@ sudo npm run maintenance:off -- --purge     # 关闭时顺便删掉维护页文�
 - **那个维护页是静态文件，几乎不吃 CPU** —— 攻击流量在 Nginx 这一层就被挡住，根本落不到 Node 上
 - **Node 挂了也能显示维护页**。这一条是关键：真在挨打时 Node 很可能已经上不来气，
   走应用层的方案会跟着一起挂，等于你想挂维护页却挂不上
-- **开/关 = 建/删一个软链**，完全不动 `sites-available/lankhub`。
-  那份配置被 certbot 改过（加了 443 与证书段），脚本去改它风险很大
+- **开/关 = 建/删一个软链**，完全不动你自己的站点配置
 
 #### 行为
 
 | 项 | 值 |
 | --- | --- |
+| 协议 | **HTTP（80）**。这个站点不使用 HTTPS，维护配置里**故意没有任何 443 / 证书 / 跳转** |
+| 覆盖域名 | `www.lankhub.xyz` **与** `lankhub.xyz`（两个都挡，否则只挡一半） |
 | 响应码 | **503**（搜索引擎视为「暂时不可用」，**不会把站点从索引里摘掉**） |
 | 响应头 | `Retry-After: 3600`、`Cache-Control: no-store` |
-| 谁能访问 | **所有人**（包括你自己）。要在服务器上验证真实站点，绕过 Nginx 直接打 Node：`curl -I http://127.0.0.1:3000` |
+| 谁能访问 | **所有人**（包括你自己）。要用服务器验证真实站点，绕过 Nginx 直接打 Node：`curl -I http://127.0.0.1:3000` |
 | 访问日志 | 单独一份 `/var/log/nginx/lankhub-maintenance.log` |
+| 用 IP 访问 | **不受影响**（IP 匹配不到维护块的 `server_name`，落到 Nginx 的 `default_server`） |
 
-> **为什么必须放行 `/.well-known/acme-challenge/`**：维护配置对所有请求都回 503，
-> 若不单独放行这条路径，**维护期间证书无法续期** —— 等你恢复站点时证书可能已经过期。
-> 这是维护模式最容易埋的坑，配置里已经处理好。
+> ⚠️ **维护配置必须与站点实际使用的协议一致。**
+> 这个配置曾经写成「80 上 301 跳 HTTPS + 443 上放维护页」，结果**把站点整个打挂**：
+> 站点只用 80、根本没有监听 443，于是域名请求全被 301 跳到一个死端口
+> （浏览器表现为「无法访问」），而用 IP 访问因为匹配不到 `server_name`
+> 反而落到了默认 server（看起来正常）—— 症状极具误导性。
+>
+> 换环境前先确认这个站到底是 HTTP 还是 HTTPS：
+> ```bash
+> sudo nginx -T | grep -E 'listen|ssl_certificate'
+> ```
+> 将来真上了 HTTPS，再往配置里加 443 块，**不要提前写跳转**。
 
 #### 两个安全设计
 
@@ -501,18 +511,29 @@ sudo npm run maintenance:off -- --purge     # 关闭时顺便删掉维护页文�
 2. **维护页是 `internal`**：外部直接请求 `/__maintenance.html` 会得到 404，
    只可能通过 `error_page 503` 这条内部路径返回。
 
-#### 改域名或证书
-
-脚本默认按 `docs/photo/update.jpg` 生成维护页，域名与证书路径可在生成时指定：
+#### 只改域名的话
 
 ```bash
-node maintenance/build.mjs --domain www.lankhub.xyz --cert /etc/letsencrypt/live/www.lankhub.xyz/fullchain.pem
+node maintenance/build.mjs --domain 你的域名
 ```
 
-`enable.sh` 在 reload 前会**检查证书文件是否真的存在**、域名是否从配置里读得到；
-核对不上就直接退出，不会带着坏配置去 reload。
+配置里**没有**证书路径之类的环境相关参数 —— 因为它是 HTTP-only 的。
+`enable.sh` 在 reload 前会核对域名是否从配置里读得到。
 
 想换维护页图片：替换 `docs/photo/update.jpg` 后重新 `npm run maintenance:build`。
+
+#### ⚠️ 维护配置的两个文件名
+
+维护软链在 `sites-enabled` 里**可能是两个名字之一**（软链名 = 源文件名，
+历史上源文件叫过 `lankhub-maintenance.conf`）：
+
+```
+/etc/nginx/sites-enabled/lankhub-maintenance
+/etc/nginx/sites-enabled/lankhub-maintenance.conf
+```
+
+**两个都必须处理** —— 只删一个会导致「关了维护但仍显示维护页」。
+现在的脚本都会检查两个名字（`disable.sh` 全删并提示，`status.sh` 会告警重复）。
 
 ### PM2 常用命令
 
