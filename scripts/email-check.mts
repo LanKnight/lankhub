@@ -16,7 +16,15 @@
 import { readFileSync } from "node:fs"
 import { execSync } from "node:child_process"
 
-const BASE = "http://127.0.0.1:3000"
+/**
+ * 被测应用的地址。可用 EMAIL_CHECK_BASE 覆盖。
+ *
+ * ⚠️ 这个脚本的【1】节断言的是「Key **未**配置」时的行为。
+ * 所以它要在**本地**跑（本地 .env 没有 RESEND_API_KEY），
+ * 或者指向一个刻意不配 Key 的实例。在配好 Key 的服务器上跑会失败 ——
+ * 那是预期行为，不是脚本坏了。
+ */
+const BASE = process.env.EMAIL_CHECK_BASE?.trim() || "http://127.0.0.1:3000"
 let pass = 0
 const fail: string[] = []
 

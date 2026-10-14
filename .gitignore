@@ -72,3 +72,8 @@ data/uploads/
 # 生成物由 npm run maintenance:build 现场产出。
 /maintenance/lankhub-maintenance.conf
 /maintenance/__maintenance.html
+# 本地 UI 检查截图（npm run ui:check 生成，不入库）
+.ui-shots/
+# 本地调试时应用输出的日志（不入库）
+scripts/_app.log
+*.log

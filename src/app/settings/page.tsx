@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 import { getCurrentUser } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
+import { isEmailEnabled } from "@/lib/email/sender"
 import ProfileForm from "@/components/settings/ProfileForm"
 import PasswordForm from "@/components/settings/PasswordForm"
 import LogoutButton from "@/components/settings/LogoutButton"
@@ -25,9 +26,16 @@ export default async function SettingsPage() {
   // 从数据库读最新值（session 里那份是登录时的快照，改完昵称不会同步）
   const me = await prisma.user.findUnique({
     where: { id: Number(user.id) },
-    select: { name: true, email: true, bio: true, role: true },
+    select: { name: true, email: true, bio: true, role: true, emailVerifiedAt: true },
   })
   if (!me) redirect("/auth/login?callbackUrl=/settings")
+
+  /*
+   * 邮件功能是否可用由**服务端**判断后传下去。
+   * 客户端组件读不到非 NEXT_PUBLIC_ 的环境变量，硬读会得到 undefined
+   * 并误判成「已关闭」——那种 bug 只在生产环境出现，很难查。
+   */
+  const emailEnabled = isEmailEnabled()
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-16">
@@ -47,7 +55,11 @@ export default async function SettingsPage() {
 
         <section className="bg-white rounded-xl border border-gray-100 p-6">
           <h2 className="font-semibold text-gray-900 mb-4">修改密码</h2>
-          <PasswordForm />
+          <PasswordForm
+            email={me.email}
+            emailVerified={me.emailVerifiedAt !== null}
+            emailEnabled={emailEnabled}
+          />
         </section>
 
         <section className="bg-white rounded-xl border border-gray-100 p-6">

@@ -12,7 +12,9 @@ import {
   LOGIN_ACCOUNT_MAX,
   LOGIN_IP_MAX,
 } from "@/lib/rate-limit"
-import { ChangePasswordSchema, ProfileUpdateSchema } from "@/lib/validations"
+import { ChangePasswordSchema, ProfileUpdateSchema, ChangePasswordWithCodeSchema } from "@/lib/validations"
+import { isEmailEnabled } from "@/lib/email/sender"
+import { describeFail, verifyCode } from "@/lib/email/verify-code"
 
 /**
  * Auth.js 用 AuthError 的子类表示登录失败，这里做鸭子类型判断而不是
@@ -172,8 +174,93 @@ export async function loginByCodeAction(email: string, code: string) {
 }
 
 /**
+ * 修改自己的密码（**需要邮箱验证码**）。
+ *
+ * 为什么改成要验证码：只凭旧密码的话，**任何拿到旧密码的人都能改掉密码**
+ * （比如曾在共用电脑上登录过、密码被同事看到）。加一道邮箱验证码，
+ * 等于要求「同时掌握密码与邮箱」两样东西。
+ *
+ * 校验、消费验证码、改密码**在同一个 Action 里完成** —— 不拆成
+ * 「先校验拿凭证、再带凭证改密」，那样会多出一个可重放的中间态。
+ *
+ * 顺序上先验旧密码再验验证码：旧密码错时不该消耗掉用户的验证码。
+ */
+export async function changePasswordWithCodeAction(
+  oldPassword: string,
+  code: string,
+  newPassword: string
+) {
+  const user = await getCurrentUser()
+  if (!user) {
+    return { success: false, error: "请先登录" }
+  }
+
+  const parsed = ChangePasswordWithCodeSchema.safeParse({
+    oldPassword,
+    code,
+    newPassword,
+  })
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message || "请检查填写内容",
+    }
+  }
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: Number(user.id) },
+    select: { id: true, email: true, password: true, emailVerifiedAt: true },
+  })
+  if (!dbUser) {
+    return { success: false, error: "用户不存在" }
+  }
+
+  // 先验旧密码：它不消耗验证码，用户可以修正后直接重试
+  const isValid = await bcrypt.compare(parsed.data.oldPassword, dbUser.password)
+  if (!isValid) {
+    return { success: false, error: "当前密码错误" }
+  }
+
+  // 邮箱未验证的账号没有验证码可发，只能走「仅旧密码」那条路
+  if (dbUser.emailVerifiedAt === null) {
+    return {
+      success: false,
+      error: "该邮箱尚未验证，无法获取验证码",
+      needVerifyEmail: true,
+    }
+  }
+
+  if (!isEmailEnabled()) {
+    return { success: false, error: describeFail("email-disabled") }
+  }
+
+  // 收件人固定为当前登录用户的邮箱，不接受客户端指定
+  const result = await verifyCode({
+    email: dbUser.email,
+    scene: "change",
+    code: parsed.data.code,
+  })
+  if (!result.ok) {
+    return { success: false, error: describeFail(result.reason) }
+  }
+
+  const hashed = await bcrypt.hash(parsed.data.newPassword, 10)
+  await prisma.user.update({
+    where: { id: dbUser.id },
+    data: { password: hashed },
+  })
+
+  return { success: true }
+}
+
+/**
  * 修改自己的密码。所有登录用户都能调用
  * （原先只有站长能从 /admin/settings 进，普通读者连入口都没有）。
+ *
+ * ⚠️ 这是**仅凭旧密码**的版本，只作为退路保留：
+ * 邮件服务不可用、或账号邮箱未验证时，用户仍需要能改密码 ——
+ * 否则单点故障会让他彻底失去这个能力（与「保留密码登录」是同一个思路）。
+ * 界面上的默认路径是 `changePasswordWithCodeAction`。
  */
 export async function changePasswordAction(
   oldPassword: string,

@@ -13,6 +13,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
+    "db:migrate": "prisma db push && prisma generate && tsx prisma/verify-existing.ts",
     "db:backfill-collections": "tsx prisma/backfill-collections.ts",
     "db:cleanup-awards": "tsx prisma/cleanup-awards.ts",
     "db:normalize-usernames": "tsx prisma/normalize-usernames.ts",
@@ -22,7 +23,7 @@
     "db:cleanup-unverified": "tsx prisma/cleanup-unverified.ts",
     "db:cleanup-codes": "tsx prisma/cleanup-codes.ts",
     "reset-password": "tsx prisma/reset-password.ts",
-    "update": "bash scripts/backup.sh && git checkout -- package-lock.json && git pull && export better_sqlite3_binary_host=https://npmmirror.com/mirrors/better-sqlite3 && export NODEJS_ORG_MIRROR=https://npmmirror.com/mirrors/node && export PRISMA_ENGINES_MIRROR=https://npmmirror.com/mirrors/prisma && npm ci --prefer-offline --ignore-scripts && npm rebuild better-sqlite3 --build-from-source && npm run db:push && npm run build && pm2 restart next-app",
+    "update": "bash scripts/backup.sh && git checkout -- package-lock.json && git pull && export better_sqlite3_binary_host=https://npmmirror.com/mirrors/better-sqlite3 && export NODEJS_ORG_MIRROR=https://npmmirror.com/mirrors/node && export PRISMA_ENGINES_MIRROR=https://npmmirror.com/mirrors/prisma && npm ci --prefer-offline --ignore-scripts && npm rebuild better-sqlite3 --build-from-source && npm run db:migrate && npm run build && pm2 restart next-app --update-env",
     "backup": "bash scripts/backup.sh",
     "restore": "bash scripts/restore.sh",
     "maintenance:build": "node maintenance/build.mjs",
@@ -33,7 +34,9 @@
     "https:redirect": "bash scripts/https/enable-redirect.sh",
     "https:off": "bash scripts/https/disable.sh",
     "email:test": "tsx scripts/email-test.mts",
-    "email:check": "tsx scripts/email-check.mts"
+    "email:check": "tsx scripts/email-check.mts",
+    "email:code-test": "tsx scripts/verify-code-test.mts",
+    "ui:check": "node scripts/ui-check.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

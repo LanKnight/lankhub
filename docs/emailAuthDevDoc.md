@@ -176,7 +176,13 @@ hash = HMAC-SHA256(AUTH_SECRET, `${email}:${scene}:${code}`)
 1. 限流可以统一按 `(email, scene)` 做
 2. 将来加场景（如「换绑邮箱」）不用改表结构
 
-### 3.4 注册用 `pending` 状态占位，而不是「先建账号再验证」
+### 3.4 注册分两步：先建**未验证**账号，验证通过才算注册完成
+
+> **标题修正记录**：本节原题为「注册用 `pending` 状态占位」，
+> 那是早期设想（另建一张 pending 表暂存注册意图）。
+> 最终实现**没有**用 pending 表，而是直接建 `User` 并把
+> `emailVerifiedAt` 留空 —— 字段更少、邮箱唯一索引直接生效。
+> 标题与内容已按实际实现改写，避免以后有人按旧设想动手。
 
 **问题**：现在注册时邮箱重复会**假装成功**（防邮箱枚举），用户实际拿不到账号，
 既困惑又没提示。
@@ -190,6 +196,10 @@ hash = HMAC-SHA256(AUTH_SECRET, `${email}:${scene}:${code}`)
 第二步：输验证码
         → 通过则 emailVerifiedAt = now，注册完成
 ```
+
+**还有一条必须实现的**：若邮箱被一个**未验证**账号占用（上次注册到一半放弃了），
+**覆盖它**（更新昵称与密码）而不是报错 —— 否则那用户会永久卡死，
+因为那个账号他登不上、又没有别的入口能继续。**已验证账号绝不被覆盖。**
 
 **这里有一个必须讲清的安全点**：
 
@@ -475,104 +485,6 @@ Body: { email: string, scene: "register" | "login" | "reset" | "change" }
 > **`register` 场景不在这里建号**。建号发生在 `POST /api/auth/register`
 > （见 5.2），避免「光发码就产生一堆 user 记录」。
 
-### 5.2 分两步的注册
-
-```
-第一步  POST /api/auth/register
-        Body: { name, email, password }
-        → zod 校验（复用现有 RegisterSchema）
-        → 昵称查重（409，与现状一致）
-        → 邮箱：若已被**已验证**账号占用 → 409「该邮箱已注册」
-                若被**未验证**账号占用 → 覆盖该记录（更新昵称/密码）后继续
-                否则 → 新建 User（emailVerifiedAt = null）
-        → 发验证码（scene = register）
-        → 200 { needVerify: true, email }
-
-第二步  POST /api/auth/verify-code
-        Body: { email, scene: "register", code }
-        → 校验并消费验证码
-        → 该 email 的 User.emailVerifiedAt = now
-        → 200 { ok: true }
-        → 前端跳登录页
-```
-
-> **为什么覆盖未验证账号而不是报错**：用户可能第一次没收到邮件就放弃了，
-> 第二次重新注册时若报「已注册」，他会卡死（因为那个账号他也登不上）。
-> 覆盖是唯一不卡人的做法。**已验证账号绝不被覆盖**。
-
-### 5.3 验证码登录
-
-```
-POST /api/auth/login-by-code
-Body: { email, code }
-→ 用与 password 登录完全相同的两道限流（邮箱+IP、IP）
-→ 校验并消费验证码（scene = login）
-→ 检查 emailVerifiedAt 非空，为空则提示「请先完成邮箱验证」
-→ 创建会话（与 signIn("credentials") 等效）
-→ 200 { ok: true }
-```
-
-**「创建会话」怎么做**（这是一个需要明确的技术点）：
-
-Auth.js 的 `signIn()` 在 Server Action 里可用，但 `login-by-code` 是 Route Handler。
-**推荐做法**：把验证码登录也做成 **Server Action**（`loginByCodeAction`），
-与现有的 `loginAction` 并列，内部同样调用 `signIn("credentials", {...})`。
-
-为此需要一个**只在服务端内部使用**的 Credentials provider：
-
-```
-provider id: "email-code"
-credentials: { email, code }   // 前端永远不直接调它
-authorize():
-  - 校验并消费验证码
-  - 返回 user（与现有 credentials provider 相同的 shape）
-```
-
-> 这个 provider 被 `signIn("email-code", {...})` 从 Server Action 里调用，
-> **不经过任何 HTTP 路由**，所以不存在「暴露一个免密登录接口」的风险。
-> 前端拿不到它的 CSRF token。
-
-### 5.4 忘记密码
-
-```
-请求重置  POST /api/auth/forgot-password
-         Body: { email }
-         → 统一话术 200（见 3.5）
-         → 存在则发码（scene = reset）
-
-提交重置  POST /api/auth/reset-password
-         Body: { email, code, newPassword }
-         → 校验并消费验证码（scene = reset）
-         → 更新 password（bcrypt）
-         → 200 { ok: true }
-```
-
-**重置成功后是否强制所有会话失效？**
-Auth.js 用 JWT 会话，**服务端无法主动吊销已签发的 JWT**（除非引入黑名单）。
-这一期的做法：**如实告知站长这个限制**，不做伪安全处理。
-
-> 这是 JWT session 的固有特性，不是本项目的 bug。若将来要求「改密后其它设备立刻掉线」，
-> 需要改成数据库会话策略（`session: { strategy: "database" }`），
-> 那是一次较大的改动，**不在本期**。
-
-### 5.5 改密码时验证（已登录用户）
-
-```
-POST /api/auth/change-password-with-code
-Body: { oldPassword, code, newPassword }
-→ 需已登录（requireAuth）
-→ 校验旧密码（与现有 changePasswordAction 一致）
-→ 校验并消费验证码（scene = change，收件人 = 当前用户邮箱）
-→ 更新 password
-```
-
-**保留原有的「只凭旧密码改密码」入口吗？**
-
-建议**保留但降级**：`/settings` 上的改密码默认走**新流程（旧密码 + 验证码）**；
-如果用户邮箱未验证或邮件功能关闭，**回退到只凭旧密码**并给出说明。
-
-**理由**：直接砍掉会让「邮件挂了」时用户完全无法改密码。这与 3.1 保留密码登录是同一个思路。
-
 ---
 
 ## 六、安全清单（逐条都要有对应的代码与测试）
@@ -741,8 +653,12 @@ npm run db:cleanup-codes        # 删除超过 24 小时的验证码记录
 | `npm run email:test 你的邮箱` | **发一封测试邮件**，验证 Resend 链路真的通。手动执行、需服务器权限（**刻意不做成公开接口**，否则任何人都能拿你邮箱刷额度） |
 | `npm run email:check` | **密钥泄露防线**：查自检接口行为、源码脱敏约定，并扫描全部 git 跟踪文件里有没有真实密钥。需应用在 3000 端口运行 |
 | `npx tsx scripts/verify-code-test.mts` | **验证码核心逻辑的 57 项测试**（阶段 4 的产物）。见下方说明 |
+| `npm run email:code-test` | 同上（npm 别名） |
+| `npm run ui:check` | **浏览器检查**：真实启动应用 + 无头 Edge，检查三个页面能否渲染、有无 console 错误与运行时异常，并跑关键交互（35 项） |
+| `npm run db:migrate` | **一条命令做对「改完 schema 之后」的全部三件事**：`db push` → `db generate` → `verify-existing` |
 
-后两个脚本都支持 `--dry-run`（只打印、不写库）与 `--hours N`（改保留时长）。
+> 三个 `db:cleanup-*` / `db:verify-existing` 脚本都支持 `--dry-run`（只打印、不写库）
+> 与 `--hours N`（改保留时长）。改数据之前先用 `--dry-run` 看一眼是好习惯。
 
 ### 7.6 验证码逻辑的测试方式（阶段 4）
 
@@ -802,6 +718,72 @@ npm run email:check                                    # 期望全部通过
 
 ---
 
+### 7.7 部署到服务器（阶段 9）
+
+**首选项：直接跑 `npm run update`**，它现在已包含全部必需步骤：
+
+```bash
+cd ~/lankhub
+npm run update
+```
+
+它做的事（**已修正**，原先缺了 `db:generate` 与 `db:verify-existing`）：
+
+```
+backup.sh → git pull → npm ci → npm rebuild better-sqlite3
+  → npm run db:migrate      ← 新增：db push + db generate + verify-existing
+  → npm run build           ← 关键：没有这一步新路由不存在
+  → pm2 restart next-app --update-env
+```
+
+若要手动执行（等价）：
+
+```bash
+cd ~/lankhub
+npm run backup            # 先备份（含数据库）
+git pull
+npm run db:migrate        # push + generate + 标记存量账号
+npm run build             # ⚠️ 必须，pm2 restart 不会重建
+pm2 restart next-app --update-env
+```
+
+**部署后的验证清单**（建议逐条执行）：
+
+```bash
+# 1. 邮件配置真的被 PM2 进程读到了
+curl -s http://127.0.0.1:3000/api/auth/email-health
+#    期望："keyLoaded":true，"keyLength":36 左右
+
+# 2. 存量账号已标记为已验证（否则站长自己都登不上）
+npm run db:verify-existing -- --dry-run
+#    期望：「没有需要处理的账号」
+
+# 3. 真的能发出一封信（消耗 1 封免费额度）
+npm run email:test 你的邮箱@example.com
+
+# 4. 浏览器打开站点，走一遍：
+#    注册（两步）→ 收码 → 验证 → 登录 → 退出 → 验证码登录 → 忘记密码 → 改密码
+```
+
+> ⚠️ **`npm run db:verify-existing` 是本次上线最关键的一步**。
+> 它把存量账号标记为「邮箱已验证」。跳过它的话，**包括站长在内的所有老用户
+> 都会被「请先完成邮箱验证」挡在门外** —— 而他们根本没收到过验证码，
+> 也没有任何入口能完成验证，等于把所有人锁在站点外面。
+
+#### 7.7.1 密钥泄露的历史遗留（已知限制，如实说明）
+
+旧文档 `docs/siteEmailLogin.md` 里写过被吊销 Key 的**前 8 个字符**
+（`re_iMa5Cu` + 8 个星号）。该文件已删除，**当前 HEAD 是干净的**，
+但它仍存在于两个历史提交中（`0e4df2d`、`e75f63e`）。
+
+- **暴露程度有限**：只有 8 个字符，真实 Key 长 34 位，其余 26 位未知，
+  无法还原、无法使用。
+- **真正的修复是吊销**：站长已吊销该 Key 并重新生成，泄露的前缀现在一文不值。
+- **刻意不重写 git 历史**：重写会改变全部提交哈希、打断任何已克隆的副本，
+  代价远大于这点残余风险。这个取舍是明确的，不是遗漏。
+- 未来的防线是 `npm run email:check`：它扫描全部 git 跟踪文件里
+  有无真实密钥（Resend / OpenAI / Google / 私钥四种形态）。
+
 ## 八、邮件模板
 
 **单个验证码邮件模板**，四个场景共用，只改标题与引导语（避免四份 HTML 漂移）。
@@ -829,23 +811,44 @@ npm run email:check                                    # 期望全部通过
 
 ## 九、前端改动
 
-| 页面 | 改动 |
-| :--- | :--- |
-| `/auth/login` | 加**两个标签页**：「密码登录」/「验证码登录」。默认前者（存量用户习惯） |
-| `/auth/register` | 改为**两步**：第一步表单，第二步输码（同一页内切换，不跳页） |
-| `/auth/forgot-password` | **新增**：输邮箱 → 输码 + 新密码 |
-| `/settings` | 改密码区域：加验证码输入；邮箱未验证时给提示 |
-| 全局 | 未验证账号尝试登录时的提示要**可操作**（给出「重新发送验证码」按钮） |
+> **本节已按实际实现回填**（阶段 7 完成后）。
 
-**交互细节（都很关键，实现时逐条对照）**：
+| 页面 | 改动 | 新增/修改的文件 |
+| :--- | :--- | :--- |
+| `/auth/login` | 加**两个标签页**：「密码登录」/「验证码登录」。默认前者（存量用户习惯，且 Resend 出问题时它仍可用） | `LoginForm.tsx` |
+| `/auth/register` | 改为**两步**：第一步表单，第二步输码（同一页内切换，不跳页） | `RegisterForm.tsx` |
+| `/auth/forgot-password` | **新增**：输邮箱 → 输码 + 新密码 | `ForgotPasswordForm.tsx`、`app/auth/forgot-password/page.tsx` |
+| `/settings` | 改密码加验证码；邮箱未验证/邮件不可用时自动退回「仅旧密码」 | `PasswordForm.tsx`、`app/settings/page.tsx` |
+| 通用组件 | 验证码输入、发码按钮（四个页面复用） | `CodeInput.tsx`、`SendCodeButton.tsx` |
 
-1. 发码按钮点击后进**倒计时**（60 秒），倒计时期间禁用并显示剩余秒数
-2. 验证码输入框：`inputMode="numeric"`、`maxLength=6`、`autoComplete="one-time-code"`
-   （iOS/Android 能从短信/邮件自动填充）
-3. 输满 6 位**自动提交**（省一次点击），但保留手动提交按钮
-4. 所有错误文案来自服务端 `error` 字段，前端**不自己编文案**（避免两套口径）
-5. 提交中禁用按钮 + `Loader2` 旋转（与现有 `LoginForm` 一致）
-6. `prefers-reduced-motion` 下不做多余动效（沿用站内既有约定）
+**交互细节（实现时逐条对照的结果）**：
+
+| # | 要求 | 落实 |
+| :-- | :--- | :--- |
+| 1 | 发码按钮 60 秒倒计时 | ✅ `SendCodeButton`。**被服务端冷却拒绝时也起倒计时**，否则会出现「服务端说要等 43 秒、按钮却立即可点」的矛盾状态 |
+| 2 | `inputMode="numeric"` + `autoComplete="one-time-code"` | ✅ 6 个单格，只有第一格挂 `one-time-code`（挂在每格上会让自动填充行为不确定） |
+| 3 | 输满 6 位自动提交 | ✅ 同时保留手动提交按钮 |
+| 4 | 错误文案来自服务端 | ✅ 前端只在「提交前」做形状校验（少一次往返），业务错误一律用服务端返回的 `error` |
+| 5 | 提交中禁用 + `Loader2` | ✅ 与既有表单一致 |
+| 6 | `prefers-reduced-motion` | ✅ 未新增自定义动效，只用了既有的 `ViewTransition` |
+
+**额外做到的几点**：
+
+- **粘贴整串验证码**能一次铺满 6 格（邮箱里复制验证码是最常见的操作路径）
+- 退格时当前格为空则**退回上一格**；左右方向键可移动焦点
+- 输入框只接受数字（用户可能输入全角数字或混入其它字符）
+- 注册第二步会**显示邮箱地址**，便于用户核对自己有没有填错
+- 注册第二步提供「返回修改邮箱或昵称」的出口 —— 填错了不必刷新页面重来
+
+> ⚠️ **`useSearchParams` 必须包在 `Suspense` 里**（`LoginForm` 与 `RegisterForm` 都用它读
+> `callbackUrl`）。Next.js 官方文档明确：生产构建时，静态页面里的 Client Component
+> 调用 `useSearchParams` 而未包 `Suspense`，**构建会直接失败**
+> （`Missing Suspense boundary with useSearchParams`）。
+> 这两个页面的 `page.tsx` 都已经包了。
+> `ForgotPasswordForm` 不用 `useSearchParams`，所以它的页面**不需要** `Suspense`。
+
+**验证方式**：`npm run ui:check` —— 真实启动应用 + 无头 Edge，
+检查三个页面能否渲染、有无 console 错误与运行时异常，并跑关键交互（35 项断言）。
 
 ---
 
@@ -853,24 +856,28 @@ npm run email:check                                    # 期望全部通过
 
 ### 10.1 README 增加「第三方服务」条目
 
-在现有 `## 免责声明 / ### 二、第三方服务` 里**追加**（与音乐那条并列）：
+✅ **已完成**。在现有 `## 免责声明 / ### 二、第三方服务` 下拆成两小节：
 
-- 登录系统的**邮箱验证码**依赖第三方邮件服务 **Resend**（`resend.com`）
-- 该服务由第三方独立运营，**与本项目作者无任何关联**，作者未获其授权、赞助或担保
-- 邮件内容仅包含**验证码与必要提示**，不含推广内容
-- 本项目**不存储**邮件正文；验证码以**单向哈希**形式存储，且**用后即焚**
-- 该服务可能随时变更、限流或停止；**本项目不对其可用性作任何保证**
-- 长期部署使用者**请自行确认并遵守其条款与配额政策**
-- **部署者的责任**：`.env` 中的 `RESEND_API_KEY` 由部署者自行申请与保管，
-  因 Key 泄露、配额超限或被滥用产生的一切后果由部署者承担
+- **2.1 邮件发送服务 Resend** —— 说明邮箱与邮件内容会交给第三方投递、
+  邮件只含验证码不含账号信息、验证码以 HMAC 存储且用后即焚、
+  未配 Key 时邮件功能整体不可用而**密码登录仍可用**、
+  部署者需自行申请账号并遵守 100 封/天与 3000 封/月的配额
+- **2.2 在线音乐接口 GD音乐台** —— 原有内容，改为子条目
+
+同时补进了「四、部署与使用风险」，新增两条部署者责任：
+
+- **邮件发送的合规性**（自行申请 Resend、遵守条款与配额）
+- **账号数据的保管责任**（库里存有用户邮箱与密码哈希）
 
 ### 10.2 站内页面写明
 
-- `/auth/login` 与 `/auth/register` 表单下方加一行小字：
-  「登录/注册会通过第三方邮件服务 Resend 向你的邮箱发送验证码」
-- 页脚「免责声明」链接目前指向 `/music/disclaimer`。
-  **本期不改动它**（那是音乐专属页面）；改为在 README 与登录页小字里说明。
-  若站长想统一，可另开一个 `/disclaimer` 总页面，**属于独立改动**。
+✅ **已完成**：
+
+- `/auth/login`、`/auth/register`、`/auth/forgot-password` 三个表单下方
+  都有一行小字：「…验证码由第三方邮件服务 Resend 发送。我们只发送验证码，不会用于其它用途。」
+- 页脚「免责声明」链接**仍指向 `/music/disclaimer`**（本期不改）——
+  它是音乐专属页面，本期在 README 与登录页小字里说明邮件部分。
+  若站长想统一成一个总页面，那是独立改动。
 
 ### 10.3 脱敏清单（提交前逐项检查）
 
@@ -896,9 +903,9 @@ npm run email:check                                    # 期望全部通过
 | **4** | `src/lib/email/verify-code.ts`：发码/校验/消费 + 三级限流 + 配额 | 单元级验证：冷却、上限、过期、用后即焚、错误次数全覆盖 | ✅ **已完成**（57 项验证全过） |
 | **5** | 接口：`send-code` / `verify-email` / `register`（改造）/ `forgot-password` / `reset-password` / `change-password` | curl 逐个场景走通（含错误分支） | ✅ **已完成**（50 项端到端全过） |
 | **6** | Auth.js：新增 `email-code` provider + 密码登录校验邮箱已验证 | 验证码能真正建立会话 | ✅ **已完成**（20 项端到端全过） |
-| **7** | 前端：登录页双标签、注册两步、忘记密码页、settings 改密码 | 浏览器手测全流程 | ⏳ 下一步 |
-| **8** | 文档与脱敏：README 免责声明、登录页小字、确认仓库无真实前缀 | `npm run email:check` 通过 | |
-| **9** | 部署验证 | 线上走一遍四个场景 | |
+| **7** | 前端：登录页双标签、注册两步、忘记密码页、settings 改密码 | 浏览器手测全流程 | ✅ **已完成**（35 项浏览器检查全过，含交互） |
+| **8** | 文档与脱敏：README 免责声明、登录页小字、确认仓库无真实密钥 | `npm run email:check` 通过 | ✅ **已完成**（219 个跟踪文件无真实密钥） |
+| **9** | 部署验证 | 线上走一遍四个场景 | ⏳ **等站长部署**（见 7.7） |
 
 > **阶段 0 与 1 不可跳过**。跳过它们的后果是「代码全对、线上 401」。
 
