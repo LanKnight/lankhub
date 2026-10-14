@@ -25,7 +25,17 @@ export async function GET(req: NextRequest) {
    * 用 401 而不是 403：前端可据此区分「你该登录」与「你没权限」。
    */
   const user = await requireAuth()
-  if (user instanceof NextResponse) return user
+  if (user instanceof NextResponse) {
+    /*
+     * requireAuth 的 401 是**全站通用**的形状，这里就地补上 music 的 code。
+     * 刻意不去改 auth-helpers.ts —— 那会给评论、后台等所有接口都塞一个
+     * 音乐专用的错误码，把两处不相关的东西耦合起来。
+     *
+     * 播放器拿到 unauthorized 应当**停止自动跳歌**：没登录时队列里每一首
+     * 都会失败，继续跳只会一路跳到上限。
+     */
+    return NextResponse.json({ error: "请先登录", code: "unauthorized" }, { status: 401 })
+  }
 
   /*
    * 仍然保留按 IP 的限流，它管的是另一件事：
@@ -37,8 +47,12 @@ export async function GET(req: NextRequest) {
   const ip = getClientIp(req.headers)
   const limitResult = rateLimit(`music:play:${ip}`, 60, 60 * 1000)
   if (!limitResult.allowed) {
+    /*
+     * `code` 是给播放器分流用的（见 music-api.ts 的 MusicErrorCode）：
+     * 限流属于**暂时**失败，播放器应当退避重试，而不是把这首歌当成永久失效跳过去。
+     */
     return NextResponse.json(
-      { error: "操作过于频繁，请稍后再试" },
+      { error: "操作过于频繁，请稍后再试", code: "rate_limited" },
       {
         status: 429,
         headers: { "Retry-After": String(limitResult.retryAfter) },
@@ -49,7 +63,10 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const parsed = IdSchema.safeParse(url.searchParams.get("id"))
   if (!parsed.success) {
-    return NextResponse.json({ error: "参数不合法" }, { status: 400 })
+    return NextResponse.json(
+      { error: "参数不合法", code: "bad_request" },
+      { status: 400 }
+    )
   }
   // 播放器播到一半发现地址失效时会带这个参数回来，跳过内存缓存重取一次，
   // 否则重试拿到的还是那条已经坏掉的地址
@@ -61,21 +78,37 @@ export async function GET(req: NextRequest) {
   })
 
   if (!song) {
-    return NextResponse.json({ error: "歌曲不存在" }, { status: 404 })
+    return NextResponse.json(
+      { error: "歌曲不存在", code: "not_playable" },
+      { status: 404 }
+    )
   }
 
   /*
    * 还没绑定到 API 的歌返回 409。
    * 歌单已经没有外链字段了，所以这里不再附带「去别处听」的退路 ——
    * 前台对这类歌直接置灰不可点，提示「本站无此版本」。
+   *
+   * code 归为 not_playable（永久）：重试也不会有地址，播放器应直接换歌。
    */
   if (!song.apiId) {
-    return NextResponse.json({ error: "本站没有这首歌的版本" }, { status: 409 })
+    return NextResponse.json(
+      { error: "本站没有这首歌的版本", code: "not_playable" },
+      { status: 409 }
+    )
   }
 
   const result = await getPlayUrl(song.apiId, { force })
   if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: 502 })
+    /*
+     * 把上游的 code 透传给播放器（它据此决定「立刻换歌」还是「退避重试」）。
+     * 万一上游没给 code（旧路径），退化成 upstream_error —— 那属于「值得重试」，
+     * 比误判成永久失败更安全：最多多试两次，而误判成永久会直接跳过一首能播的歌。
+     */
+    return NextResponse.json(
+      { error: result.error, code: result.code ?? "upstream_error" },
+      { status: 502 }
+    )
   }
 
   return NextResponse.json({ url: result.data })

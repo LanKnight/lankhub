@@ -5,8 +5,10 @@ import {
   ChevronDown,
   ListMusic,
   ListOrdered,
+  Loader2,
   Pause,
   Play,
+  RotateCcw,
   SkipBack,
   SkipForward,
 } from "lucide-react"
@@ -48,7 +50,18 @@ export default function ImmersivePlayer({
   duration: number
   onSeek: (value: number) => void
 }) {
-  const { current, playing, loading, error, toggle, next, prev } = usePlayer()
+  const {
+    current,
+    playing,
+    loading,
+    error,
+    errorRetryable,
+    notice,
+    toggle,
+    next,
+    prev,
+    retryManually,
+  } = usePlayer()
   const lyricBoxRef = useRef<HTMLDivElement | null>(null)
   /** 歌词容器的可视高度，用来算上下留白（见下面的注释） */
   const [lyricBoxHeight, setLyricBoxHeight] = useState(0)
@@ -263,6 +276,19 @@ export default function ImmersivePlayer({
               </div>
               <div className="absolute left-1/2 top-1/2 h-[4%] w-[4%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/90 shadow-inner" />
             </div>
+
+            {/*
+              加载中：在唱盘外套一圈细的旋转弧。
+              取播放地址要几百毫秒，这段时间里盘面是静止的、按钮也点不动 ——
+              没有提示用户会以为卡住了。用一圈细弧而不是大转圈，
+              是为了贴合站内水墨极简的调子（一个满屏 spinner 太吵）。
+            */}
+            {loading && (
+              <div
+                className="pointer-events-none absolute inset-[-6px] animate-spin rounded-full border-2 border-transparent border-t-gray-400/70"
+                aria-hidden="true"
+              />
+            )}
           </div>
 
           {/*
@@ -273,11 +299,34 @@ export default function ImmersivePlayer({
             <p className="truncate text-lg font-medium text-gray-900 lg:text-xl">
               {current.title}
             </p>
-            <p className="mt-1 truncate text-sm text-gray-500">{current.artist}</p>
+            {loading ? (
+              <p className="mt-1 flex items-center justify-center gap-1.5 text-sm text-gray-400">
+                <Loader2 size={13} className="animate-spin" />
+                正在加载…
+              </p>
+            ) : notice ? (
+              // 信息类提示用灰色，与红色的 error 区分（见 player-context 的 notice 注释）
+              <p className="mt-1 truncate text-sm text-gray-400">{notice}</p>
+            ) : (
+              <p className="mt-1 truncate text-sm text-gray-500">{current.artist}</p>
+            )}
           </div>
 
           {error && (
-            <p className="mt-4 max-w-[16rem] text-center text-xs text-red-500">{error}</p>
+            <div className="mt-4 flex max-w-[20rem] flex-col items-center gap-2 text-center">
+              <p className="text-xs text-red-500">{error}</p>
+              {/* 只在「值得重试」时给按钮，永久失败给了也是白点 */}
+              {errorRetryable && (
+                <button
+                  type="button"
+                  onClick={retryManually}
+                  className="flex items-center gap-1 text-xs text-gray-500 underline transition-opacity hover:opacity-70"
+                >
+                  <RotateCcw size={12} />
+                  重试
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -369,9 +418,15 @@ export default function ImmersivePlayer({
               onClick={toggle}
               disabled={loading}
               className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-900 text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
-              aria-label={playing ? "暂停" : "播放"}
+              aria-label={loading ? "加载中" : playing ? "暂停" : "播放"}
             >
-              {playing ? <Pause size={20} /> : <Play size={20} className="ml-0.5" />}
+              {loading ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : playing ? (
+                <Pause size={20} />
+              ) : (
+                <Play size={20} className="ml-0.5" />
+              )}
             </button>
             <button
               type="button"

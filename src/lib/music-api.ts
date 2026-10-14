@@ -30,7 +30,57 @@ const PLAY_URL_TTL_MS = 5 * 60 * 1000
 /** 缓存条目上限，避免长时间运行后无限增长 */
 const PLAY_URL_CACHE_MAX = 500
 
-export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string }
+/**
+ * 失败原因的分类码。
+ *
+ * 为什么要有它：播放器需要**按原因分流**——
+ * 「这首歌没版权」应当立刻跳到下一首，而「配额用完了」应当退避重试，
+ * 两者的处理完全相反。若前端只能拿到中文文案，就只能靠匹配字符串来判断，
+ * 那样文案一改、分流就静默失效（本项目已经吃过「同一套规则被抄成多份」的亏）。
+ *
+ * 分开两个维度，因为前端的处理方式不同：
+ *   - `permanent`：重试没有意义，直接换歌
+ *   - `transient`：等一下可能就好，值得退避重试
+ */
+export type MusicErrorCode =
+  /** 歌没绑定 API，或库里没这首歌 —— 永久 */
+  | "not_playable"
+  /** 第三方返回空地址（实测 kuwo / joox 就是这形态）—— 永久，该音源没有 */
+  | "url_unavailable"
+  /** 自设配额（45 次 / 5 分钟）用完了 —— 暂时，等窗口滚动即可恢复 */
+  | "quota_exhausted"
+  /** 第三方 503 / 超时 / 网络不通 —— 暂时 */
+  | "upstream_error"
+  /** 本机按 IP 限流（60 次 / 分钟）—— 暂时 */
+  | "rate_limited"
+  /** 参数不合法 —— 永久（代码问题，不是环境问题） */
+  | "bad_request"
+  /** 没登录 */
+  | "unauthorized"
+
+/** 每个码的归类。播放器据此决定「重试还是换歌」 */
+export const MUSIC_ERROR_KIND: Record<MusicErrorCode, "permanent" | "transient"> = {
+  not_playable: "permanent",
+  url_unavailable: "permanent",
+  quota_exhausted: "transient",
+  upstream_error: "transient",
+  rate_limited: "transient",
+  bad_request: "permanent",
+  unauthorized: "permanent",
+}
+
+export type ApiResult<T> =
+  | { ok: true; data: T }
+  | {
+      ok: false
+      error: string
+      /**
+       * 分类码。**可选**：`code` 是后加的，且后台那些调用点只关心文案
+       * （绑定/匹配流程不需要按原因分流），所以不强制每个失败都带上，
+       * 免得为了补齐它去改一堆与本次优化无关的地方。
+       */
+      code?: MusicErrorCode
+    }
 
 /** 搜索结果里我们需要的字段 */
 export interface ApiSong {
@@ -93,6 +143,8 @@ async function callApi(params: Record<string, string>): Promise<ApiResult<unknow
     return {
       ok: false,
       error: "音乐接口的调用配额快用完了，请过几分钟再试",
+      // 自己的配额闸门：这是**暂时**的，等 5 分钟窗口滚动就恢复
+      code: "quota_exhausted",
     }
   }
 
@@ -121,7 +173,8 @@ async function callApi(params: Record<string, string>): Promise<ApiResult<unknow
         continue
       }
       if (!res.ok) {
-        return { ok: false, error: `音乐接口返回 ${res.status}` }
+        // 4xx/5xx 都归到上游异常：对我们来说都是「第三方现在给不了」
+        return { ok: false, error: `音乐接口返回 ${res.status}`, code: "upstream_error" }
       }
       return { ok: true, data: await res.json() }
     } catch (error) {
@@ -132,11 +185,11 @@ async function callApi(params: Record<string, string>): Promise<ApiResult<unknow
       if (attempt === 0 && reason.includes("超时")) {
         continue
       }
-      return { ok: false, error: reason }
+      return { ok: false, error: reason, code: "upstream_error" }
     }
   }
 
-  return { ok: false, error: "音乐接口暂时不可用" }
+  return { ok: false, error: "音乐接口暂时不可用", code: "upstream_error" }
 }
 
 /**
@@ -194,7 +247,13 @@ export async function getPlayUrl(
   const payload = result.data as { url?: unknown }
   const url = typeof payload?.url === "string" ? payload.url : ""
   if (url.length === 0) {
-    return { ok: false, error: "这首歌暂时拿不到播放地址" }
+    /*
+     * 空地址 = 这个音源没有这首歌。
+     * 归为**永久**失败（前端立刻换歌），因为重试同一个音源不会变出地址来。
+     * 实测 kuwo 与 joox 就是这形态（`{"url":"","br":-1}`），
+     * 而项目只认 netease 一个音源（见 docs/music-plan.md 的实测结论）。
+     */
+    return { ok: false, error: "这首歌暂时拿不到播放地址", code: "url_unavailable" }
   }
 
   // 简单的容量控制：超上限就丢掉最早插入的一条

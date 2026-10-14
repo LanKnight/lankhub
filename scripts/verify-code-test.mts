@@ -260,17 +260,33 @@ try {
   console.log("\n【9】全站日限与月限")
   {
     await cleanup()
-    // 造到离日限只差 1 条
-    const need = GLOBAL_DAILY_MAX - 1
-    const rows = Array.from({ length: need }, (_, i) => ({
-      email: `bulk${i}@test.local`,
-      scene: "login" as const,
-      codeHash: "z".repeat(64),
-      expiresAt: new Date(Date.now() + 600000),
-      ip: "10.2.2.2",
-      createdAt: new Date(Date.now() - (i + 1) * 1000),
-    }))
-    await prisma.emailCode.createMany({ data: rows })
+    /*
+     * ⚠️ 自适应基线，不能写死 GLOBAL_DAILY_MAX - 1。
+     *
+     * 全站日限是**按全表统计**的，而本测试只清理自己的行 ——
+     * 库里任何别的记录（其他测试脚本、手工操作留下的）都会占掉额度，
+     * 于是「刚好差 1 条时仍可发」这条断言会误报失败，看起来像配额逻辑坏了。
+     * 实测踩过两次（另一脚本留下的 7 条、以及 1 条 forgot-password 记录）。
+     *
+     * 正确做法：先量出当前 24 小时内已有多少条，再补到「离上限差 1 条」。
+     */
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    const existing = await prisma.emailCode.count({ where: { createdAt: { gte: since } } })
+    const need = Math.max(0, GLOBAL_DAILY_MAX - 1 - existing)
+    console.log(`     当前 24 小时内已有 ${existing} 条，补造 ${need} 条到「差 1 条」`)
+
+    if (need > 0) {
+      const rows = Array.from({ length: need }, (_, i) => ({
+        email: `bulk${i}@test.local`,
+        scene: "login" as const,
+        codeHash: "z".repeat(64),
+        expiresAt: new Date(Date.now() + 600000),
+        ip: "10.2.2.2",
+        createdAt: new Date(Date.now() - (i + 1) * 1000),
+      }))
+      await prisma.emailCode.createMany({ data: rows })
+    }
+
     const r1 = await sendCode({ email: TEST_EMAIL, scene: "login", ip: "10.3.3.3" })
     check("未达全站日限时仍可发", r1.ok, r1.ok ? "" : describeFail(r1.reason))
     const r2 = await sendCode({ email: "another@test.local", scene: "login", ip: "10.4.4.4" })

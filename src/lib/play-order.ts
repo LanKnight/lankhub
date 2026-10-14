@@ -90,6 +90,10 @@ export interface StepResult {
  *
  * 抽成纯函数的理由：这段逻辑有 4 个分支 × 3 个模式，靠手点是点不全的，
  * 而它一旦错了表现为「偶尔跳过一首」这种很难复现的现象。
+ *
+ * ⚠️ 注意它**不是只读的**：`delta === 1` 的随机模式会把 currentId 压进 history。
+ * 所以想「只看一眼下一首是谁」而不能改动播放进度时，用下面的 `peekNextSong`，
+ * 别直接调它再把结果丢掉 —— 那会白白消耗一次洗牌进度（播放器预取时踩过）。
  */
 export function resolveStep(input: StepInput): StepResult {
   const { mode, queueIds, currentId, delta } = input
@@ -125,4 +129,29 @@ export function resolveStep(input: StepInput): StepResult {
 
   if (mode === "shuffle" && delta === 1) history.push(currentId)
   return { nextId: order[nextIndex], shuffleOrderIds: order, history }
+}
+
+/**
+ * 「只看一眼下一首是谁」，**不改动任何播放进度**。
+ *
+ * 为什么需要它：播放器要在开始播一首之后**预取下一首**的地址，
+ * 而预取只是一个优化 —— 它绝不能影响真正的播放顺序。
+ *
+ * 直接调 `resolveStep` 再把结果丢掉是不行的：随机模式下它会把当前歌
+ * 压进 history，于是「预取」变成了一次隐式的「前进」，之后真正按下一首
+ * 时算出来的歌就可能与预取的不是同一首（预取永远打不中，白耗配额），
+ * 而且 history 会被污染、随机播放的返回顺序错乱。
+ *
+ * 实现上**故意不复用 resolveStep**：要给 shuffleOrder / history 传副本，
+ * 并在拿到结果后丢弃它们。这样「只看不改」的意图是明确写在代码里的，
+ * 而不是依赖调用方记得别用返回值。
+ */
+export function peekNextSong(input: StepInput): number | null {
+  const result = resolveStep({
+    ...input,
+    // 传副本，resolveStep 内部对它们的改动不会影响调用方持有的那份
+    shuffleOrderIds: [...(input.shuffleOrderIds ?? [])],
+    history: [...(input.history ?? [])],
+  })
+  return result.nextId
 }

@@ -5,8 +5,10 @@ import {
   ChevronUp,
   ListMusic,
   ListOrdered,
+  Loader2,
   Pause,
   Play,
+  RotateCcw,
   SkipBack,
   SkipForward,
   Volume2,
@@ -43,8 +45,21 @@ const BAR_OFFSET = "mb-[68px]"
  * 同时开就会叠在一起 —— 所以互斥。
  */
 export default function PlayerBar() {
-  const { current, playing, loading, error, queue, audioRef, toggle, next, prev, close } =
-    usePlayer()
+  const {
+    current,
+    playing,
+    loading,
+    error,
+    errorRetryable,
+    notice,
+    queue,
+    audioRef,
+    toggle,
+    next,
+    prev,
+    close,
+    retryManually,
+  } = usePlayer()
 
   /*
    * 进度状态里带上 songId：换歌时用它推导出「归零」的显示，
@@ -157,8 +172,8 @@ export default function PlayerBar() {
       {/* 播放条 */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-3 py-2.5 md:gap-4 md:px-4">
-          {/* 封面 */}
-          <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+          {/* 封面 + 加载中的旋转提示 */}
+          <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-gray-100">
             {current.coverUrl ? (
               // 外部 CDN 域名不固定，用原生 img；已由 CSP 的 img-src 放行
               // eslint-disable-next-line @next/next/no-img-element
@@ -173,13 +188,46 @@ export default function PlayerBar() {
                 <ListMusic size={18} />
               </div>
             )}
+            {/*
+              加载中：封面压暗 + 中心转圈。
+              取播放地址要几百毫秒，没有这个提示时用户会觉得「点了没反应」。
+            */}
+            {loading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white/70">
+                <Loader2 size={18} className="animate-spin text-gray-700" />
+              </div>
+            )}
           </div>
 
           {/* 曲目信息 + 报错 */}
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-gray-900">{current.title}</p>
             {error ? (
-              <p className="truncate text-xs text-red-500">{error}</p>
+              <p className="flex items-center gap-2 truncate text-xs text-red-500">
+                <span className="truncate">{error}</span>
+                {/*
+                  只在「值得重试」时给按钮：永久失败（没版权）给重试按钮是骗人的，
+                  点了还是失败。errorRetryable 由播放器按错误分类设置。
+                */}
+                {errorRetryable && (
+                  <button
+                    type="button"
+                    onClick={retryManually}
+                    className="flex shrink-0 items-center gap-0.5 text-red-600 underline transition-opacity hover:opacity-70"
+                  >
+                    <RotateCcw size={11} />
+                    重试
+                  </button>
+                )}
+              </p>
+            ) : loading ? (
+              <p className="truncate text-xs text-gray-400">正在加载…</p>
+            ) : notice ? (
+              /*
+                信息类提示用灰色：它不代表故障（当前这首正在正常播），
+                只是说明「刚才跳过了几首」。用红色会让人以为出错了。
+              */
+              <p className="truncate text-xs text-gray-500">{notice}</p>
             ) : (
               <p className="truncate text-xs text-gray-500">{current.artist}</p>
             )}
@@ -202,9 +250,15 @@ export default function PlayerBar() {
               onClick={toggle}
               disabled={loading}
               className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-900 text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
-              aria-label={playing ? "暂停" : "播放"}
+              aria-label={loading ? "加载中" : playing ? "暂停" : "播放"}
             >
-              {playing ? <Pause size={16} /> : <Play size={16} className="ml-0.5" />}
+              {loading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : playing ? (
+                <Pause size={16} />
+              ) : (
+                <Play size={16} className="ml-0.5" />
+              )}
             </button>
             <button
               type="button"
