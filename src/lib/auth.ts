@@ -222,7 +222,41 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           where: { id: userId },
           select: { role: true, permissions: true },
         })
-        if (dbUser && session.user) {
+
+        /*
+         * ⚠️ 查不到用户（账号已被删除）时**必须把会话内容清空**。
+         *
+         * 原来的写法是 `if (dbUser && session.user) {...}` 然后照常返回 session ——
+         * 结果是把一个**已经不存在的账号**的旧快照继续当有效会话发出去。
+         * 实测：删掉账号后 `/api/auth/session` 仍返回该用户，
+         * 需要登录的接口也照常放行。
+         *
+         * 注意这里**只能清空内容，删不掉 cookie**（JWT 在客户端，服务端无从失效）。
+         * 所以还要配合两件事：
+         *   1. `getCurrentUser()` 也查库确认存在（见 auth-helpers.ts）——
+         *      让服务端各处立刻按「未登录」处理
+         *   2. 客户端察觉未登录后调 signOut() 把那个没用的 cookie 清掉
+         *      （见 components/auth/SessionGuard.tsx）
+         */
+        if (!dbUser) {
+          /*
+           * ⚠️ 这里刻意返回 null，但**类型上不允许**，所以断言一下。
+           *
+           * Auth.js 给 session 回调标注的返回类型是 `Session | DefaultSession`，
+           * 不包含 null。而运行时返回 null 是有效的 —— 它会让
+           * `/api/auth/session` 响应 `null`，客户端 `useSession()` 得到
+           * `unauthenticated`，那正是我们要的「这个会话已经不作数了」。
+           *
+           * 断言而不是返回空对象，是因为空对象会被当成「已登录但所有字段为空」，
+           * 反而让客户端以为还登着。
+           *
+           * 说明：真正的强制力在 `getCurrentUser()`（它也查库确认用户存在），
+           * 所以即使这里的行为将来变了，服务端各处仍然会按「未登录」处理。
+           */
+          return null as unknown as typeof session
+        }
+
+        if (session.user) {
           session.user.role = dbUser.role
           session.user.permissions = dbUser.permissions
         }

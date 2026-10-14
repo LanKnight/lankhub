@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
 import {
   type PermissionCode,
   userHasPermission,
@@ -24,20 +25,56 @@ export type AuthUser = {
 export { PERMISSIONS, PERMISSION_CODES, canAccessAdmin } from "@/lib/permissions"
 export type { PermissionCode } from "@/lib/permissions"
 
+/**
+ * 取当前登录用户；**会话对应的账号已被删除时返回 null**。
+ *
+ * ⚠️ 这里必须查库确认用户仍然存在，不能只信 JWT。
+ *
+ * 为什么：Auth.js 用的是 JWT 会话，**token 一旦签发就在有效期内一直有效**，
+ * 服务端无法主动吊销它（除非引入撤销名单）。所以「账号被删掉」之后：
+ *   - JWT 仍然是合法签名、仍在有效期内
+ *   - 里面的 `id` 仍然指向一个**已经不存在的用户**
+ *   - 只信 JWT 的话，被删的账号能继续登录、继续用所有需要登录的功能
+ *
+ * 实测过这个缺口：删掉账号后用原来的 cookie 请求，
+ * `/api/auth/session` 仍返回该用户，需要登录的接口也照常放行。
+ *
+ * 这里多一次按主键的查库（SQLite 上微秒级），换来「删号立刻失效」。
+ * 而 `session` 回调本来就已经在查库刷新角色了，所以并没有引入新的查询成本。
+ */
 export async function getCurrentUser(): Promise<AuthUser | null> {
   const session = await auth()
   const user = session?.user
   // id 是登录后必然写入的，没有它就当未登录
   if (!user?.id) return null
 
+  const id = Number.parseInt(user.id, 10)
+  if (!Number.isFinite(id)) return null
+
+  /*
+   * 只查一个字段，并让数据库回答「还在不在」。
+   *
+   * 顺带把最新的 role / permissions 一起取回来：
+   * 它们比 JWT 里的快照更新（session 回调虽然也刷新，但它只管
+   * `auth()` 返回的对象；这里再查一次能保证服务端各处拿到的是同一个当前值）。
+   */
+  const dbUser = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, email: true, name: true, role: true, permissions: true },
+  })
+  if (!dbUser) {
+    // 账号已被删除：视为未登录
+    return null
+  }
+
   return {
-    id: user.id,
-    email: user.email ?? "",
-    name: user.name ?? "",
+    id: String(dbUser.id),
+    email: dbUser.email,
+    name: dbUser.name,
     // 数据库里 role 是自由字符串，这里收敛成应用层认识的两种取值：
     // 认不出来的一律按普通读者处理，符合最小权限
-    role: user.role === "OWNER" ? "OWNER" : "READER",
-    permissions: user.permissions ?? null,
+    role: dbUser.role === "OWNER" ? "OWNER" : "READER",
+    permissions: dbUser.permissions ?? null,
   }
 }
 

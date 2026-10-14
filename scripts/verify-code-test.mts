@@ -85,8 +85,31 @@ const codeCount = () => prisma.emailCode.count()
 const lastCode = () => sent[sent.length - 1]?.code ?? ""
 
 async function cleanup() {
+  /*
+   * ⚠️ 清理必须覆盖本测试用到的**全部**邮箱与 IP，而不只是主测试邮箱。
+   *
+   * 为什么关键：全站日限与月限是**按全表统计**的，任何残留都会把
+   * 「刚好差 1 条时仍可发」那条断言挤爆 ——
+   * 实测踩到：另一个脚本留下 7 条记录，就让那条断言误报失败，
+   * 而失败信息看起来像「配额逻辑坏了」，其实只是脏数据。
+   *
+   * 所以这里把各处合成数据用到的邮箱与假 IP 也一并清掉：
+   *   - 第 8 节按 IP 造 30 条（10.1.1.1）
+   *   - 第 9 节按全站造 79 条（bulk*@test.local / 10.2.2.2 等）
+   */
   await prisma.emailCode.deleteMany({
-    where: { OR: [{ email: TEST_EMAIL }, { ip: TEST_IP }, { email: { contains: "test.local" } }] },
+    where: {
+      OR: [
+        { email: TEST_EMAIL },
+        { ip: TEST_IP },
+        { ip: "10.1.1.1" },
+        { ip: "10.2.2.2" },
+        { ip: "10.3.3.3" },
+        { ip: "10.4.4.4" },
+        { email: { startsWith: "bulk" } },
+        { email: { contains: "test.local" } },
+      ],
+    },
   })
 }
 

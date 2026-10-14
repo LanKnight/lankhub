@@ -36,7 +36,11 @@
     "email:test": "tsx scripts/email-test.mts",
     "email:check": "tsx scripts/email-check.mts",
     "email:code-test": "tsx scripts/verify-code-test.mts",
-    "ui:check": "node scripts/ui-check.mjs"
+    "auth:session-test": "tsx scripts/session-invalidation-test.mts",
+    "ui:check": "node scripts/ui-check.mjs",
+    "ui:settings": "tsx scripts/settings-ui-check.mts",
+    "ui:measure-code": "tsx scripts/measure-code-row.mts",
+    "db:state": "tsx scripts/db-state.mts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

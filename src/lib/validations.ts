@@ -135,9 +135,15 @@ export const ResetPasswordSchema = z.object({
   newPassword: PasswordSchema,
 })
 
-/** 登录用户的改密码（旧密码 + 邮箱验证码 + 新密码） */
-export const ChangePasswordWithCodeSchema = z.object({
-  oldPassword: z.string().min(1, "请输入当前密码"),
+/**
+ * 登录用户的改密码 · **方式一：只凭邮箱验证码**。
+ *
+ * 刻意**不含** oldPassword —— 站长要求这条路只要验证码。
+ * 两条路各自独立、规则各自干净，不做「有时可省」的模糊校验：
+ *   - 方式一（本 schema）            ：验证码 + 新密码
+ *   - 方式二（ChangePasswordSchema） ：旧密码 + 新密码
+ */
+export const ChangePasswordByCodeSchema = z.object({
   code: VerifyCodeSchema,
   newPassword: PasswordSchema,
 })

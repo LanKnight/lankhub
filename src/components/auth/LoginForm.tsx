@@ -208,7 +208,7 @@ export default function LoginForm() {
 
         {isPasswordTab ? (
           <div>
-            <div className="mb-1.5 flex items-baseline justify-between">
+            <div className="relative mb-1.5 flex items-center justify-between">
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 密码
               </label>
@@ -233,7 +233,7 @@ export default function LoginForm() {
           </div>
         ) : (
           <div>
-            <div className="mb-1.5 flex items-center justify-between gap-2">
+            <div className="relative mb-1.5 flex items-center justify-between gap-2">
               <label className="block text-sm font-medium text-gray-700">验证码</label>
               <SendCodeButton onSend={sendLoginCode} disabled={!email.trim()} />
             </div>

@@ -76,7 +76,33 @@ export default function SendCodeButton({
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    /*
+     * ⚠️ 这个结构是**量出来之后**才定成这样的，别随手改回 flex-col + gap-1。
+     *
+     * 问题本质：错误提示原本占用布局高度 → wrapper 变高 →
+     * 外层行（`items-center`）居中整个 wrapper → 按钮被顶偏。
+     *
+     * 实测数据（忘记密码页，用 mock 回 429 稳定造出报错）：
+     *   报错前 wrapper h=44 →  label 中心 − 按钮中心 = 0px     ✓
+     *   报错后 wrapper h=62 →  label 中心 − 按钮中心 = 9.5px   ✗  按钮被顶上去
+     * 它**只在有提示时才歪**，所以静态截图永远是对的 ——
+     * 这正是它难被发现、只能靠量才能定位的原因。
+     *
+     * 我试过但**不成功**的两种改法（留在这里，避免以后有人再试一遍）：
+     *   1. 只把按钮包进固定高度的行 → 还是歪 9.5px。
+     *      因为被居中/顶高的是整个 wrapper，提示那段高度仍然把 wrapper 推走。
+     *   2. 外层行改 `items-start` → 反而歪 -12px。
+     *      因为 label 与按钮的顶边本来就不在同一水平线（label 在行顶、按钮居中）。
+     *
+     * 现在的做法：按钮与提示一起放进**一个绝对定位的容器**。
+     *   - 容器 `absolute` 后完全脱离文档流 → 提示出现与否都不改变行的布局
+     *   - 容器用 `top-0 bottom-0 flex flex-col justify-center` 撑满行高并居中，
+     *     于是**按钮的中心恒等于行的中心** → 与左侧 label 永远对齐
+     *   - 提示排在按钮下方（`absolute top-full`），同样不占位、也不会压住下面的输入框
+     *
+     * 这需要外层行有 `relative`（各表单里已加）。
+     */
+    <div className="absolute right-0 top-0 bottom-0 flex flex-col justify-center">
       <button
         type="button"
         onClick={handleClick}
@@ -97,7 +123,11 @@ export default function SendCodeButton({
           </span>
         )}
       </button>
-      {error && <p className="max-w-[16rem] text-right text-xs text-red-500">{error}</p>}
+      {error && (
+        <p className="absolute right-0 top-full mt-1 max-w-[18rem] text-right text-xs leading-tight text-red-500">
+          {error}
+        </p>
+      )}
     </div>
   )
 }

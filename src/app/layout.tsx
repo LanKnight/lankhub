@@ -5,6 +5,7 @@ import Navbar from "@/components/layout/Navbar"
 import Footer from "@/components/layout/Footer"
 import BackToTop from "@/components/layout/BackToTop"
 import NavHistoryTracker from "@/components/layout/NavHistory"
+import SessionGuard from "@/components/auth/SessionGuard"
 import { ToastProvider } from "@/components/ui/Toast"
 import "./globals.css"
 
@@ -51,6 +52,8 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <NavHistoryTracker />
         <SessionProvider refetchOnWindowFocus={false}>
+          {/* 会话失效守卫：账号被删除后清掉浏览器里那个没用的 cookie */}
+          <SessionGuard />
           <ToastProvider>
             <Navbar />
             <main className="flex-1">{children}</main>

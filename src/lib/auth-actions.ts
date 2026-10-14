@@ -12,7 +12,7 @@ import {
   LOGIN_ACCOUNT_MAX,
   LOGIN_IP_MAX,
 } from "@/lib/rate-limit"
-import { ChangePasswordSchema, ProfileUpdateSchema, ChangePasswordWithCodeSchema } from "@/lib/validations"
+import { ChangePasswordSchema, ProfileUpdateSchema, ChangePasswordByCodeSchema } from "@/lib/validations"
 import { isEmailEnabled } from "@/lib/email/sender"
 import { describeFail, verifyCode } from "@/lib/email/verify-code"
 
@@ -174,32 +174,28 @@ export async function loginByCodeAction(email: string, code: string) {
 }
 
 /**
- * 修改自己的密码（**需要邮箱验证码**）。
+ * 修改密码 · **方式一：只凭邮箱验证码**。
  *
- * 为什么改成要验证码：只凭旧密码的话，**任何拿到旧密码的人都能改掉密码**
- * （比如曾在共用电脑上登录过、密码被同事看到）。加一道邮箱验证码，
- * 等于要求「同时掌握密码与邮箱」两样东西。
+ * 站长明确要求这条路不再要原密码。安全上的取舍如实记在这里：
+ *
+ * | 攻击者手里的东西 | 方式一（只要验证码） | 方式二（只要旧密码） |
+ * | :--- | :--- | :--- |
+ * | 只有旧密码，拿不到邮箱 | 改不了 | **改得了** |
+ * | 偷到了会话 cookie（共用电脑没退出） | **改得了**（再收个验证码即可） | 改不了 |
+ *
+ * 两条路是**互补**的：验证码那侧防「密码泄露」，旧密码那侧防「会话被盗」。
+ * 用户可选任一条，所以单看任一条都不是全防 —— 两条都摆在那里才是。
  *
  * 校验、消费验证码、改密码**在同一个 Action 里完成** —— 不拆成
  * 「先校验拿凭证、再带凭证改密」，那样会多出一个可重放的中间态。
- *
- * 顺序上先验旧密码再验验证码：旧密码错时不该消耗掉用户的验证码。
  */
-export async function changePasswordWithCodeAction(
-  oldPassword: string,
-  code: string,
-  newPassword: string
-) {
+export async function changePasswordWithCodeAction(code: string, newPassword: string) {
   const user = await getCurrentUser()
   if (!user) {
     return { success: false, error: "请先登录" }
   }
 
-  const parsed = ChangePasswordWithCodeSchema.safeParse({
-    oldPassword,
-    code,
-    newPassword,
-  })
+  const parsed = ChangePasswordByCodeSchema.safeParse({ code, newPassword })
   if (!parsed.success) {
     return {
       success: false,
@@ -209,29 +205,27 @@ export async function changePasswordWithCodeAction(
 
   const dbUser = await prisma.user.findUnique({
     where: { id: Number(user.id) },
-    select: { id: true, email: true, password: true, emailVerifiedAt: true },
+    select: { id: true, email: true, emailVerifiedAt: true },
   })
   if (!dbUser) {
     return { success: false, error: "用户不存在" }
   }
 
-  // 先验旧密码：它不消耗验证码，用户可以修正后直接重试
-  const isValid = await bcrypt.compare(parsed.data.oldPassword, dbUser.password)
-  if (!isValid) {
-    return { success: false, error: "当前密码错误" }
-  }
-
-  // 邮箱未验证的账号没有验证码可发，只能走「仅旧密码」那条路
+  // 邮箱未验证的账号没有验证码可发，只能走方式二
   if (dbUser.emailVerifiedAt === null) {
     return {
       success: false,
-      error: "该邮箱尚未验证，无法获取验证码",
-      needVerifyEmail: true,
+      error: "该邮箱尚未验证，请改用「用旧密码修改」",
+      needLegacy: true,
     }
   }
 
   if (!isEmailEnabled()) {
-    return { success: false, error: describeFail("email-disabled") }
+    return {
+      success: false,
+      error: describeFail("email-disabled"),
+      needLegacy: true,
+    }
   }
 
   // 收件人固定为当前登录用户的邮箱，不接受客户端指定
@@ -254,13 +248,12 @@ export async function changePasswordWithCodeAction(
 }
 
 /**
- * 修改自己的密码。所有登录用户都能调用
- * （原先只有站长能从 /admin/settings 进，普通读者连入口都没有）。
+ * 修改密码 · **方式二：只凭旧密码**。
  *
- * ⚠️ 这是**仅凭旧密码**的版本，只作为退路保留：
- * 邮件服务不可用、或账号邮箱未验证时，用户仍需要能改密码 ——
- * 否则单点故障会让他彻底失去这个能力（与「保留密码登录」是同一个思路）。
- * 界面上的默认路径是 `changePasswordWithCodeAction`。
+ * 这条路原先只作为「邮件挂了」的隐藏退路，现在提升为一个一等选项。
+ * 它存在的意义：邮件服务不可用、或账号邮箱未验证时，
+ * **这是唯一能改密码的路** —— 没有它，一次 Resend 故障就能让人永远改不了密码。
+ * （与「保留密码登录」是同一个思路。）
  */
 export async function changePasswordAction(
   oldPassword: string,
