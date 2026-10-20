@@ -664,9 +664,6 @@ node maintenance/build.mjs --domain 你的域名
 | `npm run restore` | 从最近一份备份恢复（覆盖数据库与上传目录，会二次确认） |
 | `npm run db:generate` | 重新生成 Prisma 客户端 |
 | `npm run db:push` | 同步数据库 Schema |
-| `npm run db:backfill-collections` | 把「已发布但没有合集」的文章归入「未分类」（幂等，加 `-- --dry-run` 先预览） |
-| `npm run db:cleanup-awards` | 清理历史遗留的「获奖荣誉」死数据（幂等，加 `-- --dry-run` 先预览） |
-| `npm run db:normalize-usernames` | 整理存量用户昵称（去空白、修损坏、去重），加唯一约束前必须先跑（幂等，加 `-- --dry-run` 先预览） |
 | `npm run db:check-limits` | **上线前预检**：检查现有数据是否会被接口的校验规则卡住（只读，有问题时退出码为 1） |
 | `npm run db:seed` | 运行种子脚本（站长账号 + 一个「入门指南」示例合集） |
 | `npm run reset-password` | 重置指定账号的密码 |

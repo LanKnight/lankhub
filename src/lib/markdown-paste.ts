@@ -237,7 +237,79 @@ export function isPlainTextDocument(nodes: MarkdownNode[]): boolean {
 }
 
 /**
- * 清洗 markdown 解析出来的文档。
+ * 把 markdown 原文转成「纯文本节点」，用于粘贴时**原样保留**。
+ *
+ * ## 为什么粘贴要拦一下
+ *
+ * TipTap 各扩展自带 markdown **粘贴规则**（`markPasteRule`）：
+ * 粘进来的纯文本里 `**粗体**`、`` `代码` ``、`[文字](链接)` 会被直接变成格式，
+ * 而 `##`、`- `、表格、代码围栏却仍是字面量。
+ *
+ * 结果是「半自动」：粘完既有真格式、又有原始符号。这带来两个问题：
+ *  1. 作者看到的仍是半成品（`##` 还在）
+ *  2. 「整理」的守卫是「已有格式就不整篇重写」，而粗体正是被自动造出来的格式 →
+ *     **按钮会拒绝工作**
+ *
+ * 所以粘贴时干脆把 markdown 原文当**纯文本**插进去，一个字符都不解释，
+ * 让编辑器别去动它。之后再点「整理」由我们自己完整转换一次 ——
+ * 这样粗体的 `**` 还在、块级语法也还在，转换结果才是完整的。
+ *
+ * 换行处理：空行分段，段内单个换行用 `hardBreak`，
+ * 于是 `docToMarkdownSource()` 能原样拼回去（两者互为逆运算）。
+ */
+export function markdownToPlainNodes(markdown: string): MarkdownNode[] {
+  const normalized = markdown.replace(/\r\n?/g, "\n")
+  const nodes: MarkdownNode[] = []
+
+  for (const block of normalized.split(/\n{2,}/)) {
+    if (block.length === 0) continue
+
+    const content: MarkdownNode[] = []
+    block.split("\n").forEach((line, index) => {
+      if (index > 0) content.push({ type: "hardBreak" })
+      if (line.length > 0) content.push({ type: "text", text: line })
+    })
+
+    nodes.push(content.length > 0 ? { type: "paragraph", content } : { type: "paragraph" })
+  }
+
+  return nodes
+}
+
+/**
+ * 把「纯文本节点」拼回 markdown 原文。
+ *
+ * 与 `markdownToPlainNodes()` 互为逆运算，用途有两处：
+ *  - 「整理」时从文档取回 markdown 原文去解析
+ *  - 测试里验证「粘进来再拼回去」不丢内容
+ *
+ * 为什么不直接用 TipTap 的 `editor.getText({ blockSeparator })`：
+ * 那依赖扩展注册的 `textSerializers` 对 `hardBreak` 的序列化行为，
+ * 而我们自己拼就能保证「单换行 → `\n`、段落 → `\n\n`」是确定的、可测的。
+ */
+export function docToMarkdownSource(nodes: MarkdownNode[]): string {
+  const blocks: string[] = []
+
+  for (const node of nodes) {
+    if (node.type === "text") {
+      blocks.push(node.text ?? "")
+      continue
+    }
+    if (node.type !== "paragraph") continue
+
+    let line = ""
+    for (const child of node.content ?? []) {
+      if (child.type === "text") line += child.text ?? ""
+      else if (child.type === "hardBreak") line += "\n"
+    }
+    blocks.push(line)
+  }
+
+  return blocks.join("\n\n")
+}
+
+/**
+ * 把 markdown 解析出来的文档清洗一遍。
  *
  * 两道过滤，都是「宁可不显示也不要留脏数据」：
  *  - 链接：`javascript:` 等协议直接摘掉 link 标记（保留文字）

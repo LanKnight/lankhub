@@ -10,8 +10,10 @@ import { TableKit } from "@tiptap/extension-table"
 import CodeBlockWithTools from "./CodeBlockExtension"
 import EditorToolbar from "./EditorToolbar"
 import {
+  docToMarkdownSource,
   isPlainTextDocument,
   looksLikeMarkdown,
+  markdownToPlainNodes,
   rewriteExternalImages,
   sanitizeMarkdownDoc,
   type MarkdownNode,
@@ -134,6 +136,7 @@ export default function RichTextEditor({
     },
     [previewMarkdown, notifyMarkdownIssues]
   )
+  // 选区转换与整篇转换都走 insertMarkdown，保持行为一致
 
   /**
    * 「整理 Markdown」：把编辑器里**已经是 markdown 的纯文本**就地转成富文本。
@@ -161,19 +164,22 @@ export default function RichTextEditor({
 
     // ---- 1. 有选区：只处理选区 ----
     if (!empty) {
-      const selected = editor.state.doc.textBetween(from, to, "\n")
+      /*
+       * 用 docToMarkdownSource 而不是 textBetween：
+       * 后者对「跨多个块」的选区只能用单一分隔符拼接，段落之间会丢掉空行，
+       * 于是 markdown 解析会把两段当成一段。用同一个「文档 → 原文」函数，
+       * 选区与整篇的处理就完全一致。
+       */
+      const fragment = editor.state.doc.cut(from, to).toJSON() as MarkdownNode
+      const selected = docToMarkdownSource(fragment.content ?? [])
       if (!looksLikeMarkdown(selected)) {
         toast("选中的内容看起来不是 Markdown，未做改动", "info")
         return
       }
-      const parsed = previewMarkdown(selected)
-      if (!parsed || parsed.content.length === 0) {
-        toast("选中的内容无法解析，未做改动", "info")
-        return
-      }
       // insertContent 在选区非空时是「替换」，不会把原文留在旁边
-      editor.chain().focus().insertContent(parsed.content).run()
-      notifyMarkdownIssues(parsed)
+      if (!insertMarkdown(selected)) {
+        toast("选中的内容无法解析，未做改动", "info")
+      }
       return
     }
 
@@ -184,7 +190,7 @@ export default function RichTextEditor({
       return
     }
 
-    const text = editor.getText({ blockSeparator: "\n\n" })
+    const text = docToMarkdownSource(doc.content ?? [])
     if (!looksLikeMarkdown(text)) {
       toast("没有检测到可转换的 Markdown 内容", "info")
       return
@@ -198,7 +204,7 @@ export default function RichTextEditor({
 
     editor.commands.setContent({ type: "doc", content: parsed.content })
     notifyMarkdownIssues(parsed)
-  }, [previewMarkdown, notifyMarkdownIssues, toast])
+  }, [insertMarkdown, previewMarkdown, notifyMarkdownIssues, toast])
 
   const editor = useEditor({
     extensions: [
@@ -212,7 +218,7 @@ export default function RichTextEditor({
       CodeBlockWithTools,
       TableKit,
       /*
-       * Markdown 扩展只为了两件事：解析粘贴进来的 markdown、以及弹层里的预览。
+       * Markdown 扩展只服务于「整理」按钮：把 markdown 原文解析成 ProseMirror JSON。
        * 文章的存储格式仍然是 TipTap JSON（不用 markdown 存），
        * 所以前台渲染链路完全没变。
        */
@@ -257,13 +263,13 @@ export default function RichTextEditor({
          *    那是比 markdown 原文更准确的来源，不该抢它的活。
          * 2. 但有些界面只是把 markdown 原文用 `<p>` 之类包了一层，
          *    HTML 的纯文本内容与 text/plain 相同（只差空白）。这种「原样包装」
-         *    仍然要按 markdown 处理，否则用户看到的还是 `##`、`**`。
+         *    仍然要自己处理。
          * 3. 都没有才看纯文本像不像 markdown。
          *
          * ⚠️ 第 2 步必须**先去掉所有空白再比较**。
          * `<p>## 标题</p><p>正文</p>` 的 textContent 是「## 标题正文」——
          * 段落之间的换行没了，与 `text/plain` 的 `## 标题\n\n正文` 直接比是不相等的。
-         * 原来就是这么比的，导致这类剪贴板被误判成「有真正格式」而不转换
+         * 原来就是这么比的，导致这类剪贴板被误判成「有真正格式」而不处理
          * （很多聊天界面复制出来正是 `<p>` 包裹的形态）。
          */
         const html = clipboard.getData("text/html")
@@ -277,8 +283,22 @@ export default function RichTextEditor({
 
         if (!looksLikeMarkdown(text)) return false
 
+        /*
+         * ★ 这里**不做转换**，只把 markdown 原文当纯文本插进去。
+         *
+         * TipTap 各扩展自带 markdown 粘贴规则：`**粗体**`、`` `代码` ``、
+         * `[文字](链接)` 会被自动变成格式，而 `##`、列表、表格、代码围栏
+         * 仍是字面量。结果是「半自动」——作者看到的仍是半成品，
+         * 而且「整理」会因为「已有格式」而拒绝工作（粗体正是被自动造出来的格式）。
+         *
+         * 原样插入之后：`**` 还在、块级语法也还在，
+         * 作者点一次「整理」就能得到完整正确的结果。
+         */
+        const nodes = markdownToPlainNodes(text)
+        if (nodes.length === 0) return false
+        editorRef.current?.chain().focus().insertContent(nodes).run()
         // 返回 true 表示「我们已经处理了粘贴」，ProseMirror 不再插入原文
-        return insertMarkdown(text)
+        return true
       },
     },
   })

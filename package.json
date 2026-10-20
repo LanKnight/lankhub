@@ -13,13 +13,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma db push && prisma generate && tsx prisma/verify-existing.ts",
-    "db:backfill-collections": "tsx prisma/backfill-collections.ts",
-    "db:cleanup-awards": "tsx prisma/cleanup-awards.ts",
-    "db:normalize-usernames": "tsx prisma/normalize-usernames.ts",
+    "db:migrate": "prisma db push && prisma generate",
     "db:check-limits": "tsx prisma/check-limits.ts",
     "db:bind-music": "tsx prisma/bind-music.ts",
-    "db:verify-existing": "tsx prisma/verify-existing.ts",
     "db:cleanup-unverified": "tsx prisma/cleanup-unverified.ts",
     "db:cleanup-codes": "tsx prisma/cleanup-codes.ts",
     "reset-password": "tsx prisma/reset-password.ts",
@@ -47,7 +43,6 @@
     "music:upstream-test": "tsx scripts/upstream-shape-test.mts",
     "ui:check": "node scripts/ui-check.mjs",
     "ui:settings": "tsx scripts/settings-ui-check.mts",
-    "ui:measure-code": "tsx scripts/measure-code-row.mts",
     "db:state": "tsx scripts/db-state.mts"
   },
   "dependencies": {

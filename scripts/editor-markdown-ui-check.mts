@@ -300,6 +300,17 @@ async function main() {
       )
 
     /**
+     * 点工具栏的「整理 Markdown」，把编辑器里的 markdown 原文就地转成富文本。
+     *
+     * 这是**唯一**的转换入口：粘贴只负责把原文原样塞进来（见 RichTextEditor
+     * 的 handlePaste 注释），不自动转换。
+     */
+    const convert = async () => {
+      await run(`document.querySelector('button[title*="Markdown"]')?.click(); "ok"`)
+      await sleep(900)
+    }
+
+    /**
      * 重新加载编辑页，拿到一个**干净**的编辑器。
      *
      * 为什么不「全选 + 删除」来清空：
@@ -316,12 +327,32 @@ async function main() {
       if (!ok) throw new Error("重载后编辑器未就绪")
     }
 
-    console.log("\n【2】★★ 标题、粗体、列表、代码块都被转成真正的节点")
+    console.log("\n【2】★★ 粘贴后仍是原文，点「整理」才变成真正的节点")
     {
-      await paste(
-        "## 二级标题\n\n这里有**粗体**和`行内代码`。\n\n- 第一点\n- 第二点\n\n```js\nconst a = 1\n```"
-      )
+      const MD = "## 二级标题\n\n这里有**粗体**和`行内代码`。\n\n- 第一点\n- 第二点\n\n```js\nconst a = 1\n```"
+      await paste(MD)
       await sleep(600)
+
+      /*
+       * ★ 先确认「粘贴不做转换」。
+       * 这一条是行为契约：粘贴只把原文原样塞进来，把一个字符都不解释，
+       * 免得 TipTap 自带的 markdown 粘贴规则只吃掉 `**` 却留下 `##`（半成品）。
+       */
+      const raw = JSON.parse(
+        (await run(
+          `JSON.stringify({
+             h2: document.querySelectorAll('.ProseMirror h2').length,
+             strong: document.querySelectorAll('.ProseMirror strong').length,
+             text: document.querySelector('.ProseMirror')?.innerText ?? '',
+           })`
+        )) as string
+      ) as { h2: number; strong: number; text: string }
+
+      check("★★ 粘贴后没有生成 h2（原文保留）", raw.h2 === 0, `h2=${raw.h2}`)
+      check("★★ 粘贴后 ** 没有被自动吃掉", raw.text.includes("**粗体**"), raw.text.replace(/\n/g, " ").slice(0, 60))
+      check("★ 粘贴后 ## 仍是字面量", raw.text.includes("## 二级标题"), "")
+
+      await convert()
 
       const st = JSON.parse(
         (await run(
@@ -355,7 +386,7 @@ async function main() {
       check("★★ 正文里没有残留 ``` 反引号", st.rawHasBackticks === false, String(st.rawHasBackticks))
     }
 
-    console.log("\n【3】★★ 代码块的语言被正确识别（复用【2】的粘贴结果）")
+    console.log("\n【3】★★ 代码块的语言被正确识别（复用【2】的整理结果）")
     {
       const lang = (await run(
         `(() => {
@@ -370,6 +401,7 @@ async function main() {
     console.log("\n【4】★★ 表格真的变成了 table 结构")
     {
       await paste("| 项目 | 说明 |\n| --- | --- |\n| A | 甲 |\n| B | 乙 |")
+      await convert()
       await sleep(600)
 
       const st = JSON.parse(
@@ -397,6 +429,7 @@ async function main() {
     console.log("\n【5】★ 外链图片被换成说明文字（CSP 不允许的域名）")
     {
       await paste("![架构图](https://example.com/a.png)")
+      await convert()
       await sleep(600)
 
       const st = JSON.parse(
@@ -417,6 +450,7 @@ async function main() {
     console.log("\n【6】★ 本站图片仍然正常插入（不该被误伤）")
     {
       await paste("![本站图](/api/images/not-exist.jpg)")
+      await convert()
       await sleep(600)
 
       const st = JSON.parse(
@@ -436,6 +470,7 @@ async function main() {
     console.log("\n【7】★★ 危险链接被移除、普通链接保留")
     {
       await paste("[危险](javascript:alert(1)) 和 [正常](https://example.com)")
+      await convert()
       await sleep(600)
 
       const st = JSON.parse(
@@ -457,7 +492,7 @@ async function main() {
     }
 
     await fresh()
-    console.log("\n【8】★ 普通文本粘贴不该被当成 markdown")
+    console.log("\n【8】★ 普通文本既不该在粘贴时被改动，也不该被「整理」误转")
     {
       await paste("今天天气很好，我去公园散步，看到很多人在放风筝。")
       await sleep(600)
@@ -554,6 +589,7 @@ async function main() {
       // 先粘一段会被自动转换的 markdown，得到「已有格式」的正文
       await fresh()
       await paste("## 已有标题\n\n**粗体**正文")
+      await convert()
       await sleep(800)
 
       const before = JSON.parse(

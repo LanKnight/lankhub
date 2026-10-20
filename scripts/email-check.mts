@@ -5,7 +5,7 @@
  *   npx tsx scripts/email-check.mts
  *
  * 这是本项目的**密钥泄露防线**：仓库是开源的，而本站已经因为文档里
- * 写了 Key 的前 8 个字符而被迫吊销重发（见 docs/emailAuthDevDoc.md 第 1.4 节）。
+ * 写了 Key 的前 8 个字符而被迫吊销重发（那次事故记在 docs/HISTORY.md）。
  * 每次改邮件相关代码后都该跑一遍。
  *
  * 为什么是 .mts 且带类型标注：tsconfig 的 include 含 ** / *.ts 与 ** / *.mts，

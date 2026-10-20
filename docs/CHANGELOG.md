@@ -14,6 +14,14 @@
 
 升级与部署的主流程见 [`README.md` 的「更新部署」](../README.md#更新部署)。
 
+> ⚠️ **旧条目里提到的这些命令已在 2026-10 删除**（都是一次性迁移，已完成）：
+> `db:verify-existing`、`db:backfill-collections`、`db:normalize-usernames`、
+> `db:cleanup-awards`。那些步骤只对相应历史版本的库有意义 ——
+> 如果你要从很旧的备份恢复，用 `git show <该版本的提交>:prisma/xxx.ts` 取回脚本。
+>
+> 同理，旧条目里链接到的 `docs/emailAuthDevDoc.md` 与 `docs/musicFunctionDevDoc.md`
+> 也已删除（前者是早已实现且失效的方案稿，后者是原始需求原文）。
+
 ---
 
 ## 未发布
@@ -24,7 +32,8 @@
 - 新增根目录 [`LICENSE`](../LICENSE)（MIT 全文 + 补充说明：MIT 只覆盖代码）
 - 新增交接文档 [`docs/HANDOVER.md`](HANDOVER.md)
 - 新增测试记录 [`docs/music-plan.md`](music-plan.md) 与需求原文
-  [`docs/musicFunctionDevDoc.md`](musicFunctionDevDoc.md)
+  （`docs/musicFunctionDevDoc.md`，**已于 2026-10 删除**，结论已并入
+  `HANDOVER.md` 与 `music-plan.md`）
 - 升级公告从 README 搬到本文件（即本次整理）
 - 补正 README 里几处与事实不符的描述：`scripts/setup.sh` 的实际流程、
   `npm run setup` 与 `npm install` 的区别、种子数据的内容、目录结构里缺 `data/`、

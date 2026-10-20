@@ -7,9 +7,11 @@
  * 用法：npx tsx scripts/markdown-paste-test.mts
  */
 import {
+  docToMarkdownSource,
   isAllowedImageSrc,
   isPlainTextDocument,
   looksLikeMarkdown,
+  markdownToPlainNodes,
   rewriteExternalImages,
   sanitizeMarkdownDoc,
   type MarkdownNode,
@@ -277,12 +279,51 @@ console.log("\n【10】★★ 「整理 Markdown」的冲突判定（isPlainText
   check("空文档视为纯文本（可以转换）", isPlainTextDocument([]))
 }
 
+console.log("\n【11】★★ 粘贴「原样保留」与「原文拼回」互为逆运算")
+{
+  /*
+   * 粘贴时把 markdown 当纯文本插进去（markdownToPlainNodes），
+   * 点「整理」时再拼回原文（docToMarkdownSource）去解析。
+   * 这两个函数必须互为逆运算，否则「整理」拿到的就不是作者原本那段 markdown。
+   */
+  const cases: [string, string][] = [
+    ["单段", "这是一段普通文字。"],
+    ["两段", "第一段。\n\n第二段。"],
+    ["标题 + 段落", "## 标题\n\n下面是正文。"],
+    ["列表", "- 甲\n- 乙\n- 丙"],
+    ["代码块", "```js\nconst a = 1\n```"],
+    ["表格", "| a | b |\n| --- | --- |\n| 1 | 2 |"],
+    ["段内单换行", "第一行\n第二行"],
+  ]
+  for (const [label, source] of cases) {
+    const nodes = markdownToPlainNodes(source)
+    const back = docToMarkdownSource(nodes)
+    check(`往返一致：${label}`, back === source, back.replace(/\n/g, "⏎"))
+  }
+
+  // 关键性质：原文里的 markdown 符号必须**原样保留**（不被解释）
+  const md = "## 标题\n\n**粗体**与`代码`"
+  const plain = markdownToPlainNodes(md)
+  const allText = JSON.stringify(plain)
+  check("★ ## 被保留为字面文本", allText.includes("## 标题"))
+  check("★ ** 被保留为字面文本", allText.includes("**粗体**"))
+  check("★ 没有产生任何 marks（否则「整理」会因「已有格式」拒绝工作）", !allText.includes("marks"))
+  check(
+    "★ 结果被判定为纯文本文档",
+    isPlainTextDocument(plain),
+    "只有段落与文本节点"
+  )
+
+  check("空字符串产出空数组", markdownToPlainNodes("").length === 0)
+  check("CRLF 被规范化", docToMarkdownSource(markdownToPlainNodes("a\r\n\r\nb")) === "a\n\nb")
+}
+
 console.log(`\n===== 通过 ${pass} 项，失败 ${fail.length} 项 =====`)
 if (fail.length > 0) {
   fail.forEach((f) => console.log(`  - ${f}`))
   process.exitCode = 1
 }
 console.log(
-  "\n说明：以上是纯函数层。「粘贴/整理后 DOM 真的变成 <h2>/<table>/<pre>」" +
+  "\n说明：以上是纯函数层。「粘贴 → 点整理 → DOM 变成 <h2>/<table>/<pre>」" +
     "由 npm run editor:markdown-ui 在真实浏览器里验证。"
 )
