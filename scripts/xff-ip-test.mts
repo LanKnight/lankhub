@@ -82,6 +82,28 @@ console.log("\n【6】IPv6 与带端口的形式")
   check("IPv4 带端口", getClientIp(headers({ "x-forwarded-for": "203.0.113.9:1234" })) === "203.0.113.9:1234")
 }
 
+console.log("\n【6.5】IPv4-mapped IPv6（Next.js 拿不到 XFF 时会塞这种形式）")
+{
+  /*
+   * 实测：本地直连时 x-forwarded-for 是 `::ffff:127.0.0.1`。
+   * 这是 socket 对端地址的 IPv4-mapped IPv6 形式，必须认，
+   * 否则真实地址会被丢掉、退回兜底值。
+   */
+  check(
+    "★ ::ffff:127.0.0.1 被识别为有效 IP",
+    getClientIp(headers({ "x-forwarded-for": "::ffff:127.0.0.1" })) === "::ffff:127.0.0.1",
+    getClientIp(headers({ "x-forwarded-for": "::ffff:127.0.0.1" }))
+  )
+  check(
+    "★ ::ffff:192.168.1.5 也被识别",
+    getClientIp(headers({ "x-forwarded-for": "::ffff:192.168.1.5" })) === "::ffff:192.168.1.5"
+  )
+  check(
+    "普通 IPv4 不受影响",
+    getClientIp(headers({ "x-forwarded-for": "1.2.3.4" })) === "1.2.3.4"
+  )
+}
+
 console.log("\n【7】极端长度与空白")
 {
   check("超长值被丢弃", getClientIp(headers({ "x-forwarded-for": "a".repeat(200) })) === "127.0.0.1")

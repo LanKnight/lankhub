@@ -123,6 +123,16 @@ const TRUSTED_PROXY_HOPS = 1
 function looksLikeIp(value: string): boolean {
   const v = value.trim()
   if (v.length === 0 || v.length > 64) return false
+  /*
+   * IPv4-mapped IPv6：`::ffff:127.0.0.1`、`::ffff:192.168.1.5`
+   *
+   * ⚠️ 这个形式必须单独认！
+   * Next.js / Node 在拿不到 X-Forwarded-For 时会把 **socket 对端地址**塞进这个头，
+   * 而 IPv4 连接在双栈监听下就是这个 `::ffff:` 前缀的形式。
+   * 实测本地直连时 `x-forwarded-for` 正是 `::ffff:127.0.0.1` ——
+   * 不认它就只能退回兜底值，等于把真实地址丢了。
+   */
+  if (/^::ffff:\d{1,3}(\.\d{1,3}){3}$/i.test(v)) return true
   // IPv4（可带端口）
   if (/^\d{1,3}(\.\d{1,3}){3}(:\d+)?$/.test(v)) return true
   // IPv6（粗判：只允许十六进制与冒号，可带方括号）
