@@ -18,12 +18,14 @@ import {
   Heading3,
   Pilcrow,
   SquareCode,
+  ClipboardPaste,
 } from "lucide-react"
 
 interface EditorToolbarProps {
   editor: Editor
   onAddImage: () => void
   onAddLink: () => void
+  onPasteMarkdown: () => void
 }
 
 /**
@@ -71,6 +73,7 @@ export default function EditorToolbar({
   editor,
   onAddImage,
   onAddLink,
+  onPasteMarkdown,
 }: EditorToolbarProps) {
   return (
     /*
@@ -207,6 +210,13 @@ export default function EditorToolbar({
         </ToolButton>
         <ToolButton title="插入链接" onClick={onAddLink}>
           <Link size={16} />
+        </ToolButton>
+        {/*
+          粘贴 Markdown：日常直接 Ctrl+V 就会自动识别，这个按钮是兜底入口 ——
+          自动识别没触发时、或想先预览一眼再插入时用。
+        */}
+        <ToolButton title="粘贴 Markdown（可预览）" onClick={onPasteMarkdown}>
+          <ClipboardPaste size={16} />
         </ToolButton>
       </div>
 

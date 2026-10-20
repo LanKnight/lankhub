@@ -824,6 +824,38 @@ html {
   color: inherit;
 }
 
+/* -- 表格 --
+ *
+ * 正文与编辑器里的表格外观都由 Tailwind Typography 的 prose 规则提供
+ * （边框、表头底色、单元格内边距），这里只补 prose 不管的三件事：
+ *   1. 宽表格要能横向滚动，否则窄屏会把整页撑破
+ *   2. 编辑器里「选中的单元格」要高亮，否则拖选一片区域时看不出选了哪
+ *   3. 列太窄时表头文字会被挤成一列竖排，需要给个宽度下限
+ *
+ * 编辑器根节点本身就带 prose 类，所以两处外观天然一致。
+ */
+.table-wrapper,
+.ProseMirror .tableWrapper {
+  overflow-x: auto;
+}
+
+/* 单元格选区高亮：ProseMirror 会给选中的单元格加 selectedCell 类 */
+.ProseMirror .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.06);
+  pointer-events: none;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  /* ::after 高亮要相对单元格定位 */
+  position: relative;
+  min-width: 4rem;
+  vertical-align: top;
+}
+
 /* -- 打印：代码块转为浅底深字，省墨 -- */
 @media print {
   .code-block {

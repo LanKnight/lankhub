@@ -5,8 +5,17 @@ import StarterKit from "@tiptap/starter-kit"
 import ImageExtension from "@tiptap/extension-image"
 import LinkExtension from "@tiptap/extension-link"
 import Placeholder from "@tiptap/extension-placeholder"
+import { Markdown } from "@tiptap/markdown"
+import { TableKit } from "@tiptap/extension-table"
 import CodeBlockWithTools from "./CodeBlockExtension"
 import EditorToolbar from "./EditorToolbar"
+import MarkdownPasteDialog, { type MarkdownPreview } from "./MarkdownPasteDialog"
+import {
+  looksLikeMarkdown,
+  rewriteExternalImages,
+  sanitizeMarkdownDoc,
+  type MarkdownNode,
+} from "@/lib/markdown-paste"
 import {
   useCallback,
   useEffect,
@@ -29,6 +38,9 @@ interface RichTextEditorProps {
   ref?: Ref<RichTextEditorHandle>
 }
 
+/** 编辑器实例。`handlePaste` 在 useEditor 配置里就要用到它，所以存进 ref */
+type TipTapEditor = NonNullable<ReturnType<typeof useEditor>>
+
 export default function RichTextEditor({
   content,
   onChange,
@@ -40,6 +52,10 @@ export default function RichTextEditor({
   const [linkOpen, setLinkOpen] = useState(false)
   const [linkUrl, setLinkUrl] = useState("")
   const [linkError, setLinkError] = useState("")
+  // 粘贴 Markdown 弹层状态
+  const [markdownOpen, setMarkdownOpen] = useState(false)
+  // 编辑器实例：`handlePaste` 写在 useEditor 配置里，拿不到返回值，只能存 ref
+  const editorRef = useRef<TipTapEditor | null>(null)
   // 防抖：长文输入时避免每次击键全量序列化 + 触发父组件重渲染
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const latestJson = useRef("")
@@ -57,6 +73,57 @@ export default function RichTextEditor({
     if (latestJson.current) onChange?.(latestJson.current)
   }, [onChange])
 
+  /**
+   * 把 markdown 解析成 ProseMirror 文档（不插入）。
+   *
+   * 解析要用编辑器注册的 schema，所以必须借它的 `markdown` 管理器 ——
+   * 弹层的实时预览也走这里，保证「预览看到的」和「插入的」是同一份结果。
+   */
+  const previewMarkdown = useCallback((markdown: string): MarkdownPreview | null => {
+    const manager = editorRef.current?.markdown
+    if (!manager) return null
+
+    try {
+      // 先把「贴上去也不显示」的图片换成说明文字，再交给解析器
+      const { markdown: rewritten, rewritten: images } = rewriteExternalImages(markdown)
+      const doc = manager.parse(rewritten) as MarkdownNode
+      const { content, droppedLinks } = sanitizeMarkdownDoc(doc)
+      return { content, rewritten: images, droppedLinks }
+    } catch {
+      // 解析器抛错（畸形输入）时不要炸掉整个编辑器：交给调用方给提示
+      return null
+    }
+  }, [])
+
+  /** 把解析结果插到光标处。返回是否成功 */
+  const insertMarkdown = useCallback(
+    (markdown: string): boolean => {
+      const editor = editorRef.current
+      if (!editor) return false
+
+      const parsed = previewMarkdown(markdown)
+      if (!parsed || parsed.content.length === 0) return false
+
+      /*
+       * 传入 content 数组而不是整个 doc：
+       * `doc` 是顶层节点，insertContent 会尝试把它塞进当前选区所在的位置，schema 不允许。
+       */
+      editor.chain().focus().insertContent(parsed.content).run()
+
+      const notes: string[] = []
+      if (parsed.rewritten.length > 0) {
+        notes.push(`已转成链接说明的图片 ${parsed.rewritten.length} 张（需手动上传）`)
+      }
+      if (parsed.droppedLinks > 0) {
+        notes.push(`移除了 ${parsed.droppedLinks} 个不安全的链接`)
+      }
+      if (notes.length > 0) toast(notes.join("，"), "info")
+
+      return true
+    },
+    [previewMarkdown, toast]
+  )
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -67,6 +134,13 @@ export default function RichTextEditor({
         codeBlock: false,
       }),
       CodeBlockWithTools,
+      TableKit,
+      /*
+       * Markdown 扩展只为了两件事：解析粘贴进来的 markdown、以及弹层里的预览。
+       * 文章的存储格式仍然是 TipTap JSON（不用 markdown 存），
+       * 所以前台渲染链路完全没变。
+       */
+      Markdown,
       ImageExtension,
       LinkExtension.configure({
         openOnClick: false,
@@ -93,8 +167,42 @@ export default function RichTextEditor({
         class:
           "prose prose-gray max-w-none focus:outline-none min-h-[300px] px-6 py-4",
       },
+      handlePaste: (_view, event) => {
+        const clipboard = event.clipboardData
+        if (!clipboard) return false
+
+        const text = clipboard.getData("text/plain")
+        if (!text) return false
+
+        /*
+         * 有条理的判断顺序，尽量不破坏现在正常的粘贴：
+         *
+         * 1. 剪贴板里若有**真正带格式的 HTML**，让 ProseMirror 自己解析 ——
+         *    那是比 markdown 原文更准确的来源，不该抢它的活。
+         * 2. 但有些界面（含部分聊天页）只是把 markdown 原文塞进 <pre> 里，
+         *    HTML 的纯文本内容与 text/plain 完全相同。这种「原样包装」仍然
+         *    要按 markdown 处理，否则用户看到的还是 `##`、`**`。
+         * 3. 都没有才看纯文本像不像 markdown。
+         */
+        const html = clipboard.getData("text/html")
+        if (html.length > 0) {
+          const htmlText = extractTextFromHtml(html)
+          const isRawWrapper = htmlText.length > 0 && htmlText.trim() === text.trim()
+          if (!isRawWrapper) return false
+        }
+
+        if (!looksLikeMarkdown(text)) return false
+
+        // 返回 true 表示「我们已经处理了粘贴」，ProseMirror 不再插入原文
+        return insertMarkdown(text)
+      },
     },
   })
+
+  // 编辑器实例就绪后存进 ref（`handlePaste` 与弹层都依赖它）
+  useEffect(() => {
+    editorRef.current = editor ?? null
+  }, [editor])
 
   const addImage = useCallback(() => {
     const input = document.createElement("input")
@@ -200,12 +308,22 @@ export default function RichTextEditor({
         editor={editor}
         onAddImage={addImage}
         onAddLink={openLinkDialog}
+        onPasteMarkdown={() => setMarkdownOpen(true)}
       />
       <EditorContent editor={editor} />
       <div className="flex items-center justify-between px-6 py-2 border-t border-gray-100 text-xs text-gray-400">
-        <span>Ctrl+S 保存 · Ctrl+Alt+I 插图</span>
+        <span>Ctrl+S 保存 · Ctrl+Alt+I 插图 · 可直接粘贴 Markdown</span>
         <span>{wordCount} 字</span>
       </div>
+
+      {/* 粘贴 Markdown 弹层：左粘贴、右预览、确认后插入 */}
+      {markdownOpen && (
+        <MarkdownPasteDialog
+          onClose={() => setMarkdownOpen(false)}
+          preview={previewMarkdown}
+          insert={insertMarkdown}
+        />
+      )}
 
       {/* 链接插入弹层 */}
       {linkOpen && (
@@ -261,8 +379,28 @@ export default function RichTextEditor({
   )
 }
 
-function tryParseContent(content: string) {
+/**
+ * 取出 HTML 片段的纯文本。
+ *
+ * 用来判断剪贴板里的 HTML 是不是「markdown 原文的原样包装」：
+ * 若它的纯文本与 text/plain 完全相同，说明 HTML 没带来额外格式，
+ * 那就该按 markdown 处理。
+ *
+ * 用 DOMParser 而不是「塞进临时 div 再读 textContent」：
+ * DOMParser 产出的是惰性文档，不会加载图片、不会执行脚本，
+ * 处理来路不明的剪贴板内容更稳妥。
+ */
+function extractTextFromHtml(html: string): string {
+  if (typeof DOMParser === "undefined") return ""
   try {
+    const doc = new DOMParser().parseFromString(html, "text/html")
+    return doc.body?.textContent ?? ""
+  } catch {
+    return ""
+  }
+}
+
+function tryParseContent(content: string) {  try {
     const parsed = JSON.parse(content)
     if (parsed && typeof parsed === "object") return parsed
   } catch {
@@ -273,12 +411,12 @@ function tryParseContent(content: string) {
 }
 
 /** 递归统计 TipTap 文档的纯文本字符数 */
-function countWords(node: any): number {
+function countWords(node: MarkdownNode): number {
   if (!node || typeof node !== "object") return 0
   if (typeof node.text === "string") return node.text.length
   if (Array.isArray(node.content)) {
     return node.content.reduce(
-      (sum: number, child: any) => sum + countWords(child),
+      (sum: number, child: MarkdownNode) => sum + countWords(child),
       0
     )
   }

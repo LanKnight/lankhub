@@ -122,6 +122,26 @@ function renderNode(node: TipTapNode, key: number): ReactNode {
       return <li key={key}>{renderChildren(node)}</li>
     case "codeBlock":
       return renderCodeBlock(node, key)
+    /*
+     * 表格：四层结构 table > tableRow > tableHeader/tableCell。
+     *
+     * 用 `<table>` + `<thead>/<tbody>` 而不是直接把行堆在 table 里：
+     * Tailwind Typography 的 prose 规则是按标准结构写样式的
+     * （表头底色、单元格边框），少了 thead 就套不到那些样式。
+     *
+     * 判断「这一行是不是表头行」靠单元格类型而不是行序号：
+     * markdown 表格解析出来第一行就是 tableHeader，其余是 tableCell，
+     * 按序号猜会在「没有表头的表格」上出错。
+     */
+    case "table":
+      return renderTable(node, key)
+    case "tableRow":
+      // 行本身由 renderTable 负责分组，走到这里说明是异常结构，退化成普通行
+      return <tr key={key}>{renderChildren(node)}</tr>
+    case "tableHeader":
+      return renderTableCell(node, key, true)
+    case "tableCell":
+      return renderTableCell(node, key, false)
     case "image":
       return renderImage(node, key)
     case "horizontalRule":
@@ -233,6 +253,74 @@ function renderImage(node: TipTapNode, key: number): ReactNode {
 function readImageDimension(value: unknown): number | undefined {
   const size = toFiniteNumber(value)
   return size !== null && size > 0 ? Math.trunc(size) : undefined
+}
+
+/**
+ * 表格渲染。
+ *
+ * 把行按单元格类型分成表头组与表体组，再包成 `<thead>` / `<tbody>`：
+ * Tailwind Typography 的 prose 规则按标准结构写样式，缺了分组就套不上。
+ *
+ * 没有表头的表格（全是 tableCell）只输出 `<tbody>`，不要造一个空的 `<thead>` ——
+ * 空 thead 会让表格顶部凭空多出一条边框。
+ */
+function renderTable(node: TipTapNode, key: number): ReactNode {
+  const rows = node.content ?? []
+  const headerRows = rows.filter((row) => rowHasHeaderCell(row))
+  const bodyRows = rows.filter((row) => !rowHasHeaderCell(row))
+
+  return (
+    <div key={key} className="table-wrapper">
+      <table>
+        {headerRows.length > 0 && (
+          <thead>{headerRows.map((row, i) => renderNode(row, i))}</thead>
+        )}
+        {bodyRows.length > 0 && (
+          <tbody>{bodyRows.map((row, i) => renderNode(row, i))}</tbody>
+        )}
+      </table>
+    </div>
+  )
+}
+
+function rowHasHeaderCell(row: TipTapNode): boolean {
+  return (row.content ?? []).some((cell) => cell.type === "tableHeader")
+}
+
+function renderTableCell(
+  node: TipTapNode,
+  key: number,
+  isHeader: boolean
+): ReactNode {
+  const Tag = isHeader ? "th" : "td"
+  const colSpan = readSpan(node.attrs?.colspan)
+  const rowSpan = readSpan(node.attrs?.rowspan)
+  const align = readCellAlign(node.attrs?.align)
+
+  return (
+    <Tag
+      key={key}
+      colSpan={colSpan}
+      rowSpan={rowSpan}
+      // 用 style 而不是 align 属性：align 在 HTML5 已废弃，浏览器仍支持但不可靠
+      style={align ? { textAlign: align } : undefined}
+    >
+      {renderChildren(node)}
+    </Tag>
+  )
+}
+
+/** markdown 表格的 `:---:` 对齐方式，解析后落在单元格的 align 属性上 */
+function readCellAlign(value: unknown): "left" | "center" | "right" | undefined {
+  return value === "left" || value === "center" || value === "right"
+    ? value
+    : undefined
+}
+
+/** 合并单元格的跨度；1 是默认值，省略以免输出多余属性 */
+function readSpan(value: unknown): number | undefined {
+  const span = toFiniteNumber(value)
+  return span !== null && span > 1 ? Math.trunc(span) : undefined
 }
 
 function renderCodeBlock(node: TipTapNode, key: number): ReactNode {
