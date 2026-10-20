@@ -476,39 +476,121 @@ async function main() {
       check("★ 没有被误转成标题", st.hasHeading === 0, `heading=${st.hasHeading}`)
     }
 
-    console.log("\n【9】★ 工具栏的「粘贴 Markdown」入口存在")
+    console.log("\n【9】★★「整理 Markdown」按钮：就地转换已有内容")
     {
-      const st = JSON.parse(
-        (await run(
-          `JSON.stringify({
-             btn: !!document.querySelector('button[title*="Markdown"]'),
-             title: document.querySelector('button[title*="Markdown"]')?.getAttribute('title') ?? '',
-           })`
-        )) as string
-      ) as { btn: boolean; title: string }
-      check("★ 工具栏有该按钮", st.btn, st.title)
+      const BTN = `document.querySelector('button[title*=\"Markdown\"]')`
 
-      // 点开弹层，确认预览可用
+      const title = (await run(`${BTN}?.getAttribute('title') ?? ''`)) as string
+      check("★ 工具栏有该按钮", title.length > 0, title)
+      check("按钮语义是「就地整理」而不是「打开弹层粘贴」", title.includes("就地"), title)
+
+      /*
+       * 构造「已经把 markdown 原文粘进来了、但没被自动转换」的状态。
+       *
+       * 手法：只提供 text/html、不给 text/plain。
+       * 我们的 handlePaste 在拿不到纯文本时会直接放行（返回 false），
+       * 于是 ProseMirror 按 HTML 解析，得到的就是「字面量 ## 的普通段落」——
+       * 正是作者反馈的那份残留内容。
+       *
+       * ⚠️ 刻意**不用** `**粗体**` 作为输入：
+       * TipTap 的 markdown 输入规则会把 `**x**` 自动变成粗体标记，
+       * 于是文档里就有了行内格式 → 「已有格式」守卫判定冲突 → 不做整篇转换。
+       * 那个守卫行为是**对的**（避免冲掉手工排的版），是这里的输入不够干净。
+       * 「已有格式就不动」的端到端行为见【10】。
+       */
+      await fresh()
       await run(
-        `document.querySelector('button[title*="Markdown"]')?.click(); "ok"`
+        `(() => {
+           const editor = document.querySelector('.ProseMirror');
+           editor.focus();
+           const dt = new DataTransfer();
+           dt.setData('text/html', '<p>## 整理后的标题</p><p>这一行没有任何行内标记</p>');
+           dt.setData('text/plain', '');
+           editor.dispatchEvent(new ClipboardEvent('paste', {
+             clipboardData: dt, bubbles: true, cancelable: true,
+           }));
+           return 'ok';
+         })()`
       )
-      await sleep(500)
-      const dlg = JSON.parse(
+      await sleep(700)
+
+      const before = JSON.parse(
         (await run(
           `JSON.stringify({
-             textarea: !!document.querySelector('textarea'),
-             hint: document.body.innerText.includes('粘贴 Markdown'),
+             h2: document.querySelectorAll('.ProseMirror h2').length,
+             text: document.querySelector('.ProseMirror')?.innerText ?? '',
            })`
         )) as string
-      ) as { textarea: boolean; hint: boolean }
-      check("★ 弹层打开且有输入框", dlg.textarea, String(dlg.textarea))
-      check("弹层标题正确", dlg.hint, String(dlg.hint))
+      ) as { h2: number; text: string }
+      check(
+        "★ 点之前：确实是带 ## 的纯文本",
+        before.h2 === 0 && before.text.includes("##"),
+        before.text.replace(/\n/g, " ").slice(0, 70)
+      )
 
-      // Esc 关闭
-      await run(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); "ok"`)
-      await sleep(300)
+      await run(`${BTN}?.click(); "clicked"`)
+      await sleep(900)
+
+      const after = JSON.parse(
+        (await run(
+          `JSON.stringify({
+             h2: document.querySelectorAll('.ProseMirror h2').length,
+             h2Text: document.querySelector('.ProseMirror h2')?.textContent ?? '',
+             text: document.querySelector('.ProseMirror')?.innerText ?? '',
+             body: document.body.innerText,
+           })`
+        )) as string
+      ) as { h2: number; h2Text: string; text: string; body: string }
+
+      const hint = after.body.includes("未做改动") ? "（有不改动提示）" : ""
+      check("★★ 点之后：就地生成了 h2", after.h2 === 1, `h2=${after.h2}${hint}`)
+      check("★ 标题文字正确", after.h2Text === "整理后的标题", after.h2Text)
+      check("★★ 正文里没有残留 ##", !after.text.includes("##"), after.text.replace(/\n/g, " ").slice(0, 70))
+      check("★ 其余段落仍然保留", after.text.includes("这一行没有任何行内标记"), after.text.replace(/\n/g, " ").slice(0, 70))
     }
 
+    console.log("\n【10】★★ 已有格式时不整篇重写（放着不管）")
+    {
+      // 先粘一段会被自动转换的 markdown，得到「已有格式」的正文
+      await fresh()
+      await paste("## 已有标题\n\n**粗体**正文")
+      await sleep(800)
+
+      const before = JSON.parse(
+        (await run(
+          `JSON.stringify({
+             h2: document.querySelectorAll('.ProseMirror h2').length,
+             strong: document.querySelectorAll('.ProseMirror strong').length,
+             text: document.querySelector('.ProseMirror')?.innerText ?? '',
+           })`
+        )) as string
+      ) as { h2: number; strong: number; text: string }
+      check("先造出已有格式的正文", before.h2 === 1 && before.strong === 1, `h2=${before.h2} strong=${before.strong}`)
+
+      // 点「整理」：应当拒绝整篇重写，只给提示
+      await run(`document.querySelector('button[title*="Markdown"]')?.click(); "ok"`)
+      await sleep(900)
+
+      const after = JSON.parse(
+        (await run(
+          `JSON.stringify({
+             h2: document.querySelectorAll('.ProseMirror h2').length,
+             strong: document.querySelectorAll('.ProseMirror strong').length,
+             text: document.querySelector('.ProseMirror')?.innerText ?? '',
+             body: document.body.innerText,
+           })`
+        )) as string
+      ) as { h2: number; strong: number; text: string; body: string }
+
+      check("★ 原有 h2 没有被冲掉", after.h2 === 1, `h2=${after.h2}`)
+      check("★ 原有粗体没有被冲掉", after.strong === 1, `strong=${after.strong}`)
+      check(
+        "★★ 正文内容逐字未变",
+        after.text === before.text,
+        `${before.text.replace(/\n/g, " ")} → ${after.text.replace(/\n/g, " ")}`
+      )
+      check("★ 给出了「已有格式、未做改动」的提示", after.body.includes("未做改动"), "")
+    }
     cdp.close()
   } finally {
     browser.kill()

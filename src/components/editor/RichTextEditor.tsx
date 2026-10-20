@@ -9,8 +9,8 @@ import { Markdown } from "@tiptap/markdown"
 import { TableKit } from "@tiptap/extension-table"
 import CodeBlockWithTools from "./CodeBlockExtension"
 import EditorToolbar from "./EditorToolbar"
-import MarkdownPasteDialog, { type MarkdownPreview } from "./MarkdownPasteDialog"
 import {
+  isPlainTextDocument,
   looksLikeMarkdown,
   rewriteExternalImages,
   sanitizeMarkdownDoc,
@@ -41,6 +41,13 @@ interface RichTextEditorProps {
 /** 编辑器实例。`handlePaste` 在 useEditor 配置里就要用到它，所以存进 ref */
 type TipTapEditor = NonNullable<ReturnType<typeof useEditor>>
 
+/** 解析结果。图片被改写、链接被移除的数量用于事后提示 */
+interface MarkdownParse {
+  content: MarkdownNode[]
+  rewritten: { alt: string; url: string; reason: string }[]
+  droppedLinks: number
+}
+
 export default function RichTextEditor({
   content,
   onChange,
@@ -52,8 +59,6 @@ export default function RichTextEditor({
   const [linkOpen, setLinkOpen] = useState(false)
   const [linkUrl, setLinkUrl] = useState("")
   const [linkError, setLinkError] = useState("")
-  // 粘贴 Markdown 弹层状态
-  const [markdownOpen, setMarkdownOpen] = useState(false)
   // 编辑器实例：`handlePaste` 写在 useEditor 配置里，拿不到返回值，只能存 ref
   const editorRef = useRef<TipTapEditor | null>(null)
   // 防抖：长文输入时避免每次击键全量序列化 + 触发父组件重渲染
@@ -76,10 +81,10 @@ export default function RichTextEditor({
   /**
    * 把 markdown 解析成 ProseMirror 文档（不插入）。
    *
-   * 解析要用编辑器注册的 schema，所以必须借它的 `markdown` 管理器 ——
-   * 弹层的实时预览也走这里，保证「预览看到的」和「插入的」是同一份结果。
+   * 解析要用编辑器注册的 schema，所以必须借它的 `markdown` 管理器。
+   * 粘贴与「整理」两个入口共用这里，保证行为一致。
    */
-  const previewMarkdown = useCallback((markdown: string): MarkdownPreview | null => {
+  const previewMarkdown = useCallback((markdown: string): MarkdownParse | null => {
     const manager = editorRef.current?.markdown
     if (!manager) return null
 
@@ -90,12 +95,27 @@ export default function RichTextEditor({
       const { content, droppedLinks } = sanitizeMarkdownDoc(doc)
       return { content, rewritten: images, droppedLinks }
     } catch {
-      // 解析器抛错（畸形输入）时不要炸掉整个编辑器：交给调用方给提示
+      // 解析器抛错（畸形输入）时不要炸掉整个编辑器：交给调用方决定怎么处理
       return null
     }
   }, [])
 
-  /** 把解析结果插到光标处。返回是否成功 */
+  /** 解析结果里的副作用（图片被改写、危险链接被移除）需要告诉作者 */
+  const notifyMarkdownIssues = useCallback(
+    (parsed: MarkdownParse) => {
+      const notes: string[] = []
+      if (parsed.rewritten.length > 0) {
+        notes.push(`已转成链接说明的图片 ${parsed.rewritten.length} 张（需手动上传）`)
+      }
+      if (parsed.droppedLinks > 0) {
+        notes.push(`移除了 ${parsed.droppedLinks} 个不安全的链接`)
+      }
+      if (notes.length > 0) toast(notes.join("，"), "info")
+    },
+    [toast]
+  )
+
+  /** 把 markdown 解析后插到光标处（替换当前选区）。返回是否成功 */
   const insertMarkdown = useCallback(
     (markdown: string): boolean => {
       const editor = editorRef.current
@@ -109,20 +129,76 @@ export default function RichTextEditor({
        * `doc` 是顶层节点，insertContent 会尝试把它塞进当前选区所在的位置，schema 不允许。
        */
       editor.chain().focus().insertContent(parsed.content).run()
-
-      const notes: string[] = []
-      if (parsed.rewritten.length > 0) {
-        notes.push(`已转成链接说明的图片 ${parsed.rewritten.length} 张（需手动上传）`)
-      }
-      if (parsed.droppedLinks > 0) {
-        notes.push(`移除了 ${parsed.droppedLinks} 个不安全的链接`)
-      }
-      if (notes.length > 0) toast(notes.join("，"), "info")
-
+      notifyMarkdownIssues(parsed)
       return true
     },
-    [previewMarkdown, toast]
+    [previewMarkdown, notifyMarkdownIssues]
   )
+
+  /**
+   * 「整理 Markdown」：把编辑器里**已经是 markdown 的纯文本**就地转成富文本。
+   *
+   * ## 为什么不弹一个框让作者再粘一次
+   *
+   * 那等于把「粘贴」做两遍。作者的诉求是「我已经粘进来了，帮我把 `##`、`**`
+   * 这些符号整理掉」，所以这个按钮应当作用在**已有内容**上。
+   *
+   * ## 判定顺序（保守优先）
+   *
+   * 1. **有选中文本** → 只转换选区，其余内容一个字节都不动
+   * 2. 无选中且**整篇都是纯文本** → 整篇转换（这正是「刚粘进来还没整理」的形态）
+   * 3. 无选中但**已有格式**（标题/列表/图片/表格/代码块/粗体…）→ **放着不动**
+   * 4. 看起来不是 markdown、或解析失败 → **放着不动**
+   *
+   * 第 3 条是刻意保守：整篇重写会把作者手工调过的排版全部冲掉，
+   * 那才是真正的「冲突」。处理不了就什么都不改，只给一条灰色提示说明原因。
+   */
+  const convertMarkdownInPlace = useCallback(() => {
+    const editor = editorRef.current
+    if (!editor) return
+
+    const { from, to, empty } = editor.state.selection
+
+    // ---- 1. 有选区：只处理选区 ----
+    if (!empty) {
+      const selected = editor.state.doc.textBetween(from, to, "\n")
+      if (!looksLikeMarkdown(selected)) {
+        toast("选中的内容看起来不是 Markdown，未做改动", "info")
+        return
+      }
+      const parsed = previewMarkdown(selected)
+      if (!parsed || parsed.content.length === 0) {
+        toast("选中的内容无法解析，未做改动", "info")
+        return
+      }
+      // insertContent 在选区非空时是「替换」，不会把原文留在旁边
+      editor.chain().focus().insertContent(parsed.content).run()
+      notifyMarkdownIssues(parsed)
+      return
+    }
+
+    // ---- 2/3. 无选区：只有整篇纯文本才整体转换 ----
+    const doc = editor.getJSON() as MarkdownNode
+    if (!isPlainTextDocument(doc.content ?? [])) {
+      toast("正文里已有格式，未做改动（可先选中要转换的段落再点）", "info")
+      return
+    }
+
+    const text = editor.getText({ blockSeparator: "\n\n" })
+    if (!looksLikeMarkdown(text)) {
+      toast("没有检测到可转换的 Markdown 内容", "info")
+      return
+    }
+
+    const parsed = previewMarkdown(text)
+    if (!parsed || parsed.content.length === 0) {
+      toast("内容无法解析，未做改动", "info")
+      return
+    }
+
+    editor.commands.setContent({ type: "doc", content: parsed.content })
+    notifyMarkdownIssues(parsed)
+  }, [previewMarkdown, notifyMarkdownIssues, toast])
 
   const editor = useEditor({
     extensions: [
@@ -179,15 +255,23 @@ export default function RichTextEditor({
          *
          * 1. 剪贴板里若有**真正带格式的 HTML**，让 ProseMirror 自己解析 ——
          *    那是比 markdown 原文更准确的来源，不该抢它的活。
-         * 2. 但有些界面（含部分聊天页）只是把 markdown 原文塞进 <pre> 里，
-         *    HTML 的纯文本内容与 text/plain 完全相同。这种「原样包装」仍然
-         *    要按 markdown 处理，否则用户看到的还是 `##`、`**`。
+         * 2. 但有些界面只是把 markdown 原文用 `<p>` 之类包了一层，
+         *    HTML 的纯文本内容与 text/plain 相同（只差空白）。这种「原样包装」
+         *    仍然要按 markdown 处理，否则用户看到的还是 `##`、`**`。
          * 3. 都没有才看纯文本像不像 markdown。
+         *
+         * ⚠️ 第 2 步必须**先去掉所有空白再比较**。
+         * `<p>## 标题</p><p>正文</p>` 的 textContent 是「## 标题正文」——
+         * 段落之间的换行没了，与 `text/plain` 的 `## 标题\n\n正文` 直接比是不相等的。
+         * 原来就是这么比的，导致这类剪贴板被误判成「有真正格式」而不转换
+         * （很多聊天界面复制出来正是 `<p>` 包裹的形态）。
          */
         const html = clipboard.getData("text/html")
         if (html.length > 0) {
           const htmlText = extractTextFromHtml(html)
-          const isRawWrapper = htmlText.length > 0 && htmlText.trim() === text.trim()
+          const isRawWrapper =
+            compressWhitespace(htmlText).length > 0 &&
+            compressWhitespace(htmlText) === compressWhitespace(text)
           if (!isRawWrapper) return false
         }
 
@@ -308,7 +392,7 @@ export default function RichTextEditor({
         editor={editor}
         onAddImage={addImage}
         onAddLink={openLinkDialog}
-        onPasteMarkdown={() => setMarkdownOpen(true)}
+        onConvertMarkdown={convertMarkdownInPlace}
       />
       <EditorContent editor={editor} />
       <div className="flex items-center justify-between px-6 py-2 border-t border-gray-100 text-xs text-gray-400">
@@ -316,14 +400,6 @@ export default function RichTextEditor({
         <span>{wordCount} 字</span>
       </div>
 
-      {/* 粘贴 Markdown 弹层：左粘贴、右预览、确认后插入 */}
-      {markdownOpen && (
-        <MarkdownPasteDialog
-          onClose={() => setMarkdownOpen(false)}
-          preview={previewMarkdown}
-          insert={insertMarkdown}
-        />
-      )}
 
       {/* 链接插入弹层 */}
       {linkOpen && (
@@ -398,6 +474,17 @@ function extractTextFromHtml(html: string): string {
   } catch {
     return ""
   }
+}
+
+/**
+ * 去掉所有空白字符。
+ *
+ * 用于比较「剪贴板里 HTML 的纯文本」与 `text/plain` 是不是同一份内容 ——
+ * HTML 的段落分隔在 textContent 里是不留换行的，直接比较会永远不相等。
+ * 只比较**非空白字符**，才真正反映「有没有丢失格式」。
+ */
+function compressWhitespace(value: string): string {
+  return value.replace(/\s+/g, "")
 }
 
 function tryParseContent(content: string) {  try {

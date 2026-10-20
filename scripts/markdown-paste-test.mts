@@ -8,6 +8,7 @@
  */
 import {
   isAllowedImageSrc,
+  isPlainTextDocument,
   looksLikeMarkdown,
   rewriteExternalImages,
   sanitizeMarkdownDoc,
@@ -197,12 +198,91 @@ console.log("\n【9】嵌套结构（列表里的链接与图片）")
   )
 }
 
+console.log("\n【10】★★ 「整理 Markdown」的冲突判定（isPlainTextDocument）")
+{
+  /*
+   * 这是「有格式就放着不管」这条规则的核心。
+   * 只有整篇都是纯文本段落时才允许整篇转换，否则会把作者手工排的版冲掉。
+   */
+  const plain: MarkdownNode = {
+    type: "doc",
+    content: [
+      { type: "paragraph", content: [{ type: "text", text: "## 标题" }] },
+      { type: "paragraph", content: [{ type: "text", text: "**粗体**正文" }] },
+    ],
+  }
+  check("★ 全纯文本段落 → 可以整篇转换", isPlainTextDocument(plain.content ?? []))
+
+  check(
+    "段落里有 hardBreak 也算纯文本",
+    isPlainTextDocument([
+      { type: "paragraph", content: [{ type: "text", text: "a" }, { type: "hardBreak" }] },
+    ])
+  )
+
+  // 有标题 → 已有格式，不允许整篇重写
+  check(
+    "★ 含已有标题 → 判定为冲突（不动）",
+    !isPlainTextDocument([
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "标题" }] },
+    ])
+  )
+
+  // 有列表
+  check(
+    "★ 含列表 → 冲突",
+    !isPlainTextDocument([
+      { type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph" }] }] },
+    ])
+  )
+
+  // 有图片
+  check("含图片 → 冲突", !isPlainTextDocument([{ type: "image", attrs: { src: "/a.jpg" } }]))
+
+  // 有表格
+  check(
+    "含表格 → 冲突",
+    !isPlainTextDocument([
+      { type: "table", content: [{ type: "tableRow", content: [{ type: "tableCell" }] }] },
+    ])
+  )
+
+  // 有代码块
+  check("含代码块 → 冲突", !isPlainTextDocument([{ type: "codeBlock" }]))
+
+  // ★ 只有粗体标记也算已有格式
+  check(
+    "★ 文字带粗体标记 → 冲突（说明已被手工处理过）",
+    !isPlainTextDocument([
+      {
+        type: "paragraph",
+        content: [{ type: "text", text: "粗体", marks: [{ type: "bold" }] }],
+      },
+    ])
+  )
+
+  // 链接标记也算
+  check(
+    "文字带链接标记 → 冲突",
+    !isPlainTextDocument([
+      {
+        type: "paragraph",
+        content: [
+          { type: "text", text: "链接", marks: [{ type: "link", attrs: { href: "https://a.com" } }] },
+        ],
+      },
+    ])
+  )
+
+  check("空文档视为纯文本（可以转换）", isPlainTextDocument([]))
+}
+
 console.log(`\n===== 通过 ${pass} 项，失败 ${fail.length} 项 =====`)
 if (fail.length > 0) {
   fail.forEach((f) => console.log(`  - ${f}`))
   process.exitCode = 1
 }
 console.log(
-  "\n说明：以上是纯函数层。「真的粘贴进编辑器后 DOM 变成 <h2>/<table>/<pre>」" +
-    "需要浏览器验证，本项目用音乐页那套 CDP harness 做过同类验证。"
+  "\n说明：以上是纯函数层。「粘贴/整理后 DOM 真的变成 <h2>/<table>/<pre>」" +
+    "由 npm run editor:markdown-ui 在真实浏览器里验证。"
 )

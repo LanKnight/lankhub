@@ -18,14 +18,14 @@ import {
   Heading3,
   Pilcrow,
   SquareCode,
-  ClipboardPaste,
+  Wand2,
 } from "lucide-react"
 
 interface EditorToolbarProps {
   editor: Editor
   onAddImage: () => void
   onAddLink: () => void
-  onPasteMarkdown: () => void
+  onConvertMarkdown: () => void
 }
 
 /**
@@ -73,7 +73,7 @@ export default function EditorToolbar({
   editor,
   onAddImage,
   onAddLink,
-  onPasteMarkdown,
+  onConvertMarkdown,
 }: EditorToolbarProps) {
   return (
     /*
@@ -212,11 +212,13 @@ export default function EditorToolbar({
           <Link size={16} />
         </ToolButton>
         {/*
-          粘贴 Markdown：日常直接 Ctrl+V 就会自动识别，这个按钮是兜底入口 ——
-          自动识别没触发时、或想先预览一眼再插入时用。
+          整理 Markdown：把编辑器里**已经是 markdown 的纯文本**就地转成富文本。
+          日常直接 Ctrl+V 就会自动转换，这个按钮用于「已经把原文粘进来了」的情况。
+          有选区就只转选区；否则仅当整篇都是纯文本时才整篇转；
+          正文已有格式则完全不动（避免冲掉手工排版）。
         */}
-        <ToolButton title="粘贴 Markdown（可预览）" onClick={onPasteMarkdown}>
-          <ClipboardPaste size={16} />
+        <ToolButton title="整理 Markdown（就地转换已有内容）" onClick={onConvertMarkdown}>
+          <Wand2 size={16} />
         </ToolButton>
       </div>
 

@@ -186,7 +186,14 @@ export interface MarkdownNode {
   type?: string
   attrs?: Record<string, unknown>
   content?: MarkdownNode[]
-  marks?: { type?: string; attrs?: Record<string, unknown> }[]
+  /*
+   * `type` 必须是必填。
+   *
+   * TipTap 的 `JSONContent` 里 marks 的 `type` 就是必填的，写成可选会让
+   * `editor.commands.setContent(...)` 报类型不兼容 —— 那种报错会指向调用处，
+   * 看起来像是 setContent 用法错了，其实是这里的类型定义放宽过度。
+   */
+  marks?: { type: string; attrs?: Record<string, unknown> }[]
   text?: string
 }
 
@@ -196,6 +203,37 @@ export interface SanitizeResult {
   droppedLinks: number
   /** 被移除的图片数量（协议不安全或域名不在 CSP 白名单） */
   droppedImages: number
+}
+
+/**
+ * 允许出现在「纯文本文档」里的节点类型。
+ *
+ * 只有这几种说明正文**完全没有格式** —— 也就是「一段从聊天界面直接粘进来、
+ * 还没被整理过的 markdown 原文」的形态。
+ */
+const PLAIN_NODE_TYPES = new Set(["doc", "paragraph", "text", "hardBreak"])
+
+/**
+ * 整篇是否只是「未经整理的纯文本」。
+ *
+ * ## 为什么要判断这个
+ *
+ * 「整理 Markdown」这个动作有两种做法：
+ *  1. 只处理纯文本（保守）—— 不会碰到作者已经手工调过的排版
+ *  2. 不管三七二十一整篇重写 —— 会把已有格式全部冲掉
+ *
+ * 第 2 种在作者花时间排过版之后就是**破坏性**的。所以只有确认「整篇都是
+ * 纯文本、没有任何格式」时才允许整篇转换；只要出现标题、列表、图片、表格、
+ * 代码块、粗体等任何已有格式，就判定为冲突并放着不动。
+ */
+export function isPlainTextDocument(nodes: MarkdownNode[]): boolean {
+  for (const node of nodes) {
+    if (!node.type || !PLAIN_NODE_TYPES.has(node.type)) return false
+    // 带标记（粗体/斜体/链接…）的文字也算「已有格式」
+    if (node.type === "text" && node.marks && node.marks.length > 0) return false
+    if (node.content && !isPlainTextDocument(node.content)) return false
+  }
+  return true
 }
 
 /**
