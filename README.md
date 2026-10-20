@@ -349,7 +349,9 @@ server {
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # ⚠️ 用 $remote_addr **覆盖**，不要用 $proxy_add_x_forwarded_for（追加）
+        # 见下方「X-Forwarded-For 必须是覆盖」的说明
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
@@ -362,11 +364,40 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 ```
+
+> ### ⚠️⚠️ `X-Forwarded-For` 必须是**覆盖**，不能是追加
+>
+> 这一条是**安全修复**，不要"顺手"改回 `$proxy_add_x_forwarded_for`。
+>
+> `$proxy_add_x_forwarded_for` 的语义是「**保留**客户端自带的 X-Forwarded-For，
+> 再把真实 IP 追加在后面」。而应用早期取的是**第一个**值 ——
+> 于是攻击者发一个 `X-Forwarded-For: 1.2.3.4` 就能伪造来源 IP：
+>
+> ```bash
+> curl -H "X-Forwarded-For: 1.2.3.4" https://你的站/api/auth/send-code ...
+> # 每次换个假 IP → 限流全部失效
+> ```
+>
+> **后果**：发码的 IP 日限被绕过 → 能无限刷邮件、烧光 Resend 的免费额度
+> （100 封/天），之后**站长自己也发不出验证码**；登录的 IP 限流被绕过 →
+> 可以无上限暴力破解密码。
+>
+> 现在两处都做了：
+> 1. **Nginx 侧**（本条）：用 `$remote_addr` 覆盖，客户端伪造的值直接被丢弃
+> 2. **应用侧**：`src/lib/rate-limit.ts` 的 `getClientIp()` 改为按
+>    「可信代理层数」从**右往左**取，并退回 `X-Real-IP`、校验 IP 形状
+>
+> 两层都要有。只做 Nginx，将来配置被回退就立刻失效；只做应用，
+> 依赖"最后一跳是可信的"这个假设。回归测试：`npm run security:xff-test`。
+>
+> **将来若在前面加 CDN / 负载均衡**：链会变长，必须把
+> `src/lib/rate-limit.ts` 里的 `TRUSTED_PROXY_HOPS` 改成实际层数，
+> 否则会把 CDN 的地址当成客户端 IP（所有人共用一个限流桶）。
 
 > ⚠️ **`X-Forwarded-For` 这一行不能少。**
 > 应用里的 `getClientIp()` 靠它识别客户端；**一旦缺失就回退成 `127.0.0.1`**，

@@ -267,7 +267,17 @@ server {
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        # ⚠️ 这里用 \$remote_addr **覆盖**，而不是 \$proxy_add_x_forwarded_for（追加）。
+        #
+        # 理由（安全）：\$proxy_add_x_forwarded_for 会保留客户端自带的 X-Forwarded-For，
+        # 再把真实 IP 追加在后面。应用侧只要取错方向（原先取的就是最左那个），
+        # 攻击者用一个 `X-Forwarded-For: 1.2.3.4` 就能绕过所有基于 IP 的限流 ——
+        # 包括发码日限（能烧光 Resend 额度）与登录爆破限制。
+        #
+        # 覆盖之后，应用拿到的永远只有真实直连地址（本项目只有这一层代理）。
+        # 注意：若将来在前面加了 CDN / 负载均衡，这里要改成信任那层的写法，
+        # 并同步调整 src/lib/rate-limit.ts 里的 TRUSTED_PROXY_HOPS。
+        proxy_set_header X-Forwarded-For \$remote_addr;
         # 这一行在 https 下**必须有**：让应用知道访客走的是 https。
         # 否则 Next.js / Auth.js 可能生成 http 的回调地址，导致登录后跳回 http。
         proxy_set_header X-Forwarded-Proto \$scheme;

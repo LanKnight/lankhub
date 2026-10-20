@@ -45,6 +45,15 @@ export async function GET(req: NextRequest) {
    * 45 次 / 5 分钟，超了会返回「配额快用完了」，见 src/lib/music-api.ts。
    */
   const ip = getClientIp(req.headers)
+
+  /*
+   * 解析 `retry` 参数的位置很关键：必须在限流之前。
+   *
+   * 因为要**根据它决定用哪一道闸门** —— 强制刷新会跳过服务端缓存直打第三方，
+   * 消耗配额的速度完全不同（见下面的第二道限流）。
+   */
+  const force = new URL(req.url).searchParams.get("retry") === "1"
+
   const limitResult = rateLimit(`music:play:${ip}`, 60, 60 * 1000)
   if (!limitResult.allowed) {
     /*
@@ -68,9 +77,33 @@ export async function GET(req: NextRequest) {
       { status: 400 }
     )
   }
-  // 播放器播到一半发现地址失效时会带这个参数回来，跳过内存缓存重取一次，
-  // 否则重试拿到的还是那条已经坏掉的地址
-  const force = url.searchParams.get("retry") === "1"
+  /*
+   * ★ `retry=1` 必须单独一道**更严**的限流。
+   *
+   * 为什么：它会**跳过服务端缓存**直接打第三方接口，而第三方配额只有
+   * 45 次 / 5 分钟（见 music-api.ts）。上面那道 60 次/分钟是按「所有播放请求」
+   * 算的，分不清「正常播放」和「强制刷新」——
+   * 于是 1 秒内刷 45 次 `?retry=1` 就能把配额当场打光，
+   * **全站接下来 5 分钟谁都听不了歌**（包括站长自己）。
+   *
+   * 这个放大是真实存在的：正常播放大量请求都能命中缓存、不消耗配额，
+   * 而强制刷新每一次都实打实消耗一次。
+   *
+   * 3 次 / 5 分钟：正常用户的地址失效是偶发事件（暂停很久再继续），
+   * 3 次足够；同时把最坏情况从「45 次打光配额」压到「3 次」。
+   */
+  if (force) {
+    const retryLimit = rateLimit(`music:play:retry:${ip}`, 3, 5 * 60 * 1000)
+    if (!retryLimit.allowed) {
+      return NextResponse.json(
+        { error: "强制刷新过于频繁，请稍后再试", code: "rate_limited" },
+        {
+          status: 429,
+          headers: { "Retry-After": String(retryLimit.retryAfter) },
+        }
+      )
+    }
+  }
 
   const song = await prisma.song.findUnique({
     where: { id: parsed.data },

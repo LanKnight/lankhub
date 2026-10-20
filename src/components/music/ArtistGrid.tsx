@@ -19,7 +19,7 @@ export interface ArtistGroup {
  * 这样既符合「点卡片再出现音乐」的预期，也不丢失当前浏览位置。
  */
 export default function ArtistGrid({ groups }: { groups: ArtistGroup[] }) {
-  const { current, playing, play, toggle, setMode } = usePlayer()
+  const { current, playing, play, playShuffled, toggle, setMode } = usePlayer()
   const [openArtist, setOpenArtist] = useState<string | null>(null)
 
   /*
@@ -41,10 +41,25 @@ export default function ArtistGrid({ groups }: { groups: ArtistGroup[] }) {
     return { playable: ok, unplayableCount: bad }
   }, [groups])
 
-  /** 从整个队列的第一首开始播；random 为真时直接进入随机模式 */
+  /**
+   * 从整个队列开始播；random 为真时走**随机播放**。
+   *
+   * ⚠️ 随机与顺序的起点处理不一样，这不是笔误：
+   *   - 顺序播放：从第一首开始（用户预期如此）
+   *   - 随机播放：起点也必须是**随机**的
+   *
+   * 原先两条路都写 `play(playable[0], playable)`，只是把模式设成 shuffle ——
+   * 于是「随机播放」每次都从第一首开始，只有后续才随机。
+   * 那正是站长反馈的「随机播放第一首固定」。
+   */
   function playAll(random: boolean) {
     if (playable.length === 0) return
-    setMode(random ? "shuffle" : "sequential")
+    if (random) {
+      setMode("shuffle")
+      playShuffled(playable)
+      return
+    }
+    setMode("sequential")
     play(playable[0], playable)
   }
 

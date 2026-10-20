@@ -11,7 +11,13 @@ import {
   type ReactNode,
   type RefObject,
 } from "react"
-import { nextPlayMode, peekNextSong, resolveStep, type PlayMode } from "@/lib/play-order"
+import {
+  buildShuffleOrder,
+  nextPlayMode,
+  peekNextSong,
+  resolveStep,
+  type PlayMode,
+} from "@/lib/play-order"
 import { MUSIC_ERROR_KIND, type MusicErrorCode } from "@/lib/music-api"
 
 /**
@@ -90,6 +96,13 @@ interface PlayerContextValue {
    */
   audioRef: RefObject<HTMLAudioElement | null>
   play: (song: PlayerSong, queue: PlayerSong[]) => void
+  /**
+   * 随机播放：从队列里随机挑一首当起点，并当场洗好顺序。
+   *
+   * 与 `play(list[0], list)` + `setMode("shuffle")` 的区别在于**起点**：
+   * 后者永远从第一首开始，那正是「随机播放第一首固定」的原因。
+   */
+  playShuffled: (queue: PlayerSong[]) => void
   toggle: () => void
   next: () => void
   prev: () => void
@@ -568,6 +581,39 @@ export function PlayerProvider({
     [setQueueAndReset, start]
   )
 
+  /**
+   * 随机播放：从队列里**随机挑一首**当起点，并当场把随机顺序洗好。
+   *
+   * 为什么需要单独的入口：
+   * 原先是 `playAll(true)` → `play(playable[0], playable)`，
+   * 也就是「把模式设成随机，但仍从队列第一首开始」——
+   * 于是每次都听到同一个开头，只有后面的歌是随机的。
+   * 站长反馈的「随机播放第一首固定」就是这个原因。
+   *
+   * 为什么要把顺序**当场**洗好，而不是等第一次点「下一首」再惰性生成：
+   * 1. 播放列表面板展示的顺序立刻就是真实的随机顺序，不会看着是原始顺序、
+   *    点一下却跳到别处
+   * 2. 随机起点与随机顺序一起确定，行为更可预期
+   *
+   * 起点不排除「当前正在播的那首」——站长选择的是纯粹随机。
+   * 代价是连点两次「随机播放」有小概率抽到同一首（1/N）。
+   */
+  const playShuffled = useCallback(
+    (list: PlayerSong[]) => {
+      if (list.length === 0) return
+      const pick = list[Math.floor(Math.random() * list.length)]
+
+      setQueue(list)
+      // 以被选中的那首为「位置 0」洗一副。（buildShuffleOrder 会把当前歌放最前，
+      // 这样 step() 往后走就正好是洗过的顺序，不需要额外记下标。）
+      shuffleOrder.current = buildShuffleOrder(list, pick.id)
+      shuffleHistory.current = []
+      prefetched.current = null
+      void start(pick)
+    },
+    [start]
+  )
+
   /** 只换当前曲、不动队列 —— 播放列表面板里点某一首用它 */
   const playSong = useCallback(
     (song: PlayerSong) => {
@@ -736,6 +782,7 @@ export function PlayerProvider({
       playSong,
       audioRef,
       play,
+      playShuffled,
       toggle,
       next: () => step(1),
       prev: () => step(-1),
@@ -756,6 +803,7 @@ export function PlayerProvider({
       cycleMode,
       playSong,
       play,
+      playShuffled,
       toggle,
       step,
       close,

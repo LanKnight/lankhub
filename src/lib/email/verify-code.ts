@@ -224,6 +224,33 @@ async function checkSendAllowed(
 }
 
 /**
+ * 按 key 串行化的进程内互斥锁。
+ *
+ * 用来修一个真实的并发缺口：`sendCode` 里「检查冷却」与「写库」之间不是原子的。
+ * 两个并发请求（用户连点、或脚本并发）可以**同时**通过冷却检查，
+ * 于是发出两封邮件、占掉两次配额 —— 而 60 秒冷却的本意正是「只发一封」。
+ *
+ * 局限（如实说明）：只在**单进程**内有效。若将来改成 PM2 cluster 多实例，
+ * 这个锁就管不到跨进程了 —— 那时要换成数据库层面的约束（例如给
+ * `EmailCode` 加「同一 email+scene 只允许一条未消费记录」的唯一索引）。
+ * 当前部署是单实例，所以这里够用。
+ */
+const locks = new Map<string, Promise<unknown>>()
+
+async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  // 等上一个持有者结束（无论成功失败都要放行，所以 catch 掉）
+  const prev = locks.get(key) ?? Promise.resolve()
+  const next = prev.catch(() => undefined).then(fn)
+  locks.set(key, next)
+  try {
+    return await next
+  } finally {
+    // 只有自己还是队尾时才清理，避免把后来者的锁删掉
+    if (locks.get(key) === next) locks.delete(key)
+  }
+}
+
+/**
  * 生成并存一条验证码，然后发信。
  *
  * ⚠️ 先写库再发信，而不是发信成功后再写库：
@@ -239,44 +266,73 @@ export async function sendCode(params: SendCodeParams): Promise<SendResult> {
     return { ok: false, reason: "email-disabled" }
   }
 
-  const allowed = await checkSendAllowed(email, scene, ip, params.skipCooldown === true)
-  if (!allowed.ok) return allowed
-
-  const code = generateCode()
-  const codeHash = hashCode(email, scene, code)
-  const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000)
-
-  await prisma.emailCode.create({
-    data: { email, scene, codeHash, expiresAt, ip },
-  })
-
-  const { subject, html, text } = renderCodeEmail({ scene, code, siteName: getSiteName() })
-  const sent = await sendEmail({ to: email, subject, html, text })
-
-  if (!sent.ok) {
-    /*
-     * 发信失败时把刚写的记录删掉。
-     *
-     * 理由：留着它会让用户**卡在冷却里**（60 秒内不能重发）却什么都没收到；
-     * 而且它还会占掉一次配额。删掉之后用户马上可以重试。
-     * 注意这只删「我们刚插入的这一条」，不会误删别人的。
-     */
-    await prisma.emailCode
-      .deleteMany({ where: { email, scene, codeHash, consumedAt: null } })
-      .catch(() => undefined)
-    return { ok: false, reason: "send-failed", detail: sent.error }
-  }
-
   /*
-   * 开发环境才打印验证码明文。
-   * 生产环境绝不打印 —— 日志会被收集、转发、长期留存，
-   * 一句 console.log 就等于把验证码写进了另一个数据库。
+   * 用「邮箱 + 场景」当锁的粒度，把「检查 → 写库」整段串行化。
+   *
+   * 为什么粒度不是整个邮箱：不同场景（注册/登录/改密）本来就各有各的冷却，
+   * 互相不该阻塞。而同一场景并发发码正是要挡住的那件事。
    */
-  if (process.env.NODE_ENV !== "production") {
-    console.log(`[email-code] 开发环境验证码 ${email} / ${scene} → ${code}`)
-  }
+  return withLock(`send-code:${email}:${scene}`, async () => {
+    const allowed = await checkSendAllowed(email, scene, ip, params.skipCooldown === true)
+    if (!allowed.ok) return allowed
 
-  return { ok: true }
+    const code = generateCode()
+    const codeHash = hashCode(email, scene, code)
+    const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000)
+
+    await prisma.emailCode.create({
+      data: { email, scene, codeHash, expiresAt, ip },
+    })
+
+    /*
+     * 写库后**再确认一次**自己是这条记录。
+     *
+     * 进程内锁已经挡住了同进程的并发，但跨进程（将来多实例）挡不住。
+     * 这里查「最新一条是不是我」——如果不是，说明有别人抢先写进了更新的记录，
+     * 那么本次就不该发信（否则用户会收到两封）。
+     * 代价是多一次极轻的查询，换来并发下也不会重复发信。
+     */
+    const latest = await prisma.emailCode.findFirst({
+      where: { email, scene },
+      orderBy: { createdAt: "desc" },
+      select: { codeHash: true },
+    })
+    if (!latest || latest.codeHash !== codeHash) {
+      // 被别人的更新记录顶掉了：删掉自己这条，放弃发送
+      await prisma.emailCode
+        .deleteMany({ where: { email, scene, codeHash, consumedAt: null } })
+        .catch(() => undefined)
+      return { ok: false, reason: "cooldown", retryAfterSeconds: COOLDOWN_SECONDS }
+    }
+
+    const { subject, html, text } = renderCodeEmail({ scene, code, siteName: getSiteName() })
+    const sent = await sendEmail({ to: email, subject, html, text })
+
+    if (!sent.ok) {
+      /*
+       * 发信失败时把刚写的记录删掉。
+       *
+       * 理由：留着它会让用户**卡在冷却里**（60 秒内不能重发）却什么都没收到；
+       * 而且它还会占掉一次配额。删掉之后用户马上可以重试。
+       * 注意这只删「我们刚插入的这一条」，不会误删别人的。
+       */
+      await prisma.emailCode
+        .deleteMany({ where: { email, scene, codeHash, consumedAt: null } })
+        .catch(() => undefined)
+      return { ok: false, reason: "send-failed", detail: sent.error }
+    }
+
+    /*
+     * 开发环境才打印验证码明文。
+     * 生产环境绝不打印 —— 日志会被收集、转发、长期留存，
+     * 一句 console.log 就等于把验证码写进了另一个数据库。
+     */
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[email-code] 开发环境验证码 ${email} / ${scene} → ${code}`)
+    }
+
+    return { ok: true }
+  })
 }
 
 // ============================================================

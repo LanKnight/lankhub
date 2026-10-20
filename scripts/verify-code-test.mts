@@ -370,6 +370,33 @@ try {
     process.env.RESEND_API_BASE = realBase
   }
 
+  console.log("\n【16】★ 并发发码：冷却只能挡住，不能发出两封")
+  {
+    await cleanup()
+    /*
+     * 修的是一个真实缺口：`sendCode` 里「检查冷却」与「写库」之间原本不是原子的，
+     * 两个并发请求可以**同时**通过检查 → 发出两封邮件、占掉两次配额，
+     * 而 60 秒冷却的本意正是「只发一封」。
+     *
+     * 现在用「邮箱+场景」粒度的进程内锁把「检查 → 写库」整段串行化，
+     * 这里并发发 5 次，应当只有 1 次成功、只发出 1 封。
+     */
+    const before = sent.length
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => sendCode({ email: TEST_EMAIL, scene: "login", ip: TEST_IP }))
+    )
+    const okCount = results.filter((r) => r.ok).length
+    const sentDelta = sent.length - before
+
+    check("★ 并发 5 次只有 1 次成功", okCount === 1, `成功 ${okCount} 次`)
+    check("★ 只真的发出 1 封邮件（没占掉 5 次配额）", sentDelta === 1, `发出 ${sentDelta} 封`)
+    const rejected = results.filter((r) => !r.ok).map((r) => (!r.ok ? r.reason : ""))
+    check("其余都因冷却被拒", rejected.every((x) => x === "cooldown"), rejected.join(", "))
+
+    const rows = await prisma.emailCode.count({ where: { email: TEST_EMAIL, scene: "login" } })
+    check("库里只留下 1 条未消费记录", rows === 1, `${rows} 条`)
+  }
+
   console.log("\n【15】清理与还原")
   {
     await cleanup()

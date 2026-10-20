@@ -244,8 +244,38 @@ export async function getPlayUrl(
   const result = await callApi({ types: "url", id: apiId, br: "320" })
   if (!result.ok) return result
 
+  /*
+   * ★ 形状校验：必须区分「字段不存在」与「字段存在但为空」。
+   *
+   * 这两种情况**含义完全相反**：
+   *   - `{ "url": "" }`   → 这个音源确实没有这首歌（实测 kuwo/joox 就是这形态）
+   *                         → 永久失败，前端该换下一首
+   *   - `{}` 或非对象      → **上游改了协议**或返回了别的东西
+   *                         → 暂时性失败，值得重试；说成「没版权」会让人白查半天
+   *
+   * 原先只判 `url.length === 0`，两种情况都被归成「拿不到播放地址」，
+   * 于是上游一改字段就表现为「这首歌突然没版权了」——那种 bug 极难定位。
+   */
+  if (typeof result.data !== "object" || result.data === null || Array.isArray(result.data)) {
+    return {
+      ok: false,
+      error: "音乐接口返回了预料之外的数据",
+      code: "upstream_error",
+    }
+  }
+
   const payload = result.data as { url?: unknown }
-  const url = typeof payload?.url === "string" ? payload.url : ""
+
+  if (!("url" in payload)) {
+    // 字段缺失 → 上游协议变了，不是「没版权」
+    return {
+      ok: false,
+      error: "音乐接口返回的数据里没有播放地址字段",
+      code: "upstream_error",
+    }
+  }
+
+  const url = typeof payload.url === "string" ? payload.url : ""
   if (url.length === 0) {
     /*
      * 空地址 = 这个音源没有这首歌。
@@ -271,9 +301,16 @@ export async function getCoverUrl(picId: string): Promise<ApiResult<string>> {
   const result = await callApi({ types: "pic", id: picId, size: "300" })
   if (!result.ok) return result
 
+  // 与 getPlayUrl 同样的理由：字段缺失说明上游协议变了，不是「没这张图」
+  if (typeof result.data !== "object" || result.data === null) {
+    return { ok: false, error: "音乐接口返回了预料之外的数据", code: "upstream_error" }
+  }
   const payload = result.data as { url?: unknown }
-  const url = typeof payload?.url === "string" ? payload.url : ""
-  if (url.length === 0) return { ok: false, error: "拿不到封面" }
+  if (!("url" in payload)) {
+    return { ok: false, error: "音乐接口返回的数据里没有封面字段", code: "upstream_error" }
+  }
+  const url = typeof payload.url === "string" ? payload.url : ""
+  if (url.length === 0) return { ok: false, error: "拿不到封面", code: "url_unavailable" }
 
   return { ok: true, data: url }
 }
@@ -283,8 +320,15 @@ export async function getLyric(lyricId: string): Promise<ApiResult<string>> {
   const result = await callApi({ types: "lyric", id: lyricId })
   if (!result.ok) return result
 
+  // 同上：字段缺失是上游协议的信号，不该说成「这首歌没有歌词」
+  if (typeof result.data !== "object" || result.data === null) {
+    return { ok: false, error: "音乐接口返回了预料之外的数据", code: "upstream_error" }
+  }
   const payload = result.data as { lyric?: unknown }
-  const lyric = typeof payload?.lyric === "string" ? payload.lyric : ""
+  if (!("lyric" in payload)) {
+    return { ok: false, error: "音乐接口返回的数据里没有歌词字段", code: "upstream_error" }
+  }
+  const lyric = typeof payload.lyric === "string" ? payload.lyric : ""
   if (lyric.trim().length === 0) return { ok: false, error: "这首歌没有歌词" }
 
   return { ok: true, data: lyric }
