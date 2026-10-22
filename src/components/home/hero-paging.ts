@@ -54,7 +54,7 @@ function scrollBehavior(): ScrollBehavior {
 interface HeroPagingOptions {
   anchorId?: string
   /**
-   * 滚动开始前的回调（首页用它清掉首屏的「入定」暗色态）。
+   * 滚动开始前的回调（首页用它把场景收回正常态）。
    *
    * ⚠️ 传进来的函数必须是稳定的（用 useCallback 包一层），
    * 否则每次渲染都会重建 wheel 监听。

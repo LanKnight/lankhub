@@ -316,45 +316,262 @@ html {
   }
 }
 
-/* -- 首屏「入定」暗色态 -- */
+/* -- 首屏场景：雪山梅花（正常态）↔ 江湖武侠（悬停态）-- */
 /*
- * 触发：鼠标进入首页标题时，HeroSection 在 <html> 上打 data-ink-dark="true"，
- * 离开即移除。放根节点是为了让 sticky 的导航栏也能一起响应，且全程零 React 重渲染。
+ * 唯一真相是 <html> 上的一个属性：data-hero-scene="snow|jianghu"。
+ * 沿用原来「入定暗色态」的做法（放根节点、零 React 重渲染），
+ * 只是把「整页反色」升级成「两层画面对切」。
  *
- * 为什么不需要全站暗色主题：效果只在标题可见时发生，而首屏高度是
- * min-h-[calc(100vh-4rem)]，加上 4rem 导航栏正好铺满一屏 ——
- * 也就是说效果发生时，视口里恰好只有「导航栏 + 首屏」。
- * 滚轮一动鼠标就离开标题，效果立刻还原，页面下方不可能被看到暗色态。
+ * 为什么两层叠着放、用 opacity 交叉淡入，而不是换 <img src>：
+ * 换 src 会有一帧空白（新图没解码完），交叉淡入天然平滑。
+ * 代价是两态都要下载 —— 实测两张 WebP 合计约 185KB，在预算内。
  */
-/* 暗色下「强调色」要反过来：它是水墨黑，在墨黑底上会完全看不见
-   （当前栏目的下划线用的就是它） */
-:root[data-ink-dark="true"] {
-  --accent: #f2efe8;
-  --accent-hover: #ffffff;
+:root {
+  /* 两态切换的时长。改这里，下面的 CSS 与 hero-scene.ts 的说明要一起看 */
+  --hero-scene-fade: 420ms;
 }
 
 .hero-aura {
   background-color: var(--bg-primary);
-  transition: background-color 420ms ease;
-}
-:root[data-ink-dark="true"] .hero-aura {
-  background-color: #1a1510;
 }
 
-/* 暗色态下淡出的首屏元素（头像 / 循环副标题 / 滚动指示器） */
-.hero-dimmable {
-  transition: opacity 420ms ease;
-}
-:root[data-ink-dark="true"] .hero-dimmable {
+.hero-scene {
+  position: absolute;
+  inset: 0;
   opacity: 0;
+  transition: opacity var(--hero-scene-fade) ease;
+  /* 场景层不接收指针事件：悬停判定挂在整块首屏上，穿越子元素时不会反复进出 */
   pointer-events: none;
 }
 
-/* 标题与箴言的交叉淡入淡出。
-   箴言直接用亮色：它只在暗色态出现，不需要另一套浅色值。 */
+/*
+ * 遮罩（两态不同，分别是「和谁接壤」决定的）：
+ * - 雪山态：顶部要淡到纸色，才能和同样纸色的导航栏接上（素材纸色更暖更深）
+ * - 江湖态：顶部**不淡** —— 导航栏这时是深色的，淡出反而会在深色栏下面
+ *   留一条发亮的纸色带（duotone 版尤其明显，实测就是这么发现的）
+ * 两态的底部都淡到纸色，和下方形如「关于我」的纸白衔接。
+ */
+.hero-scene[data-scene="snow"] {
+  opacity: 1;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 5%,
+    #000 88%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 5%,
+    #000 88%,
+    transparent 100%
+  );
+}
+.hero-scene[data-scene="jianghu"] {
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 88%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 88%, transparent 100%);
+}
+:root[data-hero-scene="jianghu"] .hero-scene[data-scene="snow"] {
+  opacity: 0;
+}
+:root[data-hero-scene="jianghu"] .hero-scene[data-scene="jianghu"] {
+  opacity: 1;
+}
+
+.hero-scene-media {
+  position: absolute;
+  inset: 0;
+}
+
+.hero-scene-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/*
+ * 首屏「落定」：极缓慢收一点，与全站 rise-in 的调子一致。
+ * 只动 transform —— 若同时animating opacity 会和上面的交叉淡入打架。
+ */
+@keyframes hero-settle {
+  from {
+    transform: scale(1.045);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+.hero-scene[data-scene="snow"] .hero-scene-media,
+:root[data-hero-scene="jianghu"]
+  .hero-scene[data-scene="jianghu"]
+  .hero-scene-media {
+  animation: hero-settle 2.4s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* -- 江湖夜色 -- */
+/*
+ * 素材是浅色纸本（站长用 GPT 生成），而江湖态要「入夜」，
+ * 所以夜色是**叠出来的**，不动原图：压暗走 multiply，月晕走 screen。
+ * 两支都留着（阶段 1 对比用）：
+ *   dusk    暮色压暗，保留原画的朱砂（酒旗 / 梅朵）
+ *   duotone 去色双色调，更统一但画面里的红保不住
+ * 用 ?night=duotone 切换，选定后删掉另一支。
+ */
+.hero-night {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hero-night-dusk {
+  background: linear-gradient(
+    to bottom,
+    rgba(18, 24, 30, 0.26) 0%,
+    rgba(16, 22, 28, 0.52) 52%,
+    rgba(8, 12, 17, 0.84) 100%
+  );
+  mix-blend-mode: multiply;
+}
+
+/* 右上角一团暖白：夜要有个光源，否则只是「整张变暗」而不是「入夜」 */
+.hero-night-moon {
+  background: radial-gradient(
+    circle at 76% 14%,
+    rgba(255, 249, 232, 0.4) 0%,
+    rgba(255, 249, 232, 0.12) 30%,
+    transparent 54%
+  );
+  mix-blend-mode: screen;
+}
+
+/* 双色调：去色后分别用墨青压暗、月白提亮 */
+.hero-night-duotone-dark,
+.hero-night-duotone-light {
+  opacity: 0;
+}
+.hero-night-duotone-dark {
+  background: #16242f;
+  mix-blend-mode: multiply;
+}
+.hero-night-duotone-light {
+  background: #9db4c0;
+  mix-blend-mode: screen;
+}
+
+/* 江湖态的底图统一略降饱和、压一点亮度，让叠上去的夜色更像气氛而不是滤镜 */
+.hero-scene[data-scene="jianghu"] img {
+  filter: saturate(0.8) brightness(0.92) contrast(1.04);
+}
+
+:root[data-hero-night="duotone"] .hero-night-dusk,
+:root[data-hero-night="duotone"] .hero-night-moon {
+  display: none;
+}
+:root[data-hero-night="duotone"] .hero-night-duotone-dark {
+  opacity: 0.82;
+}
+:root[data-hero-night="duotone"] .hero-night-duotone-light {
+  opacity: 0.24;
+}
+:root[data-hero-night="duotone"] .hero-scene[data-scene="jianghu"] img {
+  filter: grayscale(1) contrast(1.06) brightness(0.94);
+}
+
+/* -- 文字底衬 -- */
+/*
+ * 手机上竖版图把主体放大到几乎铺满，文字必然压在画面里，
+ * 所以垫一层场景色的薄雾；桌面只在底部留一点，保证向下按钮看得见。
+ */
+.hero-scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.hero-scrim[data-scene="snow"] {
+  background: linear-gradient(
+    to top,
+    rgba(250, 248, 245, 0.95) 0%,
+    rgba(250, 248, 245, 0.72) 32%,
+    rgba(250, 248, 245, 0.28) 58%,
+    rgba(250, 248, 245, 0) 80%
+  );
+}
+.hero-scrim[data-scene="jianghu"] {
+  /*
+   * 手机端的江湖态：亮字压在画面下半部，而那一片是浅色雾江。
+   * 底衬要给到「文字那一段基本是深墨」的程度，否则副标题会糊在雾里
+   * （实测 .6 左右仍然发虚）。桌面有单独的、轻得多的版本。
+   */
+  background: linear-gradient(
+    to top,
+    rgba(10, 14, 19, 0.95) 0%,
+    rgba(10, 14, 19, 0.9) 30%,
+    rgba(10, 14, 19, 0.75) 48%,
+    rgba(10, 14, 19, 0.32) 66%,
+    rgba(10, 14, 19, 0.08) 80%,
+    rgba(10, 14, 19, 0) 90%
+  );
+}
+@media (min-width: 768px) {
+  .hero-scrim[data-scene="snow"] {
+    background: linear-gradient(
+      to top,
+      rgba(250, 248, 245, 0.8) 0%,
+      rgba(250, 248, 245, 0.25) 26%,
+      rgba(250, 248, 245, 0) 52%
+    );
+  }
+  /*
+   * 桌面：文字靠左，而江湖态的左侧是浅色的雾江 —— 亮字压在浅雾上会发虚。
+   * 所以额外加一道「从左向右」的压暗，只压文字那一侧，不糊住整个画面。
+   */
+  .hero-scrim[data-scene="jianghu"] {
+    background:
+      linear-gradient(
+        to right,
+        rgba(8, 11, 15, 0.52) 0%,
+        rgba(8, 11, 15, 0.26) 34%,
+        rgba(8, 11, 15, 0) 60%
+      ),
+      linear-gradient(
+        to top,
+        rgba(10, 14, 19, 0.72) 0%,
+        rgba(10, 14, 19, 0.24) 26%,
+        rgba(10, 14, 19, 0) 52%
+      );
+  }
+}
+
+/* -- 首屏文字 -- */
+/*
+ * 江湖态的强调色要反过来：它是水墨黑，在墨黑底上会完全看不见
+ * （当前栏目的下划线用的就是它）。
+ */
+:root[data-hero-scene="jianghu"] {
+  --accent: #f2efe8;
+  --accent-hover: #ffffff;
+}
+
+/* 副标题：悬停态换亮色，而不是像以前那样淡出（文案要保留）。
+   江湖态的底子是浅色雾江，亮字容易糊掉，所以再给一点点深色描边般的投影。 */
+.hero-subtitle {
+  color: var(--text-secondary);
+  transition: color var(--hero-scene-fade) ease;
+}
+:root[data-hero-scene="jianghu"] .hero-subtitle {
+  color: #eae3d5;
+  text-shadow:
+    0 1px 10px rgba(10, 14, 19, 0.75),
+    0 0 2px rgba(10, 14, 19, 0.5);
+}
+
+/* 标题 ↔ 箴言的交叉淡入淡出。
+   箴言直接用亮色：它只在江湖态出现，不需要另一套浅色值。 */
 .hero-title-swap,
 .hero-motto-swap {
-  transition: opacity 420ms ease;
+  transition: opacity var(--hero-scene-fade) ease;
 }
 .hero-title-swap {
   opacity: 1;
@@ -363,17 +580,62 @@ html {
   opacity: 0;
   color: #f2efe8;
 }
-:root[data-ink-dark="true"] .hero-title-swap {
+:root[data-hero-scene="jianghu"] .hero-title-swap {
   opacity: 0;
 }
-:root[data-ink-dark="true"] .hero-motto-swap {
+:root[data-hero-scene="jianghu"] .hero-motto-swap {
   opacity: 1;
 }
 
-/* -- 导航栏的暗色态 -- */
 /*
- * 这些覆盖是必需的：导航栏在视口顶部，若保持浅色，「全页面变暗」会露出明显断层。
- * 选择「改色」而不是「淡出」，是因为这是主题切换，导航能力与当前位置都应保留。
+ * 落款印章：江湖态才浮现。
+ * 正常态保留占位（只改 opacity），切换时文字块高度不变，副标题不会被顶一下。
+ * 朱砂是整幅画面里唯一的暖色，克制到一枚就够。
+ */
+.hero-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 2px;
+  background: #9e2b25;
+  box-shadow: inset 0 0 0 1px rgba(250, 243, 230, 0.55);
+  color: #faf3e6;
+  font-size: 0.7rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  writing-mode: vertical-rl;
+  opacity: 0;
+  transform: rotate(3deg) translateY(4px);
+  transition:
+    opacity var(--hero-scene-fade) ease,
+    transform var(--hero-scene-fade) ease;
+}
+:root[data-hero-scene="jianghu"] .hero-seal {
+  opacity: 0.92;
+  transform: rotate(3deg) translateY(0);
+}
+
+/*
+ * 向下按钮压在画面上：靠光晕/投影保持可见，颜色随场景反转。
+ * 不用半透明底色块 —— 会在水墨画上留下一块「网页控件」的痕迹。
+ */
+.hero-scroll-hint {
+  color: #5c554d;
+  filter: drop-shadow(0 1px 2px rgba(250, 248, 245, 0.95));
+  transition: color var(--hero-scene-fade) ease;
+}
+:root[data-hero-scene="jianghu"] .hero-scroll-hint {
+  color: #e6dfd2;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.55));
+}
+
+/* -- 导航栏的江湖态 -- */
+/*
+ * 这些覆盖是必需的：导航栏在视口顶部，若保持浅色，整屏转到江湖夜色时
+ * 会露出明显断层。选择「改色」而不是「淡出」，是因为这是主题切换，
+ * 导航能力与当前位置都应保留。
  * 选择器优先级 0-2-0 以上，稳赢 Tailwind 工具类（0-1-0），无需 !important。
  */
 .site-navbar {
@@ -381,44 +643,44 @@ html {
     background-color 420ms ease,
     border-color 420ms ease;
 }
-:root[data-ink-dark="true"] .site-navbar {
+:root[data-hero-scene="jianghu"] .site-navbar {
   background-color: rgba(26, 21, 16, 0.9);
   border-bottom-color: #3d3730;
 }
-:root[data-ink-dark="true"] .site-navbar .text-gray-900,
-:root[data-ink-dark="true"] .site-navbar .text-gray-800 {
+:root[data-hero-scene="jianghu"] .site-navbar .text-gray-900,
+:root[data-hero-scene="jianghu"] .site-navbar .text-gray-800 {
   color: #f2efe8;
 }
-:root[data-ink-dark="true"] .site-navbar .text-gray-600,
-:root[data-ink-dark="true"] .site-navbar .text-gray-500 {
+:root[data-hero-scene="jianghu"] .site-navbar .text-gray-600,
+:root[data-hero-scene="jianghu"] .site-navbar .text-gray-500 {
   color: #aba49a;
 }
-:root[data-ink-dark="true"] .site-navbar .hover\:text-gray-900:hover {
+:root[data-hero-scene="jianghu"] .site-navbar .hover\:text-gray-900:hover {
   color: #f2efe8;
 }
-:root[data-ink-dark="true"] .site-navbar .hover\:text-gray-600:hover {
+:root[data-hero-scene="jianghu"] .site-navbar .hover\:text-gray-600:hover {
   color: #aba49a;
 }
 /* 主按钮（登录）在暗色下反转：亮底深字 */
-:root[data-ink-dark="true"] .site-navbar .bg-gray-900 {
+:root[data-hero-scene="jianghu"] .site-navbar .bg-gray-900 {
   background-color: #f2efe8;
 }
-:root[data-ink-dark="true"] .site-navbar .hover\:bg-gray-800:hover {
+:root[data-hero-scene="jianghu"] .site-navbar .hover\:bg-gray-800:hover {
   background-color: #d4cfc5;
 }
-:root[data-ink-dark="true"] .site-navbar .text-paper {
+:root[data-hero-scene="jianghu"] .site-navbar .text-paper {
   color: #1a1510;
 }
-:root[data-ink-dark="true"] .site-navbar .bg-gray-100 {
+:root[data-hero-scene="jianghu"] .site-navbar .bg-gray-100 {
   background-color: #2a241e;
 }
-:root[data-ink-dark="true"] .site-navbar .bg-white {
+:root[data-hero-scene="jianghu"] .site-navbar .bg-white {
   background-color: #1a1510;
 }
-:root[data-ink-dark="true"] .site-navbar .border-gray-100 {
+:root[data-hero-scene="jianghu"] .site-navbar .border-gray-100 {
   border-color: #2a241e;
 }
-:root[data-ink-dark="true"] .site-navbar .border-accent {
+:root[data-hero-scene="jianghu"] .site-navbar .border-accent {
   border-color: #f2efe8;
 }
 

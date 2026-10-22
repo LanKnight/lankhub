@@ -171,6 +171,9 @@ Python 里打印中文建议 `json.dumps(obj, ensure_ascii=True)`，
   一起提交过一次（还没推送，已 amend 修正）。**显式列文件名。**
 - **`Get-Content` 会用 ANSI 读 UTF-8 文件**，中文显示成乱码 ——
   我差点据此误报「脚本文件损坏」。**读文件用 read 工具。**
+  ⚠️ 更严重的是**写**：用 `Get-Content -Raw` + `Set-Content` 改一个带中文的文件，
+  会把内容写成非 UTF-8，文件直接变成「invalid UTF-8」再也读不回来（我干过一次）。
+  **改文件一律用 edit/write 工具，不要用 PowerShell 管道改内容。**
 - Git push 走代理：`git -c http.proxy=http://127.0.0.1:7897 -c https.proxy=http://127.0.0.1:7897 push origin main`
   （代理偶尔不通，可直连重试）。
 
@@ -246,6 +249,16 @@ CDP over WebSocket（Node 24 自带 `WebSocket`，不需要 `ws` 包）。
    看起来像「锁没释放」。用 `scrollend` 事件（实测会冒泡到 `window`）。
 6. **Edge 的子进程要用 `taskkill /T /F` 收尾**，`child.kill()` 只杀掉启动器，
    残留实例下次会「接管」新进程、抢不到 DevTools 端口。profile 目录每次也要换新的。
+   **`next start` 同理** —— 只 kill 启动器会留下服务进程，下次端口撞上时你连到的
+   是**旧构建**：HTML 正常，但 CSS/JS 全是旧哈希 → 整页无样式、永不水合，
+   截图与断言全是假象（我在首屏改造里又栽了一次）。截图前务必先断言
+   「有一条只有新构建才生效的样式」或「某个只有水合后才会出现的属性」。
+7. **整屏文字容器会盖住底部的浮动按钮。** 把 hero 内容区改成 `min-h` 整屏 flex 后，
+   带 `z-10` 的它把 `absolute bottom-8` 的向下按钮整个盖住了 ——
+   **按钮点了没反应**，是回归断言抓到的。浮动元素要显式 `z-20`。
+8. **纯 CSS 循环动画的相位会让截图说谎。** 循环副标题只在 12 秒里的 2 秒可见，
+   截图撞在淡出相位时，看起来像「文字对比度不够」，害我白调了两轮底衬。
+   **截图前先轮询目标元素的 `opacity > 0.95` 再拍。**
 
 ### 4.4 安全改动的验证要求
 
@@ -269,6 +282,7 @@ CDP over WebSocket（Node 24 自带 `WebSocket`，不需要 `ws` 包）。
 | --- | --- |
 | 动效/入场动画、hero 暗色 hover、reduced-motion 补齐 | 完成 |
 | **首页滚轮切屏**（顶部下滚 = 点向下按钮，边界上滚回顶） | 完成（见 HISTORY 第 29 节） |
+| **首页首屏山水场景（雪山梅花 ↔ 江湖武侠）** | 阶段 1 骨架完成，夜色版本待站长选定（见 HISTORY 第 30 节） |
 | 简历单页/完整版下载（`/resume/print`） | 完成 |
 | 编辑器粘性工具栏、文章目录（TOC + 滚动高亮） | 完成 |
 | 认证加固：昵称唯一 + trim + 长度、邮箱规范化、登录限流、`as any` 清零 | 完成 |
@@ -526,6 +540,10 @@ npm run https:on/redirect/off    # HTTPS 三步
 | `src/components/music/` | 播放器 Context / 底部播放条 / 歌手卡片墙 / 沉浸层 / 队列面板 |
 | `src/components/editor/` | 富文本编辑器（TipTap）、工具栏、「整理 Markdown」 |
 | `src/components/home/hero-paging.ts` | 首屏滚轮切屏：边界判定、锁（`scrollend` + 700ms 兜底）、reduced-motion 降级 |
+| `src/components/home/hero-scene.ts` | 首屏场景参数：场景名、宽限/停留时长、夜色模式、素材路径 |
+| `src/components/home/HeroScene.tsx` | 一层场景（底图 `<picture>` + 夜色叠层 + 文字底衬），纯展示 |
+| `src/components/home/use-hero-scene.ts` | 场景状态机：写 `<html data-hero-scene>`、悬停宽限/停留、触屏轻点 |
+| `public/images/home/` | 首屏派生图（WebP）：桌面 1672 宽 ×2、手机竖版 780 宽 ×2；源图在 `docs/photo/homeBannerAssets/` |
 | `src/lib/tiptap-render.tsx` | **前台正文渲染**（服务端，含表格分支）；加节点类型要同步改这里 |
 | `src/app/admin/music/SongManager.tsx` | 后台歌单管理（含批量匹配的逐条确认面板） |
 | `prisma/check-limits.ts` | 上线预检（复用 validations 的 schema，不会与它脱节） |

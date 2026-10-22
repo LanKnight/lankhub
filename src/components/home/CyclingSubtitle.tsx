@@ -40,7 +40,7 @@ export default function CyclingSubtitle({
 
   return (
     <p
-      className={`hero-subtitle-cycle relative h-7 text-lg sm:text-xl text-gray-500 ${
+      className={`hero-subtitle-cycle relative h-7 text-lg sm:text-xl ${
         className ?? ""
       }`}
       style={{ animationDelay: `${delay}ms` }}
@@ -48,7 +48,12 @@ export default function CyclingSubtitle({
       {SUBTITLES.map((text, index) => (
         <span
           key={text}
-          className="absolute inset-0 flex items-center justify-center whitespace-nowrap"
+          /*
+            左对齐：首页首屏的文字整体靠左（画面主体在右半边）。
+            颜色交给父级的 .hero-subtitle —— 悬停态要跟着场景换色，
+            这里写死 text-gray-500 会和那条 CSS 规则撞特异性。
+          */
+          className="absolute inset-0 flex items-center justify-start whitespace-nowrap"
           style={
             {
               "--subtitle-cycle": `${cycleSeconds}s`,
