@@ -222,7 +222,7 @@ Python 里打印中文建议 `json.dumps(obj, ensure_ascii=True)`，
 > 更稳的做法（近几轮已统一）：**测试自己建一个临时账号**（`xxx-test@test.local`），
 > 提权到需要的角色，`finally` 里删掉。这样完全不碰站长的真实密码。
 
-### 4.3 真实浏览器测试（CDP）的三个必踩坑
+### 4.3 真实浏览器测试（CDP）的必踩坑
 
 浏览器行为（点击、粘贴、滚动、竞态）只能真浏览器验。我们用 headless Edge +
 CDP over WebSocket（Node 24 自带 `WebSocket`，不需要 `ws` 包）。
@@ -236,6 +236,16 @@ CDP over WebSocket（Node 24 自带 `WebSocket`，不需要 `ws` 包）。
    （`Media load rejected by URL safety check`，**那是正确的安全设计**），
    第三方签名地址又拿不到。音乐相关的浏览器测试因此**只验状态机与 DOM**，
    不验「有没有声音」。
+4. **固定端口 + 残留 `next start` = 悄悄在测旧构建。** 上一次的服务器若还占着端口，
+   新进程会静默 EADDRINUSE 退出，你连到的是**旧服务器**；构建产物换过之后，
+   它记着的 chunk 清单已经过期 → JS 全 404 → **HTML 出来了但永远不水合**。
+   现象特别像「代码坏了」（滚轮没反应、按钮 `querySelector` 返回 null）。
+   对策：端口**随机**，并把「必须由 JS 才会变的东西」当 canary 断言（见第 29 节）。
+5. **判断「滚动结束」不能用「连续两帧位置不变」。** 缓动尾段一两像素要走 100ms 以上，
+   那个条件会提前成立 → 下一个输入落在动画还没结束时被锁吞掉，
+   看起来像「锁没释放」。用 `scrollend` 事件（实测会冒泡到 `window`）。
+6. **Edge 的子进程要用 `taskkill /T /F` 收尾**，`child.kill()` 只杀掉启动器，
+   残留实例下次会「接管」新进程、抢不到 DevTools 端口。profile 目录每次也要换新的。
 
 ### 4.4 安全改动的验证要求
 
@@ -258,6 +268,7 @@ CDP over WebSocket（Node 24 自带 `WebSocket`，不需要 `ws` 包）。
 | 主题 | 状态 |
 | --- | --- |
 | 动效/入场动画、hero 暗色 hover、reduced-motion 补齐 | 完成 |
+| **首页滚轮切屏**（顶部下滚 = 点向下按钮，边界上滚回顶） | 完成（见 HISTORY 第 29 节） |
 | 简历单页/完整版下载（`/resume/print`） | 完成 |
 | 编辑器粘性工具栏、文章目录（TOC + 滚动高亮） | 完成 |
 | 认证加固：昵称唯一 + trim + 长度、邮箱规范化、登录限流、`as any` 清零 | 完成 |
@@ -514,6 +525,7 @@ npm run https:on/redirect/off    # HTTPS 三步
 | `src/lib/markdown-paste.ts` | Markdown 判定、外链图片改写、安全清洗、纯文本往返 |
 | `src/components/music/` | 播放器 Context / 底部播放条 / 歌手卡片墙 / 沉浸层 / 队列面板 |
 | `src/components/editor/` | 富文本编辑器（TipTap）、工具栏、「整理 Markdown」 |
+| `src/components/home/hero-paging.ts` | 首屏滚轮切屏：边界判定、锁（`scrollend` + 700ms 兜底）、reduced-motion 降级 |
 | `src/lib/tiptap-render.tsx` | **前台正文渲染**（服务端，含表格分支）；加节点类型要同步改这里 |
 | `src/app/admin/music/SongManager.tsx` | 后台歌单管理（含批量匹配的逐条确认面板） |
 | `prisma/check-limits.ts` | 上线预检（复用 validations 的 schema，不会与它脱节） |

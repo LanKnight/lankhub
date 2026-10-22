@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect } from "react"
+import { useCallback, useEffect } from "react"
 import { ChevronDown } from "lucide-react"
 
 import CyclingSubtitle from "./CyclingSubtitle"
+import { useHeroPaging } from "./hero-paging"
 
 /** Hero 四拍的入场延迟（ms），错峰出现制造层次 */
 const ENTER_DELAY = { avatar: 0, title: 90, subtitle: 180, indicator: 320 }
@@ -18,21 +19,26 @@ export default function HeroSection() {
    *
    * dataset.inkDark 对应属性 data-ink-dark。
    */
-  const enterDark = () => {
+  const enterDark = useCallback(() => {
     document.documentElement.dataset.inkDark = "true"
-  }
-  const leaveDark = () => {
+  }, [])
+  const leaveDark = useCallback(() => {
     delete document.documentElement.dataset.inkDark
-  }
+  }, [])
 
   // 卸载时清掉，避免残留成「永远暗着」
-  useEffect(() => leaveDark, [])
+  useEffect(() => leaveDark, [leaveDark])
 
-  const scrollToAbout = () => {
-    document
-      .getElementById("about")
-      ?.scrollIntoView({ behavior: "smooth" })
-  }
+  /*
+   * 向下按钮与「顶部下滚」共用同一个落点函数 —— 需求原话是「与向下按钮功能完全一致」，
+   * 那就让它们真的调同一个函数，而不是两处各写一遍 scrollIntoView，
+   * 否则以后任何一边改了落点，两边就会悄悄不一致。
+   *
+   * onJump 传 leaveDark：滚轮把页面推走时鼠标可能还压在标题上，
+   * 浏览器对「滚动引起的 hover 变化」并不可靠地派发 mouseleave，
+   * 不主动清的话暗色态会一路带到「关于我」那一屏（整页暗、导航栏也暗）。
+   */
+  const { goToNextScreen } = useHeroPaging({ onJump: leaveDark })
 
   return (
     <section className="hero-aura relative min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center text-center px-4">
@@ -89,7 +95,7 @@ export default function HeroSection() {
         style={{ animationDelay: `${ENTER_DELAY.indicator}ms` }}
       >
         <button
-          onClick={scrollToAbout}
+          onClick={goToNextScreen}
           className="animate-bounce text-gray-400 hover:text-gray-600 transition-colors"
           aria-label="向下滚动"
         >
