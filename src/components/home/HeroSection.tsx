@@ -18,13 +18,17 @@ export default function HeroSection() {
    * 滚轮把页面推走时，必须先把江湖态收回雪山态，
    * 否则下一次回到顶部会停在一个残留的暗场里。
    */
-  const { scene, toggle, reset, handlers } = useHeroScene()
+  const { scene, toggle, reset, hoverHandlers, tapHandlers } = useHeroScene()
   const { goToNextScreen } = useHeroPaging({ onJump: reset })
 
   return (
     <section
+      /*
+       * 轻点热区是整个首屏（触屏没有悬停，点得太小会很难用）；
+       * 悬停热区只挂在下面的主标题上 —— 鼠标扫过页面别处不该换图景。
+       */
       className="hero-aura relative min-h-[calc(100vh-4rem)] overflow-hidden"
-      {...handlers}
+      {...tapHandlers}
     >
       {HERO_SCENES.map((scene) => (
         <HeroScene key={scene} scene={scene} />
@@ -36,7 +40,12 @@ export default function HeroSection() {
       */}
       <div className="relative z-10 mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-end px-6 pb-28 sm:px-10 md:items-center md:pb-0 lg:px-16">
         <div className="max-w-2xl">
-          <div className="grid">
+          {/*
+            悬停热区就是这一块（标题 + 叠放的箴言），与改造前的做法一致：
+            鼠标进到主标题上才切江湖态，离开立刻复原。
+            data-hero-hover-zone 是给验证脚本用的稳定钩子（别靠 class 串猜）。
+          */}
+          <div className="grid" data-hero-hover-zone {...hoverHandlers}>
             {/* 两层文字叠在同一格里：容器按较宽那层撑开，切换时标题不会横向抖动 */}
             <h1
               className="hero-display hero-title-swap col-start-1 row-start-1 self-center justify-self-start text-5xl sm:text-6xl lg:text-7xl animate-rise-in"

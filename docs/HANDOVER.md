@@ -554,7 +554,7 @@ npm run https:on/redirect/off    # HTTPS 三步
 | `src/components/home/hero-scene.ts` | 首屏场景参数：场景名、宽限/停留时长、素材路径、**逐字错落节奏表** |
 | `src/components/home/HeroScene.tsx` | 一层场景（底图 `<picture>` + 夜色叠层 + 文字底衬），纯展示 |
 | `src/components/home/HeroType.tsx` | 把 CJK 逐字拆开套节奏表；拉丁整段不拆（中文题字 + 英文署名） |
-| `src/components/home/use-hero-scene.ts` | 场景状态机：写 `<html data-hero-scene>`、悬停宽限/停留、触屏轻点 |
+| `src/components/home/use-hero-scene.ts` | 场景状态机：写 `<html data-hero-scene>`、悬停（热区=主标题）宽限/停留、触屏轻点（热区=整屏） |
 | `public/images/home/` | 首屏派生图（WebP）：桌面 1672 宽 ×2、手机竖版 780 宽 ×2；源图在 `docs/photo/homeBannerAssets/` |
 | `public/fonts/hero-zhi-mang-xing.woff2` | 首屏行书**按字子集**（13KB）。⚠️ 改首屏文案要重新生成，见 HISTORY 第 30 节 |
 | `src/lib/tiptap-render.tsx` | **前台正文渲染**（服务端，含表格分支）；加节点类型要同步改这里 |

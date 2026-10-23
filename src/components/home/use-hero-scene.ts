@@ -105,8 +105,23 @@ export function useHeroScene() {
   }, [])
 
   /**
+   * 记录这一次交互到底是鼠标还是触摸。
+   *
+   * ⚠️ 必须挂在**整块首屏**的 pointerdown 上：
+   * 悬停热区收窄到主标题后，如果还在标题的 enter 里记录，
+   * 那「点在标题以外」的地方就永远判定成鼠标，触屏轻点会直接失效（踩过）。
+   */
+  const onPointerDown = useCallback((event: PointerEvent<HTMLElement>) => {
+    lastPointerType.current = event.pointerType || "mouse"
+  }, [])
+
+  /**
    * 触屏轻点 = 切换图景。
    * 鼠标点击不参与（避免和「点向下按钮」「将来的链接」抢行为）。
+   *
+   * ⚠️ 悬停与轻点是**两个热区**，别合并：
+   * - 悬停只挂在主标题那一小块（原方案就是这样，鼠标扫过页面任意处不应该换图景）
+   * - 轻点挂在整块首屏 —— 触屏没有悬停，能点的范围太小会很难用
    */
   const onClick = useCallback(
     (event: MouseEvent<HTMLElement>) => {
@@ -121,6 +136,9 @@ export function useHeroScene() {
     scene,
     toggle,
     reset,
-    handlers: { onPointerEnter, onPointerLeave, onClick },
+    /** 悬停：贴到「主标题」容器上 */
+    hoverHandlers: { onPointerEnter, onPointerLeave },
+    /** 轻点：贴到整块首屏上（pointerdown 只用来记录指针类型） */
+    tapHandlers: { onPointerDown, onClick },
   }
 }
