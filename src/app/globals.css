@@ -414,10 +414,7 @@ html {
 /*
  * 素材是浅色纸本（站长用 GPT 生成），而江湖态要「入夜」，
  * 所以夜色是**叠出来的**，不动原图：压暗走 multiply，月晕走 screen。
- * 两支都留着（阶段 1 对比用）：
- *   dusk    暮色压暗，保留原画的朱砂（酒旗 / 梅朵）
- *   duotone 去色双色调，更统一但画面里的红保不住
- * 用 ?night=duotone 切换，选定后删掉另一支。
+ * 阶段 1 对比过「暮色压暗」与「去色双色调」，站长选了前者（画面里的朱砂保得住）。
  */
 .hero-night {
   position: absolute;
@@ -446,37 +443,9 @@ html {
   mix-blend-mode: screen;
 }
 
-/* 双色调：去色后分别用墨青压暗、月白提亮 */
-.hero-night-duotone-dark,
-.hero-night-duotone-light {
-  opacity: 0;
-}
-.hero-night-duotone-dark {
-  background: #16242f;
-  mix-blend-mode: multiply;
-}
-.hero-night-duotone-light {
-  background: #9db4c0;
-  mix-blend-mode: screen;
-}
-
 /* 江湖态的底图统一略降饱和、压一点亮度，让叠上去的夜色更像气氛而不是滤镜 */
 .hero-scene[data-scene="jianghu"] img {
   filter: saturate(0.8) brightness(0.92) contrast(1.04);
-}
-
-:root[data-hero-night="duotone"] .hero-night-dusk,
-:root[data-hero-night="duotone"] .hero-night-moon {
-  display: none;
-}
-:root[data-hero-night="duotone"] .hero-night-duotone-dark {
-  opacity: 0.82;
-}
-:root[data-hero-night="duotone"] .hero-night-duotone-light {
-  opacity: 0.24;
-}
-:root[data-hero-night="duotone"] .hero-scene[data-scene="jianghu"] img {
-  filter: grayscale(1) contrast(1.06) brightness(0.94);
 }
 
 /* -- 文字底衬 -- */
@@ -542,6 +511,58 @@ html {
         rgba(10, 14, 19, 0) 52%
       );
   }
+}
+
+/* -- 首屏显示字体（按字子集，自托管）-- */
+/*
+ * 中文字体全集 5-10MB，不可能整包带；首屏只用得到约 40 个字，
+ * 所以用 Google Fonts 的 `text=` 接口按字取子集（OFL 授权），下载后自托管 ——
+ * CSP 是 default-src 'self'，外部字体一律会被浏览器拦掉。
+ * 三个子集分别只有 10 / 17 / 13 KB。
+ *
+ * 三款候选（`?font=` 切换，站长选定后只留一款）：
+ *   noto900 思源宋体 900：横细竖粗、起收有锋，传统宋体的「利」
+ *   brush   马善政毛笔楷书：毛笔楷书，笔锋最明显，最贴画面
+ *   xingshu 志莽行书：行书，最凌厉，小字难认
+ */
+@font-face {
+  font-family: "Hero Noto Serif 900";
+  src: url("/fonts/hero-noto-serif-900.woff2") format("woff2");
+  font-weight: 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hero Brush Kai";
+  src: url("/fonts/hero-ma-shan-zheng.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hero Xingshu";
+  src: url("/fonts/hero-zhi-mang-xing.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root[data-hero-font="noto900"] .hero-display {
+  font-family: "Hero Noto Serif 900", var(--font-serif), serif;
+  letter-spacing: 0.01em;
+}
+/*
+ * 两款书法体只有 400 一个字重：标题上的 font-bold 会触发浏览器合成加粗，
+ * 毛笔字的合成加粗会把笔锋糊掉，所以这两支显式回到 400。
+ */
+:root[data-hero-font="brush"] .hero-display,
+:root[data-hero-font="xingshu"] .hero-display {
+  font-weight: 400;
+}
+:root[data-hero-font="brush"] .hero-display {
+  font-family: "Hero Brush Kai", var(--font-serif), serif;
+  letter-spacing: 0.02em;
+}
+:root[data-hero-font="xingshu"] .hero-display {
+  font-family: "Hero Xingshu", var(--font-serif), serif;
+  letter-spacing: 0.03em;
 }
 
 /* -- 首屏文字 -- */

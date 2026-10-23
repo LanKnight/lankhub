@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent, type MouseEvent } from "react"
 
 import {
-  HERO_NIGHT_MODE,
+  HERO_FONT_CANDIDATES,
+  HERO_FONT_DEFAULT,
   HERO_SCENE_ATTR,
   HOVER_DWELL_MS,
   HOVER_GRACE_MS,
@@ -71,16 +72,16 @@ export function useHeroScene() {
   )
 
   /*
-   * 阶段 1 对比用：?night=duotone 切到双色调版本。
-   * 用 effect 写属性而不是渲染期读 URL —— 否则 SSR（dusk）与客户端（duotone）
-   * 会不一致，触发水合告警。选定夜色后这段删掉。
+   * 阶段 2 对比用：?font=noto900|brush|xingshu 切首屏显示字体。
+   * 用 effect 写属性而不是渲染期读 URL —— 否则 SSR 与客户端不一致，会触发水合告警。
+   * 站长选定字体后：把 HERO_FONT_DEFAULT 改成它，并删掉这段与其余候选。
    */
   useEffect(() => {
-    const mode = new URLSearchParams(window.location.search).get("night")
-    document.documentElement.dataset.heroNight =
-      mode === "duotone" ? "duotone" : HERO_NIGHT_MODE
+    const wanted = new URLSearchParams(window.location.search).get("font")
+    const mode = HERO_FONT_CANDIDATES.find((c) => c === wanted) ?? HERO_FONT_DEFAULT
+    document.documentElement.dataset.heroFont = mode
     return () => {
-      delete document.documentElement.dataset.heroNight
+      delete document.documentElement.dataset.heroFont
     }
   }, [])
 

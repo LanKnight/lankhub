@@ -38,7 +38,7 @@ export default function HeroSection() {
           <div className="grid">
             {/* 两层文字叠在同一格里：容器按较宽那层撑开，切换时标题不会横向抖动 */}
             <h1
-              className="hero-title-swap col-start-1 row-start-1 self-center justify-self-start text-4xl sm:text-5xl lg:text-6xl font-bold tracking-wide animate-rise-in"
+              className="hero-display hero-title-swap col-start-1 row-start-1 self-center justify-self-start text-4xl sm:text-5xl lg:text-6xl font-bold tracking-wide animate-rise-in"
               style={{ animationDelay: `${ENTER_DELAY.title}ms` }}
             >
               你好，我是 LanKnight
@@ -50,7 +50,7 @@ export default function HeroSection() {
             */}
             <p
               aria-hidden="true"
-              className="hero-motto-swap col-start-1 row-start-1 self-center justify-self-start text-2xl sm:text-4xl lg:text-5xl font-bold tracking-wide"
+              className="hero-display hero-motto-swap col-start-1 row-start-1 self-center justify-self-start text-2xl sm:text-4xl lg:text-5xl font-bold tracking-wide"
             >
               天行健，君子以自强不息
             </p>
@@ -65,7 +65,7 @@ export default function HeroSection() {
             落款印章：只在江湖态浮现，正常态保持占位（opacity: 0），
             这样切换时文字块的高度不变，不会把副标题往上顶一下。
           */}
-          <span className="hero-seal mt-8" aria-hidden="true">
+          <span className="hero-display hero-seal mt-8" aria-hidden="true">
             阑客
           </span>
         </div>

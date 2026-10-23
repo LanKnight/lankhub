@@ -34,15 +34,13 @@ export default function HeroScene({ scene }: { scene: HeroSceneName }) {
       </div>
 
       {/*
-        夜色层全部渲染，用 :root[data-hero-night="…"] 决定显示哪一套。
-        这样切换对比只改一个属性，不用重新构建。
+        夜色：暮色压暗（multiply）+ 右上角月晕（screen）。
+        素材本身是浅色纸本，夜色是**叠出来**的，不改原图。
       */}
       {scene === "jianghu" && (
         <>
           <div className="hero-night hero-night-dusk" />
           <div className="hero-night hero-night-moon" />
-          <div className="hero-night hero-night-duotone-dark" />
-          <div className="hero-night hero-night-duotone-light" />
         </>
       )}
 

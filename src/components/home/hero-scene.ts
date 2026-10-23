@@ -28,14 +28,20 @@ export const HOVER_GRACE_MS = 1200
 export const HOVER_DWELL_MS = 300
 
 /**
- * 江湖夜色处理：
- * - `dusk`    暮色压暗，保留原画色彩（朱砂的酒旗/梅朵留得住）
- * - `duotone` 双色调，去色成墨夜（更统一，但画面里的红保不住）
+ * 首屏显示字体（标题 / 箴言 / 印章）。
  *
- * 素材是浅色纸本，而江湖态要入夜，所以夜色是**叠出来的**（不动原图）。
- * 阶段 1 两版都留着，用 `?night=duotone` 切换对比；你选定后删掉另一支。
+ * 中文只带用得上的字：
+ * - 三款候选都是从 Google Fonts 按字子集下来自托管的（CSP 是 default-src 'self'）
+ * - 子集后每个只有 10-17KB，全量中文字体是 5-10MB，不可能整包带
+ *
+ * `base` = 不动（沿用全站宋体栈），其余为候选。
+ * 阶段 2 用 `?font=` 切换对比；选定后把默认值改成它，并删掉其余与这段开关。
  */
-export const HERO_NIGHT_MODE: "dusk" | "duotone" = "dusk"
+export const HERO_FONT_CANDIDATES = ["base", "noto900", "brush", "xingshu"] as const
+export type HeroFontCandidate = (typeof HERO_FONT_CANDIDATES)[number]
+
+/** 当前默认：站长选好之后改成对应候选 */
+export const HERO_FONT_DEFAULT: HeroFontCandidate = "base"
 
 export interface HeroSceneAsset {
   /** 桌面图（1672×941，q82） */
