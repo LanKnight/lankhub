@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react"
 
 import CyclingSubtitle from "./CyclingSubtitle"
 import HeroScene from "./HeroScene"
+import HeroType from "./HeroType"
 import { HERO_SCENES } from "./hero-scene"
 import { useHeroPaging } from "./hero-paging"
 import { useHeroScene } from "./use-hero-scene"
@@ -38,10 +39,14 @@ export default function HeroSection() {
           <div className="grid">
             {/* 两层文字叠在同一格里：容器按较宽那层撑开，切换时标题不会横向抖动 */}
             <h1
-              className="hero-display hero-title-swap col-start-1 row-start-1 self-center justify-self-start text-4xl sm:text-5xl lg:text-6xl font-bold tracking-wide animate-rise-in"
+              className="hero-display hero-title-swap col-start-1 row-start-1 self-center justify-self-start text-5xl sm:text-6xl lg:text-7xl animate-rise-in"
               style={{ animationDelay: `${ENTER_DELAY.title}ms` }}
             >
-              你好，我是 LanKnight
+              {/* 中文题字一行、英文署名另起一行：这是刻意的版式，不是被挤断的 */}
+              <span className="hero-title-cjk">
+                <HeroType text="你好，我是" />
+              </span>
+              <span className="hero-title-latin">LanKnight</span>
             </h1>
             {/*
               箴言比标题小一号：它有 11 个字，和标题同号会在 lg 宽度上折成两行，
@@ -50,14 +55,14 @@ export default function HeroSection() {
             */}
             <p
               aria-hidden="true"
-              className="hero-display hero-motto-swap col-start-1 row-start-1 self-center justify-self-start text-2xl sm:text-4xl lg:text-5xl font-bold tracking-wide"
+              className="hero-display hero-motto-swap col-start-1 row-start-1 self-center justify-self-start text-3xl sm:text-5xl lg:text-6xl"
             >
-              天行健，君子以自强不息
+              <HeroType text="天行健，君子以自强不息" />
             </p>
           </div>
 
           <CyclingSubtitle
-            className="hero-subtitle mt-5 animate-rise-in"
+            className="hero-display hero-subtitle mt-5 animate-rise-in"
             delay={ENTER_DELAY.subtitle}
           />
 

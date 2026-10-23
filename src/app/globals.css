@@ -513,56 +513,56 @@ html {
   }
 }
 
-/* -- 首屏显示字体（按字子集，自托管）-- */
+/* -- 首屏显示字体（志莽行书，按字子集自托管）-- */
 /*
  * 中文字体全集 5-10MB，不可能整包带；首屏只用得到约 40 个字，
  * 所以用 Google Fonts 的 `text=` 接口按字取子集（OFL 授权），下载后自托管 ——
- * CSP 是 default-src 'self'，外部字体一律会被浏览器拦掉。
- * 三个子集分别只有 10 / 17 / 13 KB。
+ * CSP 是 default-src 'self'，外部字体一律会被浏览器拦掉。子集后只有 13KB。
  *
- * 三款候选（`?font=` 切换，站长选定后只留一款）：
- *   noto900 思源宋体 900：横细竖粗、起收有锋，传统宋体的「利」
- *   brush   马善政毛笔楷书：毛笔楷书，笔锋最明显，最贴画面
- *   xingshu 志莽行书：行书，最凌厉，小字难认
+ * ⚠️ 改首屏文案（标题/箴言/副标题/印章）要重新生成子集：
+ *    子集里没有的字会掉回系统字体，和行书拼在一起非常明显。
+ *
+ * `unicode-range` 是关键：文件里其实**也带了拉丁字形**（抓子集时一并取的），
+ * 但把范围限定在 CJK，拉丁（LanKnight）就会回落到全站衬线 ——
+ * 也就是站长选的「中文题字 + 英文署名」。
  */
-@font-face {
-  font-family: "Hero Noto Serif 900";
-  src: url("/fonts/hero-noto-serif-900.woff2") format("woff2");
-  font-weight: 900;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Hero Brush Kai";
-  src: url("/fonts/hero-ma-shan-zheng.woff2") format("woff2");
-  font-weight: 400;
-  font-display: swap;
-}
 @font-face {
   font-family: "Hero Xingshu";
   src: url("/fonts/hero-zhi-mang-xing.woff2") format("woff2");
   font-weight: 400;
   font-display: swap;
+  unicode-range:
+    U+2E80-2EFF, U+3000-303F, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF;
 }
 
-:root[data-hero-font="noto900"] .hero-display {
-  font-family: "Hero Noto Serif 900", var(--font-serif), serif;
-  letter-spacing: 0.01em;
-}
 /*
- * 两款书法体只有 400 一个字重：标题上的 font-bold 会触发浏览器合成加粗，
- * 毛笔字的合成加粗会把笔锋糊掉，所以这两支显式回到 400。
+ * 行书只有 400 一个字重：标题上的 font-bold 会触发浏览器**合成加粗**，
+ * 毛笔字的合成加粗会把笔锋糊掉，所以这里显式压回 400。
  */
-:root[data-hero-font="brush"] .hero-display,
-:root[data-hero-font="xingshu"] .hero-display {
-  font-weight: 400;
-}
-:root[data-hero-font="brush"] .hero-display {
-  font-family: "Hero Brush Kai", var(--font-serif), serif;
-  letter-spacing: 0.02em;
-}
-:root[data-hero-font="xingshu"] .hero-display {
+.hero-display {
   font-family: "Hero Xingshu", var(--font-serif), serif;
+  font-weight: 400;
   letter-spacing: 0.03em;
+}
+
+/* 逐字错落：字号与下沉量写在元素上，行内元素必须 inline-block 才能吃 transform */
+.hero-char {
+  display: inline-block;
+}
+
+/*
+ * 标题分两行：中文题字（行书、逐字错落）在上，英文署名（衬线）在下。
+ * 不做自动换行 —— 自动折行的断点会随视口变，同一版式一会儿一行一会儿两行。
+ */
+.hero-title-cjk {
+  display: block;
+}
+
+.hero-title-latin {
+  display: block;
+  margin-top: 0.08em;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
 }
 
 /* -- 首屏文字 -- */
@@ -580,6 +580,8 @@ html {
 .hero-subtitle {
   color: var(--text-secondary);
   transition: color var(--hero-scene-fade) ease;
+  /* 行书的小字笔画细，给一点字距会明显好读 */
+  letter-spacing: 0.06em;
 }
 :root[data-hero-scene="jianghu"] .hero-subtitle {
   color: #eae3d5;
@@ -617,15 +619,16 @@ html {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 2px;
   background: #9e2b25;
   box-shadow: inset 0 0 0 1px rgba(250, 243, 230, 0.55);
   color: #faf3e6;
-  font-size: 0.7rem;
+  /* 行书在 11px 左右会糊成一团，这里比原来的 0.7rem 略微放大 */
+  font-size: 0.8rem;
   line-height: 1;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   writing-mode: vertical-rl;
   opacity: 0;
   transform: rotate(3deg) translateY(4px);

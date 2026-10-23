@@ -28,20 +28,48 @@ export const HOVER_GRACE_MS = 1200
 export const HOVER_DWELL_MS = 300
 
 /**
- * 首屏显示字体（标题 / 箴言 / 印章）。
+ * 首屏显示字体：志莽行书（站长选定）。
  *
- * 中文只带用得上的字：
- * - 三款候选都是从 Google Fonts 按字子集下来自托管的（CSP 是 default-src 'self'）
- * - 子集后每个只有 10-17KB，全量中文字体是 5-10MB，不可能整包带
+ * 中文来自**按字子集**（13KB，只带首屏用得上的约 40 个字），拉丁故意不用它 ——
+ * `@font-face` 里用 `unicode-range` 把文件限制在 CJK 范围，
+ * 拉丁就会回落到全站衬线，形成「中文题字 + 英文署名」的搭配。
  *
- * `base` = 不动（沿用全站宋体栈），其余为候选。
- * 阶段 2 用 `?font=` 切换对比；选定后把默认值改成它，并删掉其余与这段开关。
+ * ⚠️ 改首屏文案要同步重新生成子集，否则新字会掉回系统字体（见 docs/HISTORY 第 30 节）。
  */
-export const HERO_FONT_CANDIDATES = ["base", "noto900", "brush", "xingshu"] as const
-export type HeroFontCandidate = (typeof HERO_FONT_CANDIDATES)[number]
+export const HERO_DISPLAY_FONT = "Hero Xingshu"
 
-/** 当前默认：站长选好之后改成对应候选 */
-export const HERO_FONT_DEFAULT: HeroFontCandidate = "base"
+/**
+ * 逐字错落的节奏表（Q28：要「不对称的美感」）。
+ *
+ * 用固定表而不是随机：随机每次渲染都不一样，看起来像抖动而不是书法；
+ * 手写的错落是有规律的。`size` 是相对父级的字号倍数，`dy` 是下沉量（em）。
+ * CJK 字逐字套这张表，拉丁与空格整段不拆。
+ */
+export interface HeroCharRhythm {
+  size: number
+  dy: number
+}
+
+export const HERO_CHAR_RHYTHM: HeroCharRhythm[] = [
+  { size: 1.0, dy: 0 },
+  { size: 0.94, dy: 0.02 },
+  { size: 1.07, dy: -0.012 },
+  { size: 0.92, dy: 0.028 },
+  { size: 1.03, dy: -0.004 },
+  { size: 0.97, dy: 0.014 },
+  { size: 1.09, dy: -0.02 },
+  { size: 0.95, dy: 0.022 },
+  { size: 1.01, dy: 0.004 },
+  { size: 0.9, dy: 0.018 },
+  { size: 1.05, dy: -0.008 },
+  { size: 0.98, dy: 0.01 },
+]
+
+/** 判定哪些字要套节奏：CJK 汉字 + 中文标点，拉丁/数字/空格不套 */
+export function isRhythmChar(ch: string): boolean {
+  return /[\u3400-\u9fff\uf900-\ufaff\u3001\u3002\uff0c\uff1a\uff1b\uff1f\uff01]/.test(ch)
+}
+
 
 export interface HeroSceneAsset {
   /** 桌面图（1672×941，q82） */

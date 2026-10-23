@@ -282,7 +282,7 @@ CDP over WebSocket（Node 24 自带 `WebSocket`，不需要 `ws` 包）。
 | --- | --- |
 | 动效/入场动画、hero 暗色 hover、reduced-motion 补齐 | 完成 |
 | **首页滚轮切屏**（顶部下滚 = 点向下按钮，边界上滚回顶） | 完成（见 HISTORY 第 29 节） |
-| **首页首屏山水场景（雪山梅花 ↔ 江湖武侠）** | 阶段 1 骨架完成，夜色版本待站长选定（见 HISTORY 第 30 节） |
+| **首页首屏山水场景（雪山梅花 ↔ 江湖武侠）** | 完成（阶段 2 定稿：夜色 + 行书 + 逐字错落，见 HISTORY 第 30 节） |
 | 简历单页/完整版下载（`/resume/print`） | 完成 |
 | 编辑器粘性工具栏、文章目录（TOC + 滚动高亮） | 完成 |
 | 认证加固：昵称唯一 + trim + 长度、邮箱规范化、登录限流、`as any` 清零 | 完成 |
@@ -540,10 +540,12 @@ npm run https:on/redirect/off    # HTTPS 三步
 | `src/components/music/` | 播放器 Context / 底部播放条 / 歌手卡片墙 / 沉浸层 / 队列面板 |
 | `src/components/editor/` | 富文本编辑器（TipTap）、工具栏、「整理 Markdown」 |
 | `src/components/home/hero-paging.ts` | 首屏滚轮切屏：边界判定、锁（`scrollend` + 700ms 兜底）、reduced-motion 降级 |
-| `src/components/home/hero-scene.ts` | 首屏场景参数：场景名、宽限/停留时长、夜色模式、素材路径 |
+| `src/components/home/hero-scene.ts` | 首屏场景参数：场景名、宽限/停留时长、素材路径、**逐字错落节奏表** |
 | `src/components/home/HeroScene.tsx` | 一层场景（底图 `<picture>` + 夜色叠层 + 文字底衬），纯展示 |
+| `src/components/home/HeroType.tsx` | 把 CJK 逐字拆开套节奏表；拉丁整段不拆（中文题字 + 英文署名） |
 | `src/components/home/use-hero-scene.ts` | 场景状态机：写 `<html data-hero-scene>`、悬停宽限/停留、触屏轻点 |
 | `public/images/home/` | 首屏派生图（WebP）：桌面 1672 宽 ×2、手机竖版 780 宽 ×2；源图在 `docs/photo/homeBannerAssets/` |
+| `public/fonts/hero-zhi-mang-xing.woff2` | 首屏行书**按字子集**（13KB）。⚠️ 改首屏文案要重新生成，见 HISTORY 第 30 节 |
 | `src/lib/tiptap-render.tsx` | **前台正文渲染**（服务端，含表格分支）；加节点类型要同步改这里 |
 | `src/app/admin/music/SongManager.tsx` | 后台歌单管理（含批量匹配的逐条确认面板） |
 | `prisma/check-limits.ts` | 上线预检（复用 validations 的 schema，不会与它脱节） |

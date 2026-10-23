@@ -1764,3 +1764,72 @@ for (const [src, out] of jobs) {
 }
 ```
 
+### 30.7 阶段 2：夜色定稿 + 排版与字体
+
+阶段 1 交付后站长反馈：**「界面看起来很不错」**，但**字体与画面不匹配**，
+希望「锋利」，可考虑行楷。于是做了四款字体的真机对比（现状 / 思源宋体 900 /
+马善政毛笔楷书 / 志莽行书），站长选了**志莽行书**，并定了三条：
+拉丁保持衬线、副标题也用这套字、**每个字大小要有不对称的美感**。
+
+**夜色定稿**：站长选了「暮色压暗」，于是删掉 `duotone` 分支与 `?night=` 临时开关。
+
+**三款候选 → 只留一款**（未选中的字体文件与 CSS 一并删除）。
+
+**中文按字子集**（关键做法，值得复用）：
+
+- 中文字体全集 5–10MB，整包带不现实；首屏只用约 40 个字
+- Google Fonts 的 CSS2 接口支持 `text=` 参数，**只返回这几个字的字形**，
+  单个文件 10–17KB（实测 9.6 / 16.6 / 13 KB）
+- CSP 是 `default-src 'self'`，外部字体一律被拦 → 必须下载到 `public/fonts/` 自托管
+- ⚠️ 按字子集返回的是 `fonts.gstatic.com/l/font?kit=...`（**没有 .woff2 后缀**），
+  正则别只匹配 `.woff2`
+
+**拉丁保持衬线的实现**：`@font-face` 里加 `unicode-range` 限定 CJK 范围，
+文件里其实也带了拉丁字形（抓子集时一并取的），但范围一限，拉丁就回落到全站衬线。
+
+**逐字错落**：用固定的节奏表（`HERO_CHAR_RHYTHM`：字号 0.90–1.09、下沉 −0.02–0.03em），
+由 `HeroType.tsx` 把 CJK 逐字拆成 `span`（`inline-block` 才吃 `transform`）。
+**不用随机**：随机每次渲染都变，看起来像抖动；手写的错落是有规律的。
+
+**标题改成刻意的两行**：换成行书 + 拉丁衬线后，`.text-7xl` 下中文与英文自然折成两行，
+断点会随视口变化（一会儿一行一会儿两行）。索性做成版式：中文题字一行、英文署名一行，
+`block` + 收紧行高。站长要一行的话，把字号降到 6xl 即可。
+
+**顺带修的两处可读性问题**：
+- 行书小字笔画细，副标题从 `text-lg/xl` 提到 `text-2xl/3xl` 并加 `letter-spacing: 0.06em`
+- 印章 0.7rem 时行书糊成一团 → 0.8rem、印章块 2.25→2.5rem
+
+### 30.8 阶段 2 验证
+
+- `tsc` / `eslint` / `npm run build` 全过
+- 真机截图：1280×800、1920×940 两态 + 390×700 两态（`.ui-shots/home-hero/`）
+- 首屏行为冒烟 4 项全过：**按钮仍在命中测试最上层**（`elementFromPoint`）、
+  点按钮落到 801px、滚轮落点与按钮一致、水合后场景属性存在
+  —— 排版改动动了标题 DOM，这三条最容易被波及，所以单独验了一次
+- 字体实测：`getComputedStyle(h1).fontFamily` = `"Hero Xingshu", "Noto Serif SC", …`，
+  `document.fonts.check('400 1em "Hero Xingshu"')` 为 true（子集真的用上了，不是回退）
+
+### 30.9 改首屏文案时必做（否则字体掉回系统字体）
+
+```python
+# 用 Python 跑（本机 HTTPS 走代理，curl/PowerShell 在这台机器上不通）
+# 只改 TEXT 与 FAMILIES，然后把产物放回 public/fonts/
+import urllib.parse, urllib.request, re
+TEXT = "你好，我是LanKnight天行健君子以自强不息码农·游戏玩家生活记录者全栈开发云原生AI探索阑客"
+FAMILY = "Zhi+Mang+Xing"
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36"
+opener = urllib.request.build_opener(
+    urllib.request.ProxyHandler({"https": "http://127.0.0.1:7897"})
+)
+css = opener.open(urllib.request.Request(
+    f"https://fonts.googleapis.com/css2?family={FAMILY}&text={urllib.parse.quote(TEXT, safe='')}",
+    headers={"User-Agent": UA})).read().decode()
+url = re.findall(r"url\((https://fonts\.gstatic\.com/[^)]+)\)", css)[0]  # 注意没有 .woff2 后缀
+open("public/fonts/hero-zhi-mang-xing.woff2", "wb").write(
+    opener.open(urllib.request.Request(url, headers={"User-Agent": UA})).read()
+)
+```
+
+**不要忘了**：改完文案后，`HERO_CHAR_RHYTHM` 是按字数循环的，
+新文案的字数变了，错落的节奏会整体错位一格 —— 换个新文案时顺手看一眼截图。
+

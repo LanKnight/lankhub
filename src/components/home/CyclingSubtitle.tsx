@@ -40,7 +40,7 @@ export default function CyclingSubtitle({
 
   return (
     <p
-      className={`hero-subtitle-cycle relative h-7 text-lg sm:text-xl ${
+      className={`hero-subtitle-cycle relative h-11 text-2xl sm:text-3xl ${
         className ?? ""
       }`}
       style={{ animationDelay: `${delay}ms` }}
