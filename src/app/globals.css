@@ -4,7 +4,13 @@
 @theme inline {
   --color-background: var(--bg-primary);
   --color-foreground: var(--text-primary);
-  --font-sans: var(--font-geist-sans);
+  /*
+   * 无衬线槽位用系统栈兜底：原来接的是 Geist，但全站没有一处引用 `font-sans`，
+   * 为它下载的字体分片是纯浪费（首访 2MB 里字体占了 1.5MB）。
+   * 真要用 sans 时这里直接可用，不需要再拉一个 webfont。
+   */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-noto-serif-sc);
 

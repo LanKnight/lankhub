@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Geist, Geist_Mono, Noto_Serif_SC } from "next/font/google"
+import { Geist_Mono, Noto_Serif_SC } from "next/font/google"
 import { SessionProvider } from "next-auth/react"
 import Navbar from "@/components/layout/Navbar"
 import Footer from "@/components/layout/Footer"
@@ -9,11 +9,13 @@ import SessionGuard from "@/components/auth/SessionGuard"
 import { ToastProvider } from "@/components/ui/Toast"
 import "./globals.css"
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-})
-
+/*
+ * 只保留真正被用到的字体（实测首访 2028KB 里 1504KB 是字体分片）：
+ * - Geist（无衬线）全站没有任何地方引用 `font-sans`，删掉；
+ *   有需要时由 globals.css 里的系统无衬线栈兜底。
+ * - Noto Serif SC 的 900 字重全站没人用（没有 font-black / 900），删掉。
+ * - Geist Mono 保留：代码块在用（`--font-mono`）。
+ */
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
@@ -24,7 +26,7 @@ const geistMono = Geist_Mono({
 const notoSerifSC = Noto_Serif_SC({
   variable: "--font-noto-serif-sc",
   subsets: ["latin"],
-  weight: ["400", "700", "900"],
+  weight: ["400", "700"],
 })
 
 export const metadata: Metadata = {
@@ -47,7 +49,7 @@ export default function RootLayout({
       // 不加这个属性路由跳转（含后退）会把滚动做成平滑动画而不是瞬间到位。
       // 加上它恢复旧行为：导航瞬间定位，页内锚点仍是平滑滚动。
       data-scroll-behavior="smooth"
-      className={`${geistSans.variable} ${geistMono.variable} ${notoSerifSC.variable} h-full antialiased`}
+      className={`${geistMono.variable} ${notoSerifSC.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <NavHistoryTracker />
