@@ -82,6 +82,15 @@ body {
 /* Smooth scroll */
 html {
   scroll-behavior: smooth;
+  /*
+   * 预留滚动条的位置（CLS 实测出来的）。
+   *
+   * 首页是「一屏 hero + 几段内容」，流式渲染时文档高度会跨过一屏：
+   * 没滚动条 → 有滚动条，可视宽度少 8px，所有居中的容器横向跳 4px ——
+   * 实测 CLS 0.165（lighthouse 里算「需要改进」）。
+   * 用 scrollbar-gutter 预留，既不加常显滚动条，也不会跳。
+   */
+  scrollbar-gutter: stable;
 }
 
 /* 尊重系统"减少动态效果"设置 */
