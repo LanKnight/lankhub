@@ -104,3 +104,77 @@ export const HERO_SCENE_ASSETS: Record<HeroSceneName, HeroSceneAsset> = {
 
 /** 手机竖版的断点，与 HeroScene 里的 <source media> 保持一致 */
 export const MOBILE_MEDIA = "(max-width: 767px)"
+
+/**
+ * 首屏动态（阶段 A）的数值表。
+ *
+ * 全部**写死**、不用随机：
+ * - 随机值每帧/每次渲染都可能变，看起来像抖动；而且 SSR 与客户端不一致会触发水合告警。
+ * - 节奏取「克制」：雪 20–39s 一轮、鸟 46–62s 穿一次，符合水墨的呼吸感。
+ */
+export interface HeroSnowFlake {
+  /** 横向位置（%，相对首屏宽） */
+  x: number
+  /** 直径（px） */
+  size: number
+  /** 下落一轮的时长（s） */
+  dur: number
+  /** 负延迟 = 一进页面就已经在飘了，不用等 */
+  delay: number
+  /** 不透明度 */
+  opacity: number
+  /** 落到底之前横向漂移（px，正右负左） */
+  drift: number
+}
+
+/**
+ * 雪点用**固定种子**的伪随机生成，而不是 Math.random()：
+ * - 随机值每次渲染都不同 → SSR 与客户端不一致，会触发水合告警；
+ * - 写死 20 行太啰嗦，改数量/尺寸时也不好维护。
+ * 固定种子保证**每次构建结果完全一致**。
+ */
+function createFlakes(count: number): HeroSnowFlake[] {
+  let seed = 20261023
+  const next = () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296
+    return seed / 4294967296
+  }
+  return Array.from({ length: count }, () => ({
+    x: Math.round(next() * 1000) / 10,
+    size: Math.round((1.8 + next() * 2.2) * 10) / 10,
+    dur: Math.round(20 + next() * 19),
+    delay: -Math.round(next() * 38),
+    opacity: Math.round((0.45 + next() * 0.35) * 100) / 100,
+    drift: Math.round((next() - 0.5) * 56),
+  }))
+}
+
+/**
+ * 20 个，靠**颜色对比**而不是数量让雪可见。
+ *
+ * 站长验收第一版时指出：「雪不可见可能是与原图背景颜色太一样，
+ * 优先把雪改灰一点点，而不是加量」——所以雪点是冷灰本体（见 CSS），
+ * 数量维持克制档。
+ */
+export const HERO_SNOW_FLAKES: HeroSnowFlake[] = createFlakes(20)
+
+
+
+export interface HeroBird {
+  /** 纵向位置（%，相对首屏高） */
+  top: number
+  /** 从左到右穿一次（s） */
+  dur: number
+  delay: number
+  /** 缩放：远的鸟更小更淡 */
+  scale: number
+  opacity: number
+}
+
+/** 江湖态的飞鸟：呼应参考图里那几只归鸟，速度很慢，不抢戏 */
+export const HERO_BIRDS: HeroBird[] = [
+  { top: 21, dur: 46, delay: -6, scale: 1, opacity: 0.5 },
+  { top: 26, dur: 54, delay: -22, scale: 0.78, opacity: 0.4 },
+  { top: 18, dur: 62, delay: -38, scale: 0.66, opacity: 0.34 },
+]
+

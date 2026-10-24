@@ -463,6 +463,300 @@ html {
   filter: saturate(0.8) brightness(0.92) contrast(1.04);
 }
 
+/* -- 首屏动态（阶段 A：雪 / 月晕 / 落印 / 鸟 / 灯火）-- */
+/*
+ * 三条硬规则，写在新加任何动态之前：
+ * 1. **只动 transform / opacity** —— 走合成器，不触发布局与重绘
+ * 2. 动画都是 `infinite`，所以「什么时候必须停」要写全：
+ *    场景切走、首屏滚出视口（data-hero-motion）、reduced-motion 三处
+ * 3. fx 层永远在 `.hero-scrim` 与文字**之下**，不参与可读性
+ */
+.hero-fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hero-fx > * {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* ---- 雪·远层：平铺纹理，零 DOM 节点 ---- */
+.hero-fx-snow-far {
+  left: 0;
+  right: 0;
+  /* 向上多铺一整格，位移一格之后顶部不会露白 */
+  top: -180px;
+  bottom: 0;
+  /*
+   * 用**冷灰**而不是纯白：雪山那张是米白纸本，纯白点在上面完全看不见。
+   * 远层做成一层很淡的灰点铺满画面（密度高、代价为零），
+   * 近层再用「白点 + 灰晕」拉开层次。
+   */
+  background-image:
+    radial-gradient(
+      1.8px 1.8px at 20px 28px,
+      rgba(126, 146, 160, 0.5) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      1.4px 1.4px at 54px 66px,
+      rgba(126, 146, 160, 0.36) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      2px 2px at 88px 14px,
+      rgba(126, 146, 160, 0.44) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      1.5px 1.5px at 118px 52px,
+      rgba(126, 146, 160, 0.34) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      2.2px 2.2px at 146px 96px,
+      rgba(126, 146, 160, 0.46) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      1.3px 1.3px at 34px 118px,
+      rgba(126, 146, 160, 0.3) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      1.7px 1.7px at 100px 142px,
+      rgba(126, 146, 160, 0.4) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      1.9px 1.9px at 164px 158px,
+      rgba(126, 146, 160, 0.32) 0%,
+      transparent 100%
+    );
+  background-size: 180px 180px;
+  /*
+   * 0.7：远层也是靠颜色对比（冷灰 vs 米白纸），不靠密度。
+   * 这一层是平铺纹理，铺满一屏的代价几乎为零，所以它可以比近层更密。
+   */
+  opacity: 0.7;
+  animation: hero-snow-far 26s linear infinite;
+}
+/*
+ * 位移量正好等于一格瓦片高度：循环回到起点时图案完全对齐，看不到跳帧。
+ * 这是平铺动画唯一可靠的无缝写法。
+ */
+@keyframes hero-snow-far {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 180px, 0);
+  }
+}
+
+/* ---- 雪·近层：雪点，大小/速度/漂移各不同 ---- */
+.hero-fx-snow-near {
+  inset: 0;
+  overflow: hidden;
+}
+.hero-flake {
+  position: absolute;
+  top: -6%;
+  left: var(--flake-x);
+  /* 尺寸直接来自配置（1.8–4px），不额外放大 */
+  width: var(--flake-size);
+  height: var(--flake-size);
+  border-radius: 9999px;
+  /*
+   * 站长验收第一版指出：雪几乎看不见，原因是**颜色和米白纸底太接近**，
+   * 应该把雪改灰一点点，而不是加量。
+   * 所以本体用冷灰（在 #f0eadd 的纸上对比够），只在外面留一丝白边，
+   * 落到深色山体上时那圈白边负责把它衬出来。
+   */
+  background: rgba(146, 158, 168, 0.92);
+  box-shadow: 0 0 2px rgba(255, 255, 255, 0.55);
+  opacity: 0;
+  animation: hero-flake-fall var(--flake-dur) linear var(--flake-delay) infinite;
+}
+@keyframes hero-flake-fall {
+  0% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0;
+  }
+  6% {
+    opacity: var(--flake-opacity);
+  }
+  88% {
+    opacity: var(--flake-opacity);
+  }
+  100% {
+    transform: translate3d(var(--flake-drift), 108vh, 0);
+    opacity: 0;
+  }
+}
+
+/* ---- 归鸟（江湖态）---- */
+.hero-fx-birds {
+  inset: 0;
+  overflow: hidden;
+}
+.hero-bird {
+  position: absolute;
+  top: var(--bird-top);
+  left: 0;
+  /*
+   * 17px：画面里原有的鸟只有 10px 左右，加进来的必须比它们更小/更淡，
+   * 否则像贴上去的图标（第一版 26px 就偏大）。
+   */
+  width: 17px;
+  height: 6px;
+  color: #17181a;
+  opacity: var(--bird-opacity);
+  /* 缩放用 transform，位移用独立的 translate 属性，两者互不覆盖 */
+  transform: scale(var(--bird-scale));
+  animation: hero-bird-fly var(--bird-dur) linear var(--bird-delay) infinite;
+}
+.hero-bird svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+@keyframes hero-bird-fly {
+  from {
+    translate: -14% 0;
+  }
+  30% {
+    translate: 30% -6px;
+  }
+  60% {
+    translate: 70% 3px;
+  }
+  to {
+    translate: 114% 0;
+  }
+}
+
+/* ---- 灯火（江湖态）：酒旗旁一点暖光 ---- */
+.hero-fx-lamp {
+  --lamp-x: 85.5%;
+  --lamp-y: 41%;
+  left: var(--lamp-x);
+  top: var(--lamp-y);
+  /* 88px 且峰值压到 0.62：再大再亮就成了一团糊，而不是灯 */
+  width: 88px;
+  height: 88px;
+  margin: -44px 0 0 -44px;
+  background: radial-gradient(
+    circle,
+    rgba(255, 200, 132, 0.55) 0%,
+    rgba(255, 174, 98, 0.16) 46%,
+    transparent 72%
+  );
+  mix-blend-mode: screen;
+  /* 提成独立合成层：只动 opacity，不必每帧重绘这团径向渐变 */
+  will-change: opacity;
+  animation: hero-lamp-flicker 4.6s ease-in-out infinite;
+}
+@keyframes hero-lamp-flicker {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  46% {
+    opacity: 0.62;
+  }
+}
+
+/* ---- 月晕呼吸（只在江湖态跑；雪山态那一层被藏着，没必要空转）---- */
+:root[data-hero-scene="jianghu"] .hero-night-moon {
+  /*
+   * will-change：把这一整屏的径向渐变提成独立层，
+   * 之后每帧只改合成层的不透明度 —— 否则 4× CPU 降速下会偶发掉帧
+   * （实测 p95 从 33.4ms 拉回 16.7ms 就是靠这一条）。
+   */
+  will-change: opacity;
+  animation: hero-moon-breath 12s ease-in-out infinite;
+}
+@keyframes hero-moon-breath {
+  0%,
+  100% {
+    opacity: 0.78;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/*
+ * ---- 落印 ----
+ * 进入江湖态的一瞬间，印章从略大处压下并定住。
+ * 靠「选择器匹配即播动画」实现：离开江湖态时规则消失，下次进入会重播。
+ */
+:root[data-hero-scene="jianghu"] .hero-seal {
+  animation: hero-seal-stamp 300ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+@keyframes hero-seal-stamp {
+  0% {
+    opacity: 0;
+    transform: rotate(3deg) scale(1.45);
+  }
+  70% {
+    opacity: 0.95;
+    transform: rotate(3deg) scale(0.97);
+  }
+  100% {
+    opacity: 0.92;
+    transform: rotate(3deg) scale(1);
+  }
+}
+
+/* ---- 让不该跑的动画停下 ---- */
+/* 1) 场景切走后，另一套场景的动画没必要继续跑 */
+:root[data-hero-scene="jianghu"] .hero-scene[data-scene="snow"] .hero-fx *,
+:root:not([data-hero-scene="jianghu"]) .hero-scene[data-scene="jianghu"] .hero-fx * {
+  animation-play-state: paused;
+}
+/* 2) 首屏滚出视口 / 标签页切走时全停（由 use-hero-motion 打属性） */
+:root[data-hero-motion="paused"] .hero-fx *,
+:root[data-hero-motion="paused"] .hero-night-moon,
+:root[data-hero-motion="paused"] .hero-seal {
+  animation-play-state: paused;
+}
+
+/* ---- 手机端省一点合成层 ---- */
+@media (max-width: 767px) {
+  .hero-flake:nth-child(n + 13) {
+    display: none;
+  }
+  .hero-bird:nth-child(n + 3) {
+    display: none;
+  }
+  .hero-fx-lamp {
+    --lamp-x: 60%;
+    --lamp-y: 34%;
+    width: 84px;
+    height: 84px;
+    margin: -42px 0 0 -42px;
+  }
+}
+
+/*
+ * ---- reduced-motion：动态层整体关掉 ----
+ * 雪/鸟/灯火都是「运动 + 装饰」，静下来时留着它们只会得到
+ * 一张撒了白点的画（雪不再落）、或停在左边缘的鸟。月晕的光晕不算运动，保留静态。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .hero-fx {
+    display: none !important;
+  }
+  .hero-night-moon,
+  :root[data-hero-scene="jianghu"] .hero-seal {
+    animation: none !important;
+  }
+}
+
 /* -- 文字底衬 -- */
 /*
  * 手机上竖版图把主体放大到几乎铺满，文字必然压在画面里，

@@ -6,6 +6,7 @@ import CyclingSubtitle from "./CyclingSubtitle"
 import HeroScene from "./HeroScene"
 import HeroType from "./HeroType"
 import { HERO_SCENES } from "./hero-scene"
+import { useHeroMotion } from "./use-hero-motion"
 import { useHeroPaging } from "./hero-paging"
 import { useHeroScene } from "./use-hero-scene"
 
@@ -20,9 +21,12 @@ export default function HeroSection() {
    */
   const { scene, toggle, reset, hoverHandlers, tapHandlers } = useHeroScene()
   const { goToNextScreen } = useHeroPaging({ onJump: reset })
+  // 首屏滚出视口 / 标签页切走时把循环动画暂停（见 use-hero-motion）
+  const heroRef = useHeroMotion()
 
   return (
     <section
+      ref={heroRef}
       /*
        * 轻点热区是整个首屏（触屏没有悬停，点得太小会很难用）；
        * 悬停热区只挂在下面的主标题上 —— 鼠标扫过页面别处不该换图景。
