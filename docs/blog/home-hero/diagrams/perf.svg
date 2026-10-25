@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+  <rect width="1200" height="700" fill="#faf8f5"/>
+  <text x="60" y="64" font-size="30" font-weight="700" fill="#1a1510">实测数据：改前 / 改后</text>
+  <text x="60" y="98" font-size="17" fill="#6b6459">同一台机器、同一套 CDP 脚本；LCP 取「冷缓存 + Slow 4G + 4× CPU」，CLS 取真实浏览</text>
+
+  <!-- group 1: CLS -->
+  <g>
+    <text x="60" y="152" font-size="20" font-weight="700" fill="#1a1510">CLS（越低越好）</text>
+    <text x="60" y="190" font-size="15" fill="#6b6459">首页</text>
+    <rect x="120" y="176" width="330" height="20" rx="4" fill="#d9c3a8"/>
+    <text x="462" y="192" font-size="15" fill="#8a5a1f">0.165</text>
+    <rect x="120" y="204" width="0" height="20" rx="4" fill="#9e2b25"/>
+    <rect x="120" y="204" width="4" height="20" rx="2" fill="#9e2b25"/>
+    <text x="134" y="220" font-size="15" fill="#9e2b25">0（修好）</text>
+
+    <text x="620" y="190" font-size="15" fill="#6b6459">/blog</text>
+    <rect x="680" y="176" width="276" height="20" rx="4" fill="#d9c3a8"/>
+    <text x="966" y="192" font-size="15" fill="#8a5a1f">0.138</text>
+    <rect x="680" y="204" width="14" height="20" rx="4" fill="#9e2b25"/>
+    <text x="706" y="220" font-size="15" fill="#9e2b25">0.007</text>
+  </g>
+
+  <line x1="60" y1="252" x2="1140" y2="252" stroke="#e2dcd1"/>
+
+  <!-- group 2: LCP -->
+  <g>
+    <text x="60" y="296" font-size="20" font-weight="700" fill="#1a1510">LCP（冷缓存 + 弱网，ms）</text>
+
+    <rect x="60" y="320" width="900" height="34" rx="6" fill="#e7e2d8"/>
+    <rect x="60" y="320" width="900" height="34" rx="6" fill="#b9ae99"/>
+    <rect x="60" y="320" width="880" height="34" rx="6" fill="#c9b48e"/>
+    <text x="74" y="343" font-size="15" fill="#2b2418">改前 3872ms（含两个没人用的字体 + 8 条重复 preload）</text>
+
+    <rect x="60" y="366" width="733" height="34" rx="6" fill="#a9bcc7"/>
+    <text x="74" y="389" font-size="15" fill="#0f2028">改后 3156ms（去掉 Geist 与 Noto Serif 900，预载清零）</text>
+
+    <text x="620" y="436" font-size="15" fill="#6b6459">首访仍有 1476KB 是中文分片字体 —— 这是已知取舍，没有为它牺牲观感</text>
+    <text x="620" y="458" font-size="15" fill="#6b6459">热缓存（回访）：180–250ms</text>
+  </g>
+
+  <line x1="60" y1="486" x2="1140" y2="486" stroke="#e2dcd1"/>
+
+  <!-- group 3: frames -->
+  <g>
+    <text x="60" y="530" font-size="20" font-weight="700" fill="#1a1510">帧间隔 p95（4× CPU 降速，越低越好）</text>
+    <text x="60" y="562" font-size="15" fill="#6b6459">稳定态</text>
+    <rect x="140" y="548" width="84" height="22" rx="4" fill="#9e2b25"/>
+    <text x="236" y="565" font-size="15" fill="#1a1510">16.8ms（≈60fps）</text>
+
+    <text x="60" y="600" font-size="15" fill="#6b6459">纯淡入转场</text>
+    <rect x="140" y="586" width="330" height="22" rx="4" fill="#b9ae99"/>
+    <text x="482" y="603" font-size="15" fill="#1a1510">66.6ms</text>
+
+    <text x="60" y="638" font-size="15" fill="#6b6459">墨晕转场</text>
+    <rect x="140" y="624" width="250" height="22" rx="4" fill="#a9bcc7"/>
+    <text x="402" y="641" font-size="15" fill="#1a1510">50.1ms（墨晕没有额外成本）</text>
+
+    <text x="760" y="600" font-size="15" fill="#6b6459">"贵"的是两张全屏位图交叉淡化本身，</text>
+    <text x="760" y="622" font-size="15" fill="#6b6459">软件光栅 + 4× 降速下才 20–30fps。</text>
+    <text x="760" y="650" font-size="15" fill="#6b6459">真机有 GPU：稳定 60fps。</text>
+  </g>
+</svg>

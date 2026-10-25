@@ -1,0 +1,19 @@
+指标,改前,改后,测法,备注
+首页 CLS,0.165,0,true browse + PerformanceObserver 归因,滚动条出现导致可视宽度变化；scrollbar-gutter: stable + 骨架撑满一屏
+/blog CLS,0.138,0.007,同上,骨架高度不足导致页脚上移
+LCP 冷缓存弱网(ms),3872,3156,CDP: 关缓存 + Slow 4G + 4× CPU,去掉 Geist 与 Noto Serif 900、预载清零
+LCP 热缓存(ms),,180-250,CDP 采样,回访口径
+首访传输体积(KB),,(1965),其中 1476KB 为 Noto Serif SC 中文分片,已知取舍；未为 LCP 牺牲观感
+首屏自有资源(KB),,197,两张 WebP 184KB + 行书子集 13KB,桌面；手机版 170KB
+帧间隔 p95 稳定态(ms),,16.8,4× CPU，rAF 采样 180 帧,≈60fps
+帧间隔 p95 转场纯淡入(ms),66.6,,4× CPU，采样 40 帧,两张全屏位图交叉淡化的成本
+帧间隔 p95 转场墨晕(ms),,50.1,同上,墨晕本身不增加成本
+长任务(longtask),,0,PerformanceObserver,两态各 3.2s
+雪山两帧像素差(%),,3.06,sharp greyscale 逐像素 |Δ|>6,画面右上无文字区
+灯火区两帧像素差(%),,9.47,同上,忽明忽暗
+雪点 1.2s 位移(px),,-24 / +56,getBoundingClientRect 前后对比,斜落约 23°
+归鸟 1.2s 位移(px),,-88,同上,约 73px/s
+滚轮落点(px),,801,window.scrollY，#about 顶部,1200×800，与按钮完全一致
+墨晕 t=60ms 半径(%),,15.7,getComputedStyle(--ink-r),线性 420ms
+墨晕 t=140ms 半径(%),,36.7,同上,
+验收断言通过数,,31,CDP 断言脚本,18 项滚轮回归 + 11 项无障碍/SEO/资源 + 2 项触屏

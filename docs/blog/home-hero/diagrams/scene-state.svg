@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#4a4030"/>
+    </marker>
+    <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9e2b25"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="760" fill="#faf8f5"/>
+  <text x="60" y="64" font-size="30" font-weight="700" fill="#1a1510">场景状态机：只有两个状态，四条输入</text>
+  <text x="60" y="98" font-size="17" fill="#6b6459">状态写在一个 HTML 属性上，CSS 全量响应；JS 只负责"什么时候改它"</text>
+
+  <!-- gate -->
+  <rect x="60" y="130" width="1080" height="72" rx="10" fill="#fdf6ee" stroke="#d9c3a8"/>
+  <text x="84" y="159" font-size="17" font-weight="700" fill="#8a5a1f">转场开关 · &lt;html data-hero-ink&gt;</text>
+  <text x="84" y="185" font-size="15" fill="#3d362c">running（仅转场中）/ on（已 arm）/ 缺失或 off。首屏加载与滚轮跳页都刻意不播墨晕。</text>
+
+  <!-- nodes -->
+  <rect x="120" y="330" width="250" height="96" rx="12" fill="#ffffff" stroke="#8fa6b3" stroke-width="2"/>
+  <text x="245" y="372" font-size="24" font-weight="700" fill="#1a1510" text-anchor="middle">雪山态</text>
+  <text x="245" y="402" font-size="17" fill="#4a5f6b" text-anchor="middle">snow（默认）</text>
+
+  <rect x="830" y="330" width="250" height="96" rx="12" fill="#2b2c30" stroke="#1a1510" stroke-width="2"/>
+  <text x="955" y="372" font-size="24" font-weight="700" fill="#fdfbf7" text-anchor="middle">江湖态</text>
+  <text x="955" y="402" font-size="17" fill="#c9c2b6" text-anchor="middle">jianghu（夜色）</text>
+
+  <!-- forward -->
+  <path d="M372 358 C 520 316, 660 316, 826 358" stroke="#4a4030" stroke-width="2.5" fill="none" marker-end="url(#a)"/>
+  <text x="600" y="286" font-size="18" font-weight="600" fill="#1a1510" text-anchor="middle">悬停主标题 · 停留 300ms</text>
+
+  <!-- back -->
+  <path d="M826 398 C 660 440, 520 440, 372 398" stroke="#4a4030" stroke-width="2.5" fill="none" marker-end="url(#a)"/>
+  <text x="600" y="470" font-size="18" font-weight="600" fill="#1a1510" text-anchor="middle">离开主标题 · 立即</text>
+
+  <!-- reset -->
+  <path d="M955 430 L955 540 L245 540 L245 430" stroke="#9e2b25" stroke-width="2.5" fill="none" stroke-dasharray="8 6" marker-end="url(#r)"/>
+  <text x="600" y="532" font-size="16" font-weight="600" fill="#9e2b25" text-anchor="middle">滚轮 / 向下按钮切页 → 先收回雪山态（这一路不播墨晕）</text>
+
+  <!-- notes -->
+  <rect x="60" y="580" width="1080" height="156" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+  <text x="84" y="610" font-size="17" font-weight="700" fill="#1a1510">两条容易漏掉的规则</text>
+  <text x="84" y="638" font-size="15" fill="#3d362c">① 进页有 1.2s 宽限：页面刚打开时鼠标可能就停在首屏，不加宽限会"一进页面就切走"。</text>
+  <text x="84" y="662" font-size="15" fill="#3d362c">② 触屏没有悬停：轻点整块首屏 = 切换。"这次是鼠标还是触摸"必须记在最外层 ——</text>
+  <text x="84" y="686" font-size="15" fill="#3d362c">　　我曾把它留在标题上，结果点在标题以外时永远被判成鼠标，触屏轻点直接失效。</text>
+  <text x="84" y="716" font-size="15" fill="#6b6459">四条输入 = 悬停进入 / 悬停离开 / 轻点 / 切页重置。</text>
+</svg>

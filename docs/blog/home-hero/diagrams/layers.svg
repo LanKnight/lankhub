@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+  <rect width="1200" height="760" fill="#faf8f5"/>
+  <text x="60" y="66" font-size="30" font-weight="700" fill="#1a1510">首屏的层结构：从底图到文字</text>
+  <text x="60" y="102" font-size="17" fill="#6b6459">每层只负责一件事；状态由 &lt;html data-hero-scene&gt; 驱动，React 不参与逐层渲染</text>
+
+  <!-- stack -->
+  <g>
+    <rect x="60" y="140" width="620" height="86" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+    <text x="84" y="176" font-size="21" font-weight="600" fill="#1a1510">内容层 · 标题 / 副标题 / 印章 / 向下按钮</text>
+    <text x="84" y="204" font-size="16" fill="#6b6459">z-10，永远最上；HTML 语义与 SEO 都在这一层</text>
+
+    <rect x="60" y="238" width="620" height="86" rx="10" fill="#eef2f4" stroke="#a9bcc7"/>
+    <text x="84" y="274" font-size="21" font-weight="600" fill="#1a1510">动态层 · .hero-fx</text>
+    <text x="84" y="302" font-size="16" fill="#4a5f6b">雪（远/中/近三层）· 风痕 · 归鸟 · 灯火</text>
+
+    <rect x="60" y="336" width="620" height="76" rx="10" fill="#f3f0ea" stroke="#c9c2b6"/>
+    <text x="84" y="368" font-size="20" font-weight="600" fill="#1a1510">文字底衬 · .hero-scrim</text>
+    <text x="84" y="394" font-size="16" fill="#6b6459">纸色 / 墨色的渐变压暗，保证文字在不同画面上都可读</text>
+
+    <rect x="60" y="424" width="620" height="76" rx="10" fill="#e7e2d8" stroke="#c9c2b6"/>
+    <text x="84" y="456" font-size="20" font-weight="600" fill="#1a1510">夜色层 · .hero-night（仅江湖态）</text>
+    <text x="84" y="482" font-size="16" fill="#6b6459">暮色 multiply 压暗 + 右上角月晕 screen，素材本身不改</text>
+
+    <rect x="60" y="512" width="620" height="76" rx="10" fill="#ded7c9" stroke="#c9c2b6"/>
+    <text x="84" y="544" font-size="20" font-weight="600" fill="#1a1510">底图 · .hero-scene-media</text>
+    <text x="84" y="570" font-size="16" fill="#6b6459">&lt;picture&gt;：桌面 1672×941 / 手机 780×1272（另一种裁切，不是缩放）</text>
+
+    <rect x="60" y="600" width="620" height="76" rx="10" fill="#d5cbb8" stroke="#b9ae99"/>
+    <text x="84" y="632" font-size="20" font-weight="600" fill="#1a1510">转场载体 · .hero-scene-ink</text>
+    <text x="84" y="658" font-size="16" fill="#4a4030">只在切换的 420ms 内套遮罩，平时零开销</text>
+  </g>
+
+  <!-- notes -->
+  <g>
+    <rect x="730" y="140" width="410" height="222" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+    <text x="754" y="176" font-size="19" font-weight="700" fill="#9e2b25">为什么这样分</text>
+    <text x="754" y="208" font-size="16" fill="#3d362c">· 底图与夜色是"画"，用 &lt;img&gt; 与 CSS 渐变</text>
+    <text x="754" y="234" font-size="16" fill="#3d362c">· 动态只动 transform / opacity，走合成器</text>
+    <text x="754" y="260" font-size="16" fill="#3d362c">· 底衬在动态之下？不 —— 会冲淡半屏的雪</text>
+    <text x="754" y="286" font-size="16" fill="#3d362c">· 转场遮罩单独一层，结束即摘掉</text>
+    <text x="754" y="330" font-size="15" fill="#6b6459">代价：多一层 DOM、多一次合成；换来的是</text>
+    <text x="754" y="352" font-size="15" fill="#6b6459">"改一个属性就能换整体氛围"。</text>
+
+    <rect x="730" y="386" width="410" height="150" rx="10" fill="#fdf6ee" stroke="#d9c3a8"/>
+    <text x="754" y="422" font-size="19" font-weight="700" fill="#8a5a1f">一份真相</text>
+    <text x="754" y="452" font-size="16" fill="#3d362c">&lt;html data-hero-scene="snow | jianghu"&gt;</text>
+    <text x="754" y="480" font-size="15" fill="#6b6459">所有视觉差异 —— 底图、夜色、文字颜色、</text>
+    <text x="754" y="502" font-size="15" fill="#6b6459">导航栏反色、印章落印 —— 都由它派生。</text>
+
+    <rect x="730" y="560" width="410" height="116" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+    <text x="754" y="596" font-size="19" font-weight="700" fill="#1a1510">z 序陷阱</text>
+    <text x="754" y="626" font-size="15" fill="#3d362c">整屏内容容器带 z-10，曾把 absolute</text>
+    <text x="754" y="648" font-size="15" fill="#3d362c">bottom-8 的向下按钮整个盖住 —— 按钮</text>
+    <text x="754" y="668" font-size="15" fill="#3d362c">点了没反应，是回归断言抓到的。</text>
+  </g>
+</svg>

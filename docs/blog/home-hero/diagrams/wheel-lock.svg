@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#4a4030"/>
+    </marker>
+    <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9e2b25"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="700" fill="#faf8f5"/>
+  <text x="60" y="64" font-size="30" font-weight="700" fill="#1a1510">滚轮切屏：一次「锁 → 滚 → 解」的时序</text>
+  <text x="60" y="98" font-size="17" fill="#6b6459">关键不是"监听滚轮"，而是"什么时候把控制权还给浏览器"</text>
+
+  <!-- lock -->
+  <rect x="180" y="150" width="800" height="70" rx="8" fill="#eef2f4" stroke="#a9bcc7"/>
+  <text x="204" y="180" font-size="18" font-weight="700" fill="#1a1510">守卫锁 · locked = true</text>
+  <text x="204" y="205" font-size="15" fill="#4a5f6b">期间的 wheel 事件直接 preventDefault，不叠加、不抖动</text>
+
+  <!-- scroll -->
+  <rect x="420" y="240" width="360" height="70" rx="8" fill="#ffffff" stroke="#c9c2b6"/>
+  <text x="444" y="270" font-size="18" font-weight="700" fill="#1a1510">一次平滑滚动</text>
+  <text x="444" y="295" font-size="15" fill="#6b6459">scrollTo(#about, behavior: smooth)</text>
+
+  <!-- unlock -->
+  <rect x="780" y="330" width="330" height="70" rx="8" fill="#fdf6ee" stroke="#d9c3a8"/>
+  <text x="804" y="360" font-size="18" font-weight="700" fill="#8a5a1f">双重解锁</text>
+  <text x="804" y="385" font-size="15" fill="#3d362c">scrollend 事件 + 700ms 兜底</text>
+
+  <!-- connector arrows -->
+  <g stroke="#4a4030" stroke-width="2" fill="none">
+    <path d="M580 222 L600 236" marker-end="url(#a)"/>
+    <path d="M960 312 L960 326" marker-end="url(#a)"/>
+  </g>
+
+  <!-- timeline -->
+  <line x1="80" y1="470" x2="1130" y2="470" stroke="#c9c2b6" stroke-width="2"/>
+  <g font-size="15" fill="#6b6459" text-anchor="middle">
+    <line x1="180" y1="462" x2="180" y2="478" stroke="#c9c2b6" stroke-width="2"/>
+    <text x="180" y="502">wheel</text>
+    <line x1="420" y1="462" x2="420" y2="478" stroke="#c9c2b6" stroke-width="2"/>
+    <text x="420" y="502">scrollTo</text>
+    <line x1="820" y1="462" x2="820" y2="478" stroke="#c9c2b6" stroke-width="2"/>
+    <text x="820" y="502">scrollend</text>
+    <line x1="1030" y1="462" x2="1030" y2="478" stroke="#c9c2b6" stroke-width="2"/>
+    <text x="1030" y="502">解锁</text>
+  </g>
+  <text x="600" y="444" font-size="15" fill="#6b6459" text-anchor="middle">时间 →</text>
+
+  <!-- rules -->
+  <rect x="60" y="540" width="1080" height="118" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+  <text x="84" y="570" font-size="17" font-weight="700" fill="#1a1510">三条边界规则</text>
+  <text x="84" y="598" font-size="15" fill="#3d362c">① 只在 scrollY ≤ 8px（边界容差）时接管；页面中间一律不抢，交还原生滚动</text>
+  <text x="84" y="622" font-size="15" fill="#3d362c">② 上滚回到顶部同样接管：一轮向上滚 → 回到 0</text>
+  <text x="84" y="646" font-size="15" fill="#3d362c">③ reduced-motion 用 instant —— 全局 scroll-behavior: smooth 会把 auto 变成平滑</text>
+
+  <text x="1060" y="180" font-size="15" fill="#6b6459" text-anchor="end">← 输入</text>
+</svg>
