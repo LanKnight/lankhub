@@ -403,7 +403,7 @@ html {
 
 /*
  * ---- 墨晕转场 ----
- * 新场景层会被裹在 `.hero-scene-ink` 里：那一层在切换的 600ms 内套一个
+ * 新场景层会被裹在 `.hero-scene-ink` 里：那一层在切换的 420ms 内套一个
  * 「多个不规则墨团取并集」的遮罩，于是新画面像墨一样从鼠标位置晕开。
  *
  * 为什么用 @property 注册 --ink-r：字符串/长度要能插值才能平滑扩散；
@@ -466,11 +466,12 @@ html {
   mask-composite: add;
   /*
    * 时长/缓动用 linear：半径随时间匀速增长，墨边才是"匀速扫过画面"的观感。
-   * 一开始用 ease，结果 300ms（一半时间）时半径已经是屏幕的七成 —— 看起来像"刷一下就完了"。
+   * 一开始用 ease，结果半程时半径已经是屏幕的七成 —— 看起来像"刷一下就完了"。
+   * 420ms 是站长定的：比原来的交叉淡入（同样是 420ms）不多不少，切换不拖沓。
    */
   animation:
-    hero-ink-spread 600ms linear both,
-    hero-ink-swell 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    hero-ink-spread 420ms linear both,
+    hero-ink-swell 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /*
@@ -506,11 +507,12 @@ html {
 /*
  * 旧的一层要"等墨铺上去"再消失，否则又变回普通交叉淡入。
  * 这两个选择器选中的都是**正在退出**的那一层。
+ * 时序与 420ms 的转场对齐：260ms 后开始淡、160ms 淡完，正好收在墨铺满的那一刻。
  */
 :root[data-hero-scene="jianghu"] .hero-scene[data-scene="snow"],
 :root:not([data-hero-scene="jianghu"]) .hero-scene[data-scene="jianghu"] {
-  transition-duration: 240ms;
-  transition-delay: 360ms;
+  transition-duration: 160ms;
+  transition-delay: 260ms;
 }
 
 /*

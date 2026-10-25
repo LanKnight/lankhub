@@ -116,8 +116,11 @@ export const MOBILE_MEDIA = "(max-width: 767px)"
 export const HERO_INK_ATTR = "data-hero-ink"
 /** 进页多久之后才允许播转场（留出首屏落定的时间） */
 export const INK_ARM_DELAY_MS = 900
-/** 墨晕动画的时长；开关在动画结束后要收回 "on" */
-export const INK_RUN_MS = 640
+/**
+ * 墨晕动画的时长（与 globals.css 里 hero-ink-spread 的 420ms 保持一致）。
+ * 只用兜底：正常路径靠 animationend 收回开关。
+ */
+export const INK_RUN_MS = 420
 
 /**
  * 首屏动态的数值表。
