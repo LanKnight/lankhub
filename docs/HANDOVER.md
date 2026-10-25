@@ -282,6 +282,13 @@ CDP over WebSocket（Node 24 自带 `WebSocket`，不需要 `ws` 包）。
 14. **SVG 的 `feGaussianBlur` 做羽化会被滤镜区域裁掉。** 20×20 的小矩形配
     `stdDeviation=7`，渲染出来几乎全透明 —— 补丁等于没贴（我在这上面白跑了两轮）。
     小尺寸羽化直接**生成 alpha 缓冲**最稳。
+15. **`radial-gradient(circle 30%, …)` 是非法值。** circle 半径只接受长度，
+    百分比只允许用在 `ellipse` 上；写错的话整条 `mask-image` 被丢弃，效果静默消失。
+    要按百分比扩散就用 `ellipse 30% 30%`。
+16. **`mask-image` 不能写进 `@keyframes`。** 它不可插值，Chrome 会整条忽略。
+    正解：遮罩写在基础规则里引用一个 `@property` 注册过的自定义属性，只让那个属性插值。
+17. **别对 `src` 跑默认配置的 prettier。** 仓库没有 `.prettierrc`，prettier 默认带分号，
+    会把"无分号"的手写风格整体重排。要格式化就手工对齐现有风格。
 
 ### 4.4 安全改动的验证要求
 

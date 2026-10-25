@@ -106,6 +106,20 @@ export const HERO_SCENE_ASSETS: Record<HeroSceneName, HeroSceneAsset> = {
 export const MOBILE_MEDIA = "(max-width: 767px)"
 
 /**
+ * 墨晕转场的开关属性（写在 <html> 上）。
+ *
+ * 为什么要开关：转场靠「选择器匹配即播动画」实现，而首屏**加载时**
+ * 也会匹配一次（属性从无到 snow）—— 那会让首屏先被遮罩成空白再晕开，
+ * 白白拖慢首屏可见时间。滚轮跳页前的 reset 同理，不该播。
+ * 所以只在 `="on"` 时才允许播。
+ */
+export const HERO_INK_ATTR = "data-hero-ink"
+/** 进页多久之后才允许播转场（留出首屏落定的时间） */
+export const INK_ARM_DELAY_MS = 900
+/** 墨晕动画的时长；开关在动画结束后要收回 "on" */
+export const INK_RUN_MS = 640
+
+/**
  * 首屏动态的数值表。
  *
  * 全部由**固定种子**的伪随机生成，而不是 Math.random()：

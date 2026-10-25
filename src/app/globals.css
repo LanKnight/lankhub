@@ -9,8 +9,9 @@
    * 为它下载的字体分片是纯浪费（首访 2MB 里字体占了 1.5MB）。
    * 真要用 sans 时这里直接可用，不需要再拉一个 webfont。
    */
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-noto-serif-sc);
 
@@ -63,9 +64,10 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   /* 中文字体栈：思源宋体（若系统安装）→ 系统宋体（Win: SimSun / macOS: Songti SC）→ 楷体/黑体兜底 */
-  font-family: var(--font-serif), "Noto Serif SC", "Source Han Serif SC",
-    "Source Han Serif CN", "Songti SC", "STSong", "SimSun", "STKaiti",
-    "KaiTi", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family:
+    var(--font-serif), "Noto Serif SC", "Source Han Serif SC",
+    "Source Han Serif CN", "Songti SC", "STSong", "SimSun", "STKaiti", "KaiTi",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -384,7 +386,12 @@ html {
   );
 }
 .hero-scene[data-scene="jianghu"] {
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 88%, transparent 100%);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 88%,
+    transparent 100%
+  );
   mask-image: linear-gradient(to bottom, #000 0%, #000 88%, transparent 100%);
 }
 :root[data-hero-scene="jianghu"] .hero-scene[data-scene="snow"] {
@@ -392,6 +399,142 @@ html {
 }
 :root[data-hero-scene="jianghu"] .hero-scene[data-scene="jianghu"] {
   opacity: 1;
+}
+
+/*
+ * ---- 墨晕转场 ----
+ * 新场景层会被裹在 `.hero-scene-ink` 里：那一层在切换的 600ms 内套一个
+ * 「多个不规则墨团取并集」的遮罩，于是新画面像墨一样从鼠标位置晕开。
+ *
+ * 为什么用 @property 注册 --ink-r：字符串/长度要能插值才能平滑扩散；
+ * 不注册的话自定义属性是离散动画，会"啪"地一下出现（等于没转场）。
+ * Tailwind 4 本身就要求 Safari 16.4+，@property 在这个区间是安全的。
+ */
+@property --ink-r {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+.hero-scene-ink {
+  position: absolute;
+  inset: 0;
+}
+
+/* 只有「正在转场」的那一层才挂遮罩 + 播动画 */
+:root[data-hero-ink="running"][data-hero-scene="jianghu"]
+  .hero-scene[data-scene="jianghu"]
+  .hero-scene-ink,
+:root[data-hero-ink="running"]:not([data-hero-scene="jianghu"])
+  .hero-scene[data-scene="snow"]
+  .hero-scene-ink {
+  /*
+   * 三个不同偏心/半径的墨团取并集 → 边缘不再是规整的圆，
+   * 而是像墨在纸上洇开的边。
+   *
+   * ⚠️ 用 `ellipse` 而不是 `circle`：
+   * `radial-gradient(circle 30%, …)` 是**非法值**（circle 的半径只接受长度，
+   * 百分比只允许出现在 ellipse 上），整条 mask-image 会被丢弃 ——
+   * 我在这里踩了两次，第一次还以为是 keyframes 不支持 mask。
+   * 两个半径相等时，ellipse 画出来就是正圆。
+   *
+   * ⚠️ 遮罩必须写在**基础规则**里，不能写进 @keyframes：
+   * `mask-image` 不可插值，Chrome 会整条忽略。
+   * 真正插值的是注册过的 `--ink-r`，遮罩只是引用它。
+   */
+  mask-image: radial-gradient(
+      ellipse var(--ink-r) var(--ink-r) at var(--ink-x, 50%) var(--ink-y, 46%),
+      #000 0%,
+      #000 56%,
+      rgba(0, 0, 0, 0.55) 80%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse calc(var(--ink-r) * 0.9) calc(var(--ink-r) * 0.9) at
+        calc(var(--ink-x, 50%) + 9%) calc(var(--ink-y, 46%) - 7%),
+      #000 0%,
+      rgba(0, 0, 0, 0.6) 60%,
+      transparent 97%
+    ),
+    radial-gradient(
+      ellipse calc(var(--ink-r) * 0.78) calc(var(--ink-r) * 0.78) at
+        calc(var(--ink-x, 50%) - 10%) calc(var(--ink-y, 46%) + 11%),
+      #000 0%,
+      rgba(0, 0, 0, 0.55) 58%,
+      transparent 95%
+    );
+  mask-composite: add;
+  /*
+   * 时长/缓动用 linear：半径随时间匀速增长，墨边才是"匀速扫过画面"的观感。
+   * 一开始用 ease，结果 300ms（一半时间）时半径已经是屏幕的七成 —— 看起来像"刷一下就完了"。
+   */
+  animation:
+    hero-ink-spread 600ms linear both,
+    hero-ink-swell 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/*
+ * 只插值半径。
+ * 终点 110%：椭圆半径是相对遮罩盒子宽/高算的，从任意起点出发，
+ * 110% 都足以盖住最远的那个角（60% 时会露角）。第一版写 150%，
+ * 等于把"扫过"的过程挤在前 2/3，后半段什么也看不见。
+ */
+@keyframes hero-ink-spread {
+  from {
+    --ink-r: 0%;
+  }
+  to {
+    --ink-r: 110%;
+  }
+}
+
+/*
+ * 显影：从 1.03 倍轻轻落回。
+ *
+ * 原本这里叠的是 blur(10px)→0，4× CPU 降速实测转场期间 p95 83ms
+ * （全屏模糊每帧重绘），所以换成纯 transform —— "浮出来"的手感还在，代价几乎为零。
+ */
+@keyframes hero-ink-swell {
+  from {
+    transform: scale(1.03);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+/*
+ * 旧的一层要"等墨铺上去"再消失，否则又变回普通交叉淡入。
+ * 这两个选择器选中的都是**正在退出**的那一层。
+ */
+:root[data-hero-scene="jianghu"] .hero-scene[data-scene="snow"],
+:root:not([data-hero-scene="jianghu"]) .hero-scene[data-scene="jianghu"] {
+  transition-duration: 240ms;
+  transition-delay: 360ms;
+}
+
+/*
+ * 进入的那一层**不要淡入**：揭示交给墨晕遮罩。
+ * 否则「淡入 + 遮罩擦除」两个透明度变化叠加，墨晕就看不出来了。
+ * 只在允许播墨晕时才这么做 —— 开关关闭时仍走原来的交叉淡入。
+ */
+:root[data-hero-ink="running"][data-hero-scene="jianghu"]
+  .hero-scene[data-scene="jianghu"],
+:root[data-hero-ink="running"]:not([data-hero-scene="jianghu"])
+  .hero-scene[data-scene="snow"] {
+  transition-duration: 0ms;
+  transition-delay: 0ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 减少动画时直接瞬切：墨晕与显影都不播（opacity 由全局规则压到 0.01ms） */
+  .hero-scene-ink {
+    animation: none !important;
+  }
+  .hero-scene,
+  .hero-scene .hero-scene-ink {
+    transition: none !important;
+  }
 }
 
 .hero-scene-media {
@@ -581,7 +724,8 @@ html {
    * translate 走位移，两者互不覆盖 transform。
    */
   rotate: -14deg;
-  animation: hero-wind-drift var(--streak-dur) linear var(--streak-delay) infinite;
+  animation: hero-wind-drift var(--streak-dur) linear var(--streak-delay)
+    infinite;
 }
 @keyframes hero-wind-drift {
   from {
@@ -834,7 +978,10 @@ html {
 /* ---- 让不该跑的动画停下 ---- */
 /* 1) 场景切走后，另一套场景的动画没必要继续跑 */
 :root[data-hero-scene="jianghu"] .hero-scene[data-scene="snow"] .hero-fx *,
-:root:not([data-hero-scene="jianghu"]) .hero-scene[data-scene="jianghu"] .hero-fx * {
+:root:not([data-hero-scene="jianghu"])
+  .hero-scene[data-scene="jianghu"]
+  .hero-fx
+  * {
   animation-play-state: paused;
 }
 /* 2) 首屏滚出视口 / 标签页切走时全停（由 use-hero-motion 打属性） */
@@ -1276,8 +1423,16 @@ html {
 /* Ink wash textured background */
 .ink-wash-bg {
   background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(26, 21, 16, 0.03) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 20%, rgba(26, 21, 16, 0.02) 0%, transparent 50%);
+    radial-gradient(
+      ellipse at 20% 50%,
+      rgba(26, 21, 16, 0.03) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse at 80% 20%,
+      rgba(26, 21, 16, 0.02) 0%,
+      transparent 50%
+    );
 }
 
 /* Ink brush stroke divider */
@@ -1597,4 +1752,3 @@ html {
     display: none !important;
   }
 }
-
