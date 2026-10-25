@@ -482,118 +482,170 @@ html {
   pointer-events: none;
 }
 
-/* ---- 雪·远层：平铺纹理，零 DOM 节点 ---- */
+/* ---- 雪·远层：平铺纹理，零 DOM 节点；斜落、无缝 ---- */
 .hero-fx-snow-far {
-  left: 0;
+  /*
+   * 瓦片 90×180：位移量必须**正好等于一格瓦片**，循环处才不会跳帧。
+   * 选 90×180（而不是正方形）是为了让斜落角度约 27° —— 更像风搅着的雪，
+   * 又不至于斜到 45° 那种"特效感"。
+   */
+  left: -90px;
   right: 0;
-  /* 向上多铺一整格，位移一格之后顶部不会露白 */
   top: -180px;
   bottom: 0;
-  /*
-   * 用**冷灰**而不是纯白：雪山那张是米白纸本，纯白点在上面完全看不见。
-   * 远层做成一层很淡的灰点铺满画面（密度高、代价为零），
-   * 近层再用「白点 + 灰晕」拉开层次。
-   */
   background-image:
     radial-gradient(
-      1.8px 1.8px at 20px 28px,
-      rgba(126, 146, 160, 0.5) 0%,
+      1.6px 1.6px at 12px 22px,
+      rgba(126, 146, 160, 0.55) 0%,
       transparent 100%
     ),
     radial-gradient(
-      1.4px 1.4px at 54px 66px,
-      rgba(126, 146, 160, 0.36) 0%,
-      transparent 100%
-    ),
-    radial-gradient(
-      2px 2px at 88px 14px,
-      rgba(126, 146, 160, 0.44) 0%,
-      transparent 100%
-    ),
-    radial-gradient(
-      1.5px 1.5px at 118px 52px,
-      rgba(126, 146, 160, 0.34) 0%,
-      transparent 100%
-    ),
-    radial-gradient(
-      2.2px 2.2px at 146px 96px,
-      rgba(126, 146, 160, 0.46) 0%,
-      transparent 100%
-    ),
-    radial-gradient(
-      1.3px 1.3px at 34px 118px,
-      rgba(126, 146, 160, 0.3) 0%,
-      transparent 100%
-    ),
-    radial-gradient(
-      1.7px 1.7px at 100px 142px,
+      1.4px 1.4px at 40px 62px,
       rgba(126, 146, 160, 0.4) 0%,
       transparent 100%
     ),
     radial-gradient(
-      1.9px 1.9px at 164px 158px,
-      rgba(126, 146, 160, 0.32) 0%,
+      1.9px 1.9px at 70px 36px,
+      rgba(126, 146, 160, 0.5) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      1.3px 1.3px at 26px 104px,
+      rgba(126, 146, 160, 0.36) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      1.8px 1.8px at 62px 134px,
+      rgba(126, 146, 160, 0.46) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      1.5px 1.5px at 16px 158px,
+      rgba(126, 146, 160, 0.4) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      2px 2px at 80px 96px,
+      rgba(126, 146, 160, 0.42) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      1.2px 1.2px at 50px 8px,
+      rgba(126, 146, 160, 0.34) 0%,
       transparent 100%
     );
-  background-size: 180px 180px;
-  /*
-   * 0.7：远层也是靠颜色对比（冷灰 vs 米白纸），不靠密度。
-   * 这一层是平铺纹理，铺满一屏的代价几乎为零，所以它可以比近层更密。
-   */
-  opacity: 0.7;
-  animation: hero-snow-far 26s linear infinite;
+  background-size: 90px 180px;
+  opacity: 0.62;
+  animation: hero-snow-far 9s linear infinite;
 }
 /*
- * 位移量正好等于一格瓦片高度：循环回到起点时图案完全对齐，看不到跳帧。
- * 这是平铺动画唯一可靠的无缝写法。
+ * 从 translate(90px) 走到 translate(0)：净位移 (-90, +180)，
+ * 也就是**风从右侧来、雪向左斜落**，与近景雪点同向。
  */
 @keyframes hero-snow-far {
   from {
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(90px, 0, 0);
   }
   to {
     transform: translate3d(0, 180px, 0);
   }
 }
 
-/* ---- 雪·近层：雪点，大小/速度/漂移各不同 ---- */
+/* ---- 轻风痕：几条极淡的斜向痕迹，和雪同向 ---- */
+.hero-fx-wind {
+  inset: 0;
+  overflow: hidden;
+}
+.hero-wind-streak {
+  position: absolute;
+  top: var(--streak-top);
+  right: -32%;
+  width: var(--streak-len);
+  height: 1px;
+  opacity: var(--streak-opacity);
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(150, 166, 178, 0.85) 45%,
+    transparent 100%
+  );
+  filter: blur(0.6px);
+  /*
+   * 用独立的 rotate + translate：rotate 定朝向（与雪同向的左下）、
+   * translate 走位移，两者互不覆盖 transform。
+   */
+  rotate: -14deg;
+  animation: hero-wind-drift var(--streak-dur) linear var(--streak-delay) infinite;
+}
+@keyframes hero-wind-drift {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: -132vw 34vh;
+  }
+}
+
+/* ---- 雪点（中景 / 近景）---- */
+.hero-fx-snow-mid,
 .hero-fx-snow-near {
   inset: 0;
   overflow: hidden;
 }
 .hero-flake {
   position: absolute;
-  top: -6%;
+  top: -10%;
   left: var(--flake-x);
-  /* 尺寸直接来自配置（1.8–4px），不额外放大 */
   width: var(--flake-size);
   height: var(--flake-size);
-  border-radius: 9999px;
-  /*
-   * 站长验收第一版指出：雪几乎看不见，原因是**颜色和米白纸底太接近**，
-   * 应该把雪改灰一点点，而不是加量。
-   * 所以本体用冷灰（在 #f0eadd 的纸上对比够），只在外面留一丝白边，
-   * 落到深色山体上时那圈白边负责把它衬出来。
-   */
-  background: rgba(146, 158, 168, 0.92);
-  box-shadow: 0 0 2px rgba(255, 255, 255, 0.55);
-  opacity: 0;
+  /* 外层只管下落 */
   animation: hero-flake-fall var(--flake-dur) linear var(--flake-delay) infinite;
 }
+.hero-flake-core {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  /*
+   * 冷灰本体 + 一丝白边：米白纸上纯白看不见（第一版踩过），
+   * 落到深色山体上时那圈白边负责把它衬出来。
+   */
+  background: radial-gradient(
+    circle,
+    rgba(140, 154, 166, 0.95) 0%,
+    rgba(140, 154, 166, 0.5) 62%,
+    transparent 100%
+  );
+  box-shadow: 0 0 2px rgba(255, 255, 255, 0.5);
+  opacity: var(--flake-opacity);
+  /* 内层只管风摆（alternate 来回） */
+  animation: hero-flake-sway var(--sway-dur) ease-in-out var(--sway-delay)
+    infinite alternate;
+}
+/* 近景：更大更糊，负责景深与"下得大"的体感 */
+.hero-fx-snow-near .hero-flake-core {
+  filter: blur(0.6px);
+  background: radial-gradient(
+    circle,
+    rgba(126, 142, 156, 0.95) 0%,
+    rgba(126, 142, 156, 0.55) 58%,
+    transparent 100%
+  );
+}
 @keyframes hero-flake-fall {
-  0% {
+  from {
     transform: translate3d(0, 0, 0);
-    opacity: 0;
   }
-  6% {
-    opacity: var(--flake-opacity);
+  to {
+    transform: translate3d(var(--flake-drift), 110vh, 0);
   }
-  88% {
-    opacity: var(--flake-opacity);
+}
+@keyframes hero-flake-sway {
+  from {
+    transform: translateX(calc(var(--sway-amp) * -1));
   }
-  100% {
-    transform: translate3d(var(--flake-drift), 108vh, 0);
-    opacity: 0;
+  to {
+    transform: translateX(var(--sway-amp));
   }
 }
 
@@ -622,19 +674,39 @@ html {
   display: block;
   width: 100%;
   height: 100%;
+  /*
+   * 拍翅：把这只"雁"的笔画沿 Y 压扁一下，看起来就是翅膀在扇。
+   * 只动 svg 自己的 transform，不碰外层负责位移的 translate。
+   */
+  transform-origin: center;
+  animation: hero-bird-flap 0.52s ease-in-out infinite;
+}
+@keyframes hero-bird-flap {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.48);
+  }
 }
 @keyframes hero-bird-fly {
+  /*
+   * ⚠️ 这里必须用 **vw**，不能用百分比。
+   * 百分比是相对元素自身尺寸（17px）算的 —— 第一版写成 `translate: 114%`，
+   * 整只鸟一辈子只挪了 19px，等于没飞（站长说"鸟不明显"就是这个原因）。
+   */
   from {
-    translate: -14% 0;
+    translate: 106vw 0;
   }
   30% {
-    translate: 30% -6px;
+    translate: 72vw 5px;
   }
   60% {
-    translate: 70% 3px;
+    translate: 36vw -6px;
   }
   to {
-    translate: 114% 0;
+    translate: -10vw 0;
   }
 }
 
@@ -644,7 +716,7 @@ html {
   --lamp-y: 41%;
   left: var(--lamp-x);
   top: var(--lamp-y);
-  /* 88px 且峰值压到 0.62：再大再亮就成了一团糊，而不是灯 */
+  /* 88px：再大再亮就成了一团糊，而不是灯 */
   width: 88px;
   height: 88px;
   margin: -44px 0 0 -44px;
@@ -657,15 +729,48 @@ html {
   mix-blend-mode: screen;
   /* 提成独立合成层：只动 opacity，不必每帧重绘这团径向渐变 */
   will-change: opacity;
-  animation: hero-lamp-flicker 4.6s ease-in-out infinite;
+  animation: hero-lamp-flicker 3s linear infinite;
 }
+/*
+ * 忽明忽暗：3 秒一轮、**不规则**的停点（不是等幅正弦），
+ * 像被风吹的烛火；峰值 0.9 故意不到 1，否则会有霓虹感。
+ */
 @keyframes hero-lamp-flicker {
-  0%,
-  100% {
-    opacity: 0.4;
+  0% {
+    opacity: 0.28;
   }
-  46% {
-    opacity: 0.62;
+  7% {
+    opacity: 0.86;
+  }
+  13% {
+    opacity: 0.42;
+  }
+  21% {
+    opacity: 0.9;
+  }
+  30% {
+    opacity: 0.34;
+  }
+  41% {
+    opacity: 0.8;
+  }
+  53% {
+    opacity: 0.3;
+  }
+  62% {
+    opacity: 0.88;
+  }
+  74% {
+    opacity: 0.44;
+  }
+  85% {
+    opacity: 0.78;
+  }
+  93% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0.28;
   }
 }
 
@@ -673,19 +778,22 @@ html {
 :root[data-hero-scene="jianghu"] .hero-night-moon {
   /*
    * will-change：把这一整屏的径向渐变提成独立层，
-   * 之后每帧只改合成层的不透明度 —— 否则 4× CPU 降速下会偶发掉帧
-   * （实测 p95 从 33.4ms 拉回 16.7ms 就是靠这一条）。
+   * 之后每帧只改合成层的不透明度与缩放 —— 否则 4× CPU 降速下会偶发掉帧
+   * （第一版实测 p95 33.4ms，加这一条后回到 16.7ms）。
    */
-  will-change: opacity;
-  animation: hero-moon-breath 12s ease-in-out infinite;
+  will-change: opacity, transform;
+  animation: hero-moon-breath 7s ease-in-out infinite;
 }
+/* 7s / 0.5→1 + 极轻微缩放：站长说第一版 12s、0.78→1 完全看不出来 */
 @keyframes hero-moon-breath {
   0%,
   100% {
-    opacity: 0.78;
+    opacity: 0.5;
+    transform: scale(1);
   }
   50% {
     opacity: 1;
+    transform: scale(1.04);
   }
 }
 
@@ -727,10 +835,19 @@ html {
 
 /* ---- 手机端省一点合成层 ---- */
 @media (max-width: 767px) {
-  .hero-flake:nth-child(n + 13) {
+  /* 中景留 12 个、近景留 6 个（站长选的「性能冲突先砍近景大雪点」，这里先砍一半） */
+  .hero-fx-snow-mid .hero-flake:nth-child(n + 13) {
     display: none;
   }
-  .hero-bird:nth-child(n + 3) {
+  .hero-fx-snow-near .hero-flake:nth-child(n + 7) {
+    display: none;
+  }
+  /* 风痕留前两条 */
+  .hero-fx-wind .hero-wind-streak:nth-child(n + 3) {
+    display: none;
+  }
+  /* 鸟留 3 只 */
+  .hero-bird:nth-child(n + 4) {
     display: none;
   }
   .hero-fx-lamp {

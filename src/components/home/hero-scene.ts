@@ -106,12 +106,21 @@ export const HERO_SCENE_ASSETS: Record<HeroSceneName, HeroSceneAsset> = {
 export const MOBILE_MEDIA = "(max-width: 767px)"
 
 /**
- * 首屏动态（阶段 A）的数值表。
+ * 首屏动态的数值表。
  *
- * 全部**写死**、不用随机：
- * - 随机值每帧/每次渲染都可能变，看起来像抖动；而且 SSR 与客户端不一致会触发水合告警。
- * - 节奏取「克制」：雪 20–39s 一轮、鸟 46–62s 穿一次，符合水墨的呼吸感。
+ * 全部由**固定种子**的伪随机生成，而不是 Math.random()：
+ * 随机值每次渲染都不同 → SSR 与客户端不一致，会触发水合告警。
+ *
+ * 参数是站长第二轮验收后定的（第一版太稀太小、且垂直下落看不出风雪）：
+ * 「中等偏大 / 风从右侧来 / 中速 / 月晕明显 / 鸟明显带拍翅 / 灯火不规则忽明忽暗」。
  */
+
+/**
+ * 风向：**风从右侧吹来，雪向左飘**（站长选的这个方向）。
+ * 三层（远层纹理 / 中景 / 近景）共用这一个常量，改一处整体反向。
+ */
+export const HERO_WIND_X = -1
+
 export interface HeroSnowFlake {
   /** 横向位置（%，相对首屏宽） */
   x: number
@@ -123,47 +132,109 @@ export interface HeroSnowFlake {
   delay: number
   /** 不透明度 */
   opacity: number
-  /** 落到底之前横向漂移（px，正右负左） */
+  /** 落到底之前的横向漂移（px，已按风向取过符号） */
   drift: number
+  /** 风摆幅度（px）：落的过程中左右晃一下，否则像"直线下坠" */
+  swayAmp: number
+  /** 风摆周期（s） */
+  swayDur: number
+  swayDelay: number
 }
 
-/**
- * 雪点用**固定种子**的伪随机生成，而不是 Math.random()：
- * - 随机值每次渲染都不同 → SSR 与客户端不一致，会触发水合告警；
- * - 写死 20 行太啰嗦，改数量/尺寸时也不好维护。
- * 固定种子保证**每次构建结果完全一致**。
- */
-function createFlakes(count: number): HeroSnowFlake[] {
-  let seed = 20261023
+interface FlakeRange {
+  sizeMin: number
+  sizeMax: number
+  durMin: number
+  durMax: number
+  /** 横向漂移范围（px，正值 = 向右）；实际会再乘 HERO_WIND_X */
+  driftMin: number
+  driftMax: number
+  swayMax: number
+  /** 每组用不同的种子偏移，免得两组雪点的横向分布完全重合 */
+  seed: number
+}
+
+function createFlakes(count: number, range: FlakeRange): HeroSnowFlake[] {
+  let seed = range.seed
   const next = () => {
     seed = (seed * 1664525 + 1013904223) % 4294967296
     return seed / 4294967296
   }
   return Array.from({ length: count }, () => ({
     x: Math.round(next() * 1000) / 10,
-    size: Math.round((1.8 + next() * 2.2) * 10) / 10,
-    dur: Math.round(20 + next() * 19),
-    delay: -Math.round(next() * 38),
+    size: Math.round((range.sizeMin + next() * (range.sizeMax - range.sizeMin)) * 10) / 10,
+    dur: Math.round(range.durMin + next() * (range.durMax - range.durMin)),
+    delay: -Math.round(next() * range.durMax),
     opacity: Math.round((0.45 + next() * 0.35) * 100) / 100,
-    drift: Math.round((next() - 0.5) * 56),
+    drift:
+      HERO_WIND_X *
+      Math.round(range.driftMin + next() * (range.driftMax - range.driftMin)),
+    swayAmp: Math.round((0.35 + next() * 0.65) * range.swayMax),
+    swayDur: Math.round((2.4 + next() * 2.2) * 10) / 10,
+    swayDelay: -Math.round(next() * 40) / 10,
   }))
 }
 
 /**
- * 20 个，靠**颜色对比**而不是数量让雪可见。
+ * 中景 24 个：尺寸 2.5–5px、下落 11–20s、横向漂移 300–420px。
+ * 这一层负责"看得出在下雪"的密度。
  *
- * 站长验收第一版时指出：「雪不可见可能是与原图背景颜色太一样，
- * 优先把雪改灰一点点，而不是加量」——所以雪点是冷灰本体（见 CSS），
- * 数量维持克制档。
+ * 漂移量是**故意放大**的：一屏约 880px 高，横向 300–420px 对应约 20–25° 斜落。
+ * 第一版只有 120–180px（约 10°），看起来仍像直落，站长说"不像风雪"。
  */
-export const HERO_SNOW_FLAKES: HeroSnowFlake[] = createFlakes(20)
+export const HERO_SNOW_MID: HeroSnowFlake[] = createFlakes(24, {
+  sizeMin: 2.5,
+  sizeMax: 5,
+  durMin: 11,
+  durMax: 20,
+  driftMin: 300,
+  driftMax: 420,
+  swayMax: 14,
+  seed: 20261023,
+})
 
+/**
+ * 近景 12 个：尺寸 5–9px、下落 8–15s、漂移 420–600px，并带一点模糊。
+ * 这一层负责"体感上的大"与景深（近的大而糊、远的小而清）。
+ * ⚠️ 性能不够时**第一个砍的就是这一层**（站长选的优先级）。
+ */
+export const HERO_SNOW_NEAR: HeroSnowFlake[] = createFlakes(12, {
+  sizeMin: 5,
+  sizeMax: 9,
+  durMin: 8,
+  durMax: 15,
+  driftMin: 420,
+  driftMax: 600,
+  swayMax: 22,
+  seed: 90210,
+})
 
+export interface HeroWindStreak {
+  /** 起点纵向位置（%） */
+  top: number
+  /** 长度（px） */
+  length: number
+  /** 穿一次的时长（s） */
+  dur: number
+  delay: number
+  opacity: number
+}
+
+/**
+ * 轻风痕：4 条极淡的斜向 streaks，和雪同向（从右往左、斜向下）。
+ * 只加在雪山态 —— 江湖态是雾江夜景，没有风雪。
+ */
+export const HERO_WIND_STREAKS: HeroWindStreak[] = [
+  { top: 18, length: 260, dur: 26, delay: -4, opacity: 0.22 },
+  { top: 34, length: 200, dur: 32, delay: -17, opacity: 0.16 },
+  { top: 52, length: 300, dur: 29, delay: -23, opacity: 0.2 },
+  { top: 68, length: 220, dur: 35, delay: -11, opacity: 0.14 },
+]
 
 export interface HeroBird {
   /** 纵向位置（%，相对首屏高） */
   top: number
-  /** 从左到右穿一次（s） */
+  /** 从右到左穿一次（s） */
   dur: number
   delay: number
   /** 缩放：远的鸟更小更淡 */
@@ -171,10 +242,16 @@ export interface HeroBird {
   opacity: number
 }
 
-/** 江湖态的飞鸟：呼应参考图里那几只归鸟，速度很慢，不抢戏 */
+/**
+ * 江湖态的飞鸟：5 只，18–26s 穿一次（第一版 46–62s 太慢，站长说"不明显"），
+ * 速度提上来之后才看得出是鸟在飞；拍翅动画在 CSS 里（`.hero-bird svg`）。
+ */
 export const HERO_BIRDS: HeroBird[] = [
-  { top: 21, dur: 46, delay: -6, scale: 1, opacity: 0.5 },
-  { top: 26, dur: 54, delay: -22, scale: 0.78, opacity: 0.4 },
-  { top: 18, dur: 62, delay: -38, scale: 0.66, opacity: 0.34 },
+  { top: 19, dur: 20, delay: -3, scale: 1, opacity: 0.52 },
+  { top: 23, dur: 24, delay: -11, scale: 0.82, opacity: 0.44 },
+  { top: 17, dur: 26, delay: -19, scale: 0.7, opacity: 0.38 },
+  { top: 27, dur: 18, delay: -7, scale: 0.9, opacity: 0.46 },
+  { top: 21, dur: 22, delay: -15, scale: 0.62, opacity: 0.34 },
 ]
+
 

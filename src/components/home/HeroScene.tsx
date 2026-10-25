@@ -3,13 +3,51 @@ import type { CSSProperties } from "react"
 import {
   HERO_BIRDS,
   HERO_SCENE_ASSETS,
-  HERO_SNOW_FLAKES,
+  HERO_SNOW_MID,
+  HERO_SNOW_NEAR,
+  HERO_WIND_STREAKS,
   MOBILE_MEDIA,
   type HeroSceneName,
+  type HeroSnowFlake,
 } from "./hero-scene"
 
 /**
- * 一层场景：底图 + 夜色（仅江湖态）+ 动态层 + 文字底衬。
+ * 一层雪点。
+ *
+ * 结构是「外层管下落、内层管风摆」：
+ * 下落是 translate3d(drift, 110vh)，风摆是内层的左右平移，
+ * 两个动画作用在不同元素上，就不会互相覆盖 transform。
+ */
+function SnowLayer({ flakes, tier }: { flakes: HeroSnowFlake[]; tier: "mid" | "near" }) {
+  return (
+    <div className={`hero-fx-snow-${tier}`}>
+      {flakes.map((flake, index) => (
+        <span
+          key={index}
+          className="hero-flake"
+          style={
+            {
+              "--flake-x": `${flake.x}%`,
+              "--flake-size": `${flake.size}px`,
+              "--flake-dur": `${flake.dur}s`,
+              "--flake-delay": `${flake.delay}s`,
+              "--flake-opacity": flake.opacity,
+              "--flake-drift": `${flake.drift}px`,
+              "--sway-amp": `${flake.swayAmp}px`,
+              "--sway-dur": `${flake.swayDur}s`,
+              "--sway-delay": `${flake.swayDelay}s`,
+            } as CSSProperties
+          }
+        >
+          <span className="hero-flake-core" />
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * 一层场景：底图 + 夜色（仅江湖态）+ 文字底衬 + 动态层。
  *
  * 纯展示，不含任何状态逻辑 —— 显隐完全由 globals.css 里
  * `:root[data-hero-scene="…"]` 决定，本组件两态都渲染、叠着放。
@@ -52,44 +90,52 @@ export default function HeroScene({ scene }: { scene: HeroSceneName }) {
         </>
       )}
 
+      {/* 文字底衬：手机上文字会压在主体上，需要一层场景色的薄雾 */}
+      <div className="hero-scrim" data-scene={scene} />
+
       {/*
-        动态层：全部在「文字底衬」与文字**之下**，保证可读性。
-        每层都是绝对定位、只动 transform/opacity，走合成器。
-        动画是否运行由 CSS 决定（场景态、reduced-motion、data-hero-motion）。
+        动态层放在**底衬之后**（画在底衬上面），但仍然在文字之下
+        —— 文字容器带 z-10，永远压在最上面。
+        第一版把它放在底衬之前，结果雪落到画面下半部就被那层纸色雾冲淡了：
+        实测截图里只有上半屏幕看得到雪。
       */}
       <div className="hero-fx">
         {scene === "snow" && (
           <>
-            {/* 远层：平铺的雪点纹理，零 DOM 节点 */}
+            {/* 远层：平铺的雪点纹理，零 DOM 节点；斜落、无缝 */}
             <div className="hero-fx-snow-far" />
-            {/* 近层：带大小/模糊差异的雪点，更像真的雪 */}
-            <div className="hero-fx-snow-near">
-              {HERO_SNOW_FLAKES.map((flake, index) => (
+
+            {/* 轻风痕：几条极淡的斜向痕迹，和雪同向 */}
+            <div className="hero-fx-wind">
+              {HERO_WIND_STREAKS.map((streak, index) => (
                 <span
                   key={index}
-                  className="hero-flake"
+                  className="hero-wind-streak"
                   style={
                     {
-                      "--flake-x": `${flake.x}%`,
-                      "--flake-size": `${flake.size}px`,
-                      "--flake-dur": `${flake.dur}s`,
-                      "--flake-delay": `${flake.delay}s`,
-                      "--flake-opacity": flake.opacity,
-                      "--flake-drift": `${flake.drift}px`,
+                      "--streak-top": `${streak.top}%`,
+                      "--streak-len": `${streak.length}px`,
+                      "--streak-dur": `${streak.dur}s`,
+                      "--streak-delay": `${streak.delay}s`,
+                      "--streak-opacity": streak.opacity,
                     } as CSSProperties
                   }
                 />
               ))}
             </div>
+
+            {/* 中景 / 近景：尺寸、速度、模糊都不同 —— 这就是雪的景深 */}
+            <SnowLayer flakes={HERO_SNOW_MID} tier="mid" />
+            <SnowLayer flakes={HERO_SNOW_NEAR} tier="near" />
           </>
         )}
 
         {scene === "jianghu" && (
           <>
-            {/* 酒旗旁的一点暖光：很慢的明暗，不闪成霓虹 */}
+            {/* 酒旗旁的一点暖光：忽明忽暗（不规则），像被风吹的烛火 */}
             <div className="hero-fx-lamp" />
 
-            {/* 归鸟：三只，深浅不同，慢速横穿 */}
+            {/* 归鸟：五只，深浅不同，带拍翅 */}
             <div className="hero-fx-birds">
               {HERO_BIRDS.map((bird, index) => (
                 <span
@@ -120,9 +166,6 @@ export default function HeroScene({ scene }: { scene: HeroSceneName }) {
           </>
         )}
       </div>
-
-      {/* 文字底衬：手机上文字会压在主体上，需要一层场景色的薄雾 */}
-      <div className="hero-scrim" data-scene={scene} />
     </div>
   )
 }
