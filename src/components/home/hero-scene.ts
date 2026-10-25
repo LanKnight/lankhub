@@ -221,14 +221,19 @@ export interface HeroWindStreak {
 }
 
 /**
- * 轻风痕：4 条极淡的斜向 streaks，和雪同向（从右往左、斜向下）。
+ * 轻风痕：6 条极淡的斜向 streaks，和雪同向（从右往左、斜向下）。
  * 只加在雪山态 —— 江湖态是雾江夜景，没有风雪。
+ *
+ * 第一版 4 条、1px、透明度 0.14–0.22，站长说"找不到"；
+ * 这一版加到 6 条、1.6px、0.3–0.45，并把时长拉长约 20%（慢一点才像风掠，不像划痕）。
  */
 export const HERO_WIND_STREAKS: HeroWindStreak[] = [
-  { top: 18, length: 260, dur: 26, delay: -4, opacity: 0.22 },
-  { top: 34, length: 200, dur: 32, delay: -17, opacity: 0.16 },
-  { top: 52, length: 300, dur: 29, delay: -23, opacity: 0.2 },
-  { top: 68, length: 220, dur: 35, delay: -11, opacity: 0.14 },
+  { top: 12, length: 320, dur: 31, delay: -4, opacity: 0.32 },
+  { top: 26, length: 240, dur: 38, delay: -17, opacity: 0.44 },
+  { top: 41, length: 380, dur: 35, delay: -23, opacity: 0.36 },
+  { top: 56, length: 280, dur: 42, delay: -11, opacity: 0.4 },
+  { top: 70, length: 340, dur: 37, delay: -29, opacity: 0.3 },
+  { top: 83, length: 260, dur: 45, delay: -6, opacity: 0.34 },
 ]
 
 export interface HeroBird {
@@ -245,13 +250,16 @@ export interface HeroBird {
 /**
  * 江湖态的飞鸟：5 只，18–26s 穿一次（第一版 46–62s 太慢，站长说"不明显"），
  * 速度提上来之后才看得出是鸟在飞；拍翅动画在 CSS 里（`.hero-bird svg`）。
+ *
+ * 透明度从 0.34–0.52 提到 0.5–0.72： dusk 压暗之后，太淡的鸟在灰天空上
+ * 只剩几道短横，反而像噪点。
  */
 export const HERO_BIRDS: HeroBird[] = [
-  { top: 19, dur: 20, delay: -3, scale: 1, opacity: 0.52 },
-  { top: 23, dur: 24, delay: -11, scale: 0.82, opacity: 0.44 },
-  { top: 17, dur: 26, delay: -19, scale: 0.7, opacity: 0.38 },
-  { top: 27, dur: 18, delay: -7, scale: 0.9, opacity: 0.46 },
-  { top: 21, dur: 22, delay: -15, scale: 0.62, opacity: 0.34 },
+  { top: 19, dur: 20, delay: -3, scale: 1, opacity: 0.72 },
+  { top: 23, dur: 24, delay: -11, scale: 0.82, opacity: 0.62 },
+  { top: 17, dur: 26, delay: -19, scale: 0.7, opacity: 0.54 },
+  { top: 27, dur: 18, delay: -7, scale: 0.9, opacity: 0.66 },
+  { top: 21, dur: 22, delay: -15, scale: 0.62, opacity: 0.5 },
 ]
 
 

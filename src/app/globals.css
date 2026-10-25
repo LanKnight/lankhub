@@ -449,11 +449,16 @@ html {
 
 /* 右上角一团暖白：夜要有个光源，否则只是「整张变暗」而不是「入夜」 */
 .hero-night-moon {
+  /*
+   * 站长说"月晕在哪里我没找到" —— 原来 0% 只有 0.4 透明度、54% 就没了，
+   * 只在右上角一小团。现在提亮到 0.55、并把范围推到 66%，配合下面 6s 的
+   * 呼吸 + 1.08 缩放，才看得出「有光在呼吸」。
+   */
   background: radial-gradient(
     circle at 76% 14%,
-    rgba(255, 249, 232, 0.4) 0%,
-    rgba(255, 249, 232, 0.12) 30%,
-    transparent 54%
+    rgba(255, 249, 232, 0.55) 0%,
+    rgba(255, 246, 226, 0.22) 40%,
+    transparent 66%
   );
   mix-blend-mode: screen;
 }
@@ -561,15 +566,16 @@ html {
   top: var(--streak-top);
   right: -32%;
   width: var(--streak-len);
-  height: 1px;
+  /* 1.6px + 更亮的渐变：第一版 1px/0.14 透明度，站长说"找不到" */
+  height: 1.6px;
   opacity: var(--streak-opacity);
   background: linear-gradient(
     to right,
     transparent 0%,
-    rgba(150, 166, 178, 0.85) 45%,
+    rgba(158, 174, 186, 0.92) 45%,
     transparent 100%
   );
-  filter: blur(0.6px);
+  filter: blur(0.8px);
   /*
    * 用独立的 rotate + translate：rotate 定朝向（与雪同向的左下）、
    * translate 走位移，两者互不覆盖 transform。
@@ -659,12 +665,13 @@ html {
   top: var(--bird-top);
   left: 0;
   /*
-   * 17px：画面里原有的鸟只有 10px 左右，加进来的必须比它们更小/更淡，
-   * 否则像贴上去的图标（第一版 26px 就偏大）。
+   * 26px：原来 17px 太小，站长说"动态鸟大小有点小"。
+   * 现在原图里的静态鸟已经擦掉了（见 docs/HISTORY 31.8），
+   * 画面上只有这一批，所以可以放到接近原画里那几只的尺度。
    */
-  width: 17px;
-  height: 6px;
-  color: #17181a;
+  width: 28px;
+  height: 10px;
+  color: #12131a;
   opacity: var(--bird-opacity);
   /* 缩放用 transform，位移用独立的 translate 属性，两者互不覆盖 */
   transform: scale(var(--bird-scale));
@@ -679,15 +686,16 @@ html {
    * 只动 svg 自己的 transform，不碰外层负责位移的 translate。
    */
   transform-origin: center;
-  animation: hero-bird-flap 0.52s ease-in-out infinite;
+  animation: hero-bird-flap 0.42s ease-in-out infinite;
 }
+/* 幅度加大：原来压到 48% 几乎看不出在扇。压到 30%（再低就成一条线，像噪点） */
 @keyframes hero-bird-flap {
   0%,
   100% {
     transform: scaleY(1);
   }
   50% {
-    transform: scaleY(0.48);
+    transform: scaleY(0.3);
   }
 }
 @keyframes hero-bird-fly {
@@ -782,18 +790,21 @@ html {
    * （第一版实测 p95 33.4ms，加这一条后回到 16.7ms）。
    */
   will-change: opacity, transform;
-  animation: hero-moon-breath 7s ease-in-out infinite;
+  animation: hero-moon-breath 6s ease-in-out infinite;
 }
-/* 7s / 0.5→1 + 极轻微缩放：站长说第一版 12s、0.78→1 完全看不出来 */
+/*
+ * 站长说"月晕找不到" —— 第一版 12s/0.78→1 太温和。
+ * 现在 6s、0.35→1、缩放 1.08，光晕范围也放大（见 .hero-night-moon 的渐变）。
+ */
 @keyframes hero-moon-breath {
   0%,
   100% {
-    opacity: 0.5;
+    opacity: 0.35;
     transform: scale(1);
   }
   50% {
     opacity: 1;
-    transform: scale(1.04);
+    transform: scale(1.08);
   }
 }
 
