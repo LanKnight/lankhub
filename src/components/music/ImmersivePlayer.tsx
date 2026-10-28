@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { findLyricIndex, parseLrc } from "@/lib/lrc"
 import { usePlayer } from "./player-context"
+import ImmersiveClock from "./ImmersiveClock"
 import ModeButton from "./ModeButton"
 import QueueDrawer from "./QueueDrawer"
 
@@ -183,8 +184,13 @@ export default function ImmersivePlayer({
         顶栏。
         歌名与歌手**只在移动端**留在这里 —— 那边空间紧，塞到唱片下面会把歌词
         挤得更矮。PC 上移到唱片下方（见左边那一列），顶栏只剩退出按钮。
+
+        时钟放在**顶栏正中**（桌面才有）：那一行本来只有右侧一个退出按钮，
+        左右都空着，时间放中间既显眼又不抢歌词的注意力。
+        它是绝对定位的，所以不会改变顶栏的布局与高度。
       */}
       <div className="relative flex shrink-0 items-center gap-3 px-4 py-3 md:px-8">
+        <ImmersiveClock />
         <div className="min-w-0 md:hidden">
           <p className="truncate text-sm font-medium text-gray-900">{current.title}</p>
           <p className="truncate text-xs text-gray-500">{current.artist}</p>
