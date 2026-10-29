@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="g1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#4a4030"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="660" fill="#faf8f5"/>
+  <text x="60" y="58" font-size="30" font-weight="700" fill="#1a1510">该不该写 MCP：一个决策树</text>
+  <text x="60" y="92" font-size="17" fill="#6b6459">别为了"看起来先进"而写；先问四句</text>
+
+  <!-- Q1 -->
+  <rect x="420" y="120" width="360" height="66" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+  <text x="600" y="148" font-size="16" font-weight="700" fill="#1a1510" text-anchor="middle">要把这个能力给多个宿主用吗？</text>
+  <text x="600" y="172" font-size="14" fill="#6b6459" text-anchor="middle">Claude / Cursor / CLI / 自己的 Agent…</text>
+
+  <path d="M600 186 L600 210" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#g1)"/>
+
+  <!-- Q2 -->
+  <rect x="420" y="214" width="360" height="66" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+  <text x="600" y="242" font-size="16" font-weight="700" fill="#1a1510" text-anchor="middle">这个能力需要独立进程 / 独立权限吗？</text>
+  <text x="600" y="266" font-size="14" fill="#6b6459" text-anchor="middle">比如要 ssh、要挂密钥、要长期在线</text>
+
+  <path d="M600 280 L600 304" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#g1)"/>
+
+  <!-- Q3 -->
+  <rect x="420" y="308" width="360" height="66" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+  <text x="600" y="336" font-size="16" font-weight="700" fill="#1a1510" text-anchor="middle">会反复用、而不是一问一答？</text>
+  <text x="600" y="360" font-size="14" fill="#6b6459" text-anchor="middle">每周都要部署几次，而不是只跑一次</text>
+
+  <path d="M600 374 L600 398" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#g1)"/>
+
+  <!-- Q4 -->
+  <rect x="420" y="402" width="360" height="66" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+  <text x="600" y="430" font-size="16" font-weight="700" fill="#1a1510" text-anchor="middle">愿意为它单独做权限边界吗？</text>
+  <text x="600" y="454" font-size="14" fill="#6b6459" text-anchor="middle">白名单、密钥限制、审计</text>
+
+  <!-- verdict yes -->
+  <path d="M600 468 L600 492" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#g1)"/>
+  <rect x="330" y="496" width="540" height="70" rx="10" fill="#eef2f4" stroke="#6f8794" stroke-width="2"/>
+  <text x="600" y="524" font-size="17" font-weight="700" fill="#1a1510" text-anchor="middle">四个都「是」→ 值得写 MCP</text>
+  <text x="600" y="548" font-size="14" fill="#4a5f6b" text-anchor="middle">收益来自「一次写、反复用、多宿主复用」</text>
+
+  <!-- verdict no -->
+  <rect x="60" y="496" width="240" height="120" rx="10" fill="#fdf6ee" stroke="#d9c3a8"/>
+  <text x="80" y="524" font-size="15" font-weight="700" fill="#8a5a1f">任一为「否」</text>
+  <text x="80" y="550" font-size="13" fill="#3d362c">Function Calling</text>
+  <text x="80" y="572" font-size="13" fill="#3d362c">直接调 API 就够了</text>
+  <text x="80" y="594" font-size="13" fill="#3d362c">写 MCP 反而多一层</text>
+
+  <rect x="900" y="496" width="240" height="120" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+  <text x="920" y="524" font-size="15" font-weight="700" fill="#1a1510">只跑一次？</text>
+  <text x="920" y="550" font-size="13" fill="#3d362c">手写脚本更快</text>
+  <text x="920" y="572" font-size="13" fill="#3d362c">MCP 的建设成本</text>
+  <text x="920" y="594" font-size="13" fill="#3d362c">要靠次数摊平</text>
+
+  <text x="60" y="646" font-size="15" fill="#6b6459">补充：MCP 也有真实成本 —— 多一个进程要维护、多一层协议要调试、权限边界要设计。它不是免费的。</text>
+</svg>

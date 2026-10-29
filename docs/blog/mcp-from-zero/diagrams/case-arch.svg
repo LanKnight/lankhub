@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="d1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#4a4030"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="680" fill="#faf8f5"/>
+  <text x="60" y="58" font-size="30" font-weight="700" fill="#1a1510">本文案例：四层，各自只做一件事</text>
+  <text x="60" y="92" font-size="17" fill="#6b6459">把一个"能部署网站"的 MCP 拆开看，就是这个形状</text>
+
+  <!-- layer 1 -->
+  <rect x="60" y="126" width="1080" height="86" rx="12" fill="#ffffff" stroke="#c9c2b6"/>
+  <text x="84" y="158" font-size="18" font-weight="700" fill="#1a1510">① Agent 平台（DSH）</text>
+  <text x="84" y="184" font-size="15" fill="#3d362c">把工具清单喂给模型、把模型的调用意图转发给下面的进程、把结果塞回上下文</text>
+  <text x="1000" y="184" font-size="14" fill="#6b6459" text-anchor="end">唯一"理解语言"的一层</text>
+
+  <!-- layer 2 -->
+  <rect x="60" y="228" width="1080" height="104" rx="12" fill="#eef2f4" stroke="#a9bcc7"/>
+  <text x="84" y="260" font-size="18" font-weight="700" fill="#1a1510">② MCP Server（本机 node 进程，零依赖）</text>
+  <text x="84" y="286" font-size="15" fill="#3d362c">手写 JSON-RPC 2.0：initialize / tools.list / tools.call；四个只读工具 + 两个部署工具</text>
+  <text x="84" y="310" font-size="15" fill="#4a5f6b">它只做两件事：把动作名翻译成一次 ssh 调用、把输出截断成可读文本</text>
+  <text x="1000" y="310" font-size="14" fill="#6b6459" text-anchor="end">不存业务、不存状态</text>
+
+  <!-- layer 3 -->
+  <rect x="60" y="348" width="1080" height="104" rx="12" fill="#fdf6ee" stroke="#d9c3a8"/>
+  <text x="84" y="380" font-size="18" font-weight="700" fill="#8a5a1f">③ SSH（专用密钥 + 强制命令）</text>
+  <text x="84" y="406" font-size="15" fill="#3d362c">authorized_keys 里写 restrict,command="&lt;白名单脚本&gt;" —— 这把 key 只能跑那一个脚本</text>
+  <text x="84" y="430" font-size="15" fill="#4a5f6b">pty、端口转发、agent 转发全关；即使私钥泄露，能做的也只是脚本里那几个动作</text>
+  <text x="1000" y="430" font-size="14" fill="#6b6459" text-anchor="end">真正的边界在这里</text>
+
+  <!-- layer 4 -->
+  <rect x="60" y="468" width="1080" height="104" rx="12" fill="#e7e2d8" stroke="#c9c2b6"/>
+  <text x="84" y="500" font-size="18" font-weight="700" fill="#1a1510">④ 服务器上的白名单脚本</text>
+  <text x="84" y="526" font-size="15" fill="#3d362c">只认 status / logs / deploy / deploy-status；参数只收枚举；部署前过五道闸门</text>
+  <text x="84" y="550" font-size="15" fill="#4a5f6b">部署用 setsid 起后台 worker，锁 / 日志 / 退出码落盘，SSH 断线也不影响 build</text>
+  <text x="1000" y="550" font-size="14" fill="#6b6459" text-anchor="end">副作用只发生在这里</text>
+
+  <!-- arrows -->
+  <g stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#d1)">
+    <path d="M600 212 L600 226"/>
+    <path d="M600 332 L600 346"/>
+    <path d="M600 452 L600 466"/>
+  </g>
+  <g font-size="13" fill="#6b6459" text-anchor="middle">
+    <text x="700" y="222">tools/call</text>
+    <text x="700" y="342">ssh 动作名</text>
+    <text x="700" y="462">git / pm2 / npm</text>
+  </g>
+
+  <!-- bottom note -->
+  <rect x="60" y="594" width="1080" height="66" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+  <text x="84" y="622" font-size="16" font-weight="700" fill="#1a1510">数据流的方向</text>
+  <text x="84" y="648" font-size="15" fill="#3d362c">自上而下是「意图」，自下而上是「结果」；越往下权限越大、越要窄，越往上越"自由"、越要防误判。</text>
+</svg>

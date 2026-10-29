@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+  <rect width="1200" height="620" fill="#faf8f5"/>
+  <text x="60" y="60" font-size="30" font-weight="700" fill="#1a1510">MCP 到底解决了什么：从 N×M 到 N+M</text>
+  <text x="60" y="94" font-size="17" fill="#6b6459">工具越多、宿主越多，自己写胶水的成本是乘出来的</text>
+
+  <!-- left: N x M -->
+  <text x="60" y="146" font-size="19" font-weight="700" fill="#9e2b25">没有标准：每个宿主 × 每个工具 都要单独接一次</text>
+  <g font-size="14" fill="#3d362c">
+    <text x="60" y="186" font-size="14" fill="#6b6459">宿主</text>
+    <text x="60" y="216">Claude</text>
+    <text x="60" y="246">Cursor</text>
+    <text x="60" y="276">CLI Agent</text>
+    <text x="290" y="186" font-size="14" fill="#6b6459">工具</text>
+    <text x="290" y="216">GitHub</text>
+    <text x="290" y="246">数据库</text>
+    <text x="290" y="276">部署</text>
+  </g>
+  <!-- lines -->
+  <g stroke="#c9a3a0" stroke-width="1.5" fill="none">
+    <path d="M104 212 L286 212"/><path d="M104 212 L286 242"/><path d="M104 212 L286 272"/>
+    <path d="M104 242 L286 212"/><path d="M104 242 L286 242"/><path d="M104 242 L286 272"/>
+    <path d="M104 272 L286 212"/><path d="M104 272 L286 242"/><path d="M104 272 L286 272"/>
+  </g>
+  <text x="60" y="320" font-size="17" font-weight="700" fill="#9e2b25">3 个宿主 × 3 个工具 = 9 份胶水代码</text>
+
+  <!-- right: N + M -->
+  <text x="620" y="146" font-size="19" font-weight="700" fill="#1a1510">有 MCP：工具只写一次，所有宿主都能用</text>
+  <g font-size="14" fill="#3d362c">
+    <text x="620" y="216">Claude</text>
+    <text x="620" y="246">Cursor</text>
+    <text x="620" y="276">CLI Agent</text>
+    <text x="900" y="216">GitHub</text>
+    <text x="900" y="246">数据库</text>
+    <text x="900" y="276">部署</text>
+  </g>
+  <g stroke="#8fa6b3" stroke-width="1.5" fill="none">
+    <path d="M676 212 L820 212"/><path d="M676 212 L820 242"/><path d="M676 212 L820 272"/>
+    <path d="M676 242 L820 212"/><path d="M676 242 L820 242"/><path d="M676 242 L820 272"/>
+    <path d="M676 272 L820 212"/><path d="M676 272 L820 242"/><path d="M676 272 L820 272"/>
+  </g>
+  <!-- MCP bus -->
+  <rect x="790" y="184" width="46" height="112" rx="10" fill="#eef2f4" stroke="#6f8794" stroke-width="2"/>
+  <text x="813" y="176" font-size="13" font-weight="700" fill="#1a1510" text-anchor="middle">MCP</text>
+  <text x="620" y="320" font-size="17" font-weight="700" fill="#1a1510">3 + 3 = 6 份（工具 3 份 + 宿主配置 3 行），新增工具只加 1</text>
+
+  <line x1="60" y1="360" x2="1140" y2="360" stroke="#e2dcd1"/>
+
+  <text x="60" y="400" font-size="19" font-weight="700" fill="#1a1510">所以 MCP 不是「让模型更聪明」，而是「让工具接得进」</text>
+  <text x="60" y="432" font-size="16" fill="#3d362c">它标准化的是三件事：怎么发现能力（tools/list）、怎么调用（tools/call）、怎么回来（content）</text>
+  <text x="60" y="458" font-size="16" fill="#3d362c">至于「模型要不要调、调哪个、参数填什么」，仍然由模型决定 —— 那部分是 Function Calling 的事</text>
+
+  <rect x="60" y="492" width="1080" height="96" rx="10" fill="#fdf6ee" stroke="#d9c3a8"/>
+  <text x="84" y="522" font-size="16" font-weight="700" fill="#8a5a1f">一句话区分</text>
+  <text x="84" y="550" font-size="16" fill="#3d362c">Function Calling 是「模型说话的格式」；MCP 是「宿主与工具进程之间的接口标准」。</text>
+  <text x="84" y="574" font-size="16" fill="#3d362c">两者不是替代关系：宿主收到模型的结构化意图后，可以本地执行，也可以转发给 MCP Server。</text>
+</svg>

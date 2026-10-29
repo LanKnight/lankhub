@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="f1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#4a4030"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="660" fill="#faf8f5"/>
+  <text x="60" y="58" font-size="30" font-weight="700" fill="#1a1510">部署为什么不放在 SSH 会话里同步跑</text>
+  <text x="60" y="92" font-size="17" fill="#6b6459">一张图说明「触发 → 后台 → 轮询」的三段式</text>
+
+  <!-- phase 1 -->
+  <text x="60" y="138" font-size="18" font-weight="700" fill="#1a1510">第一段：触发（几十秒内返回）</text>
+  <g font-size="15">
+    <rect x="60" y="152" width="300" height="76" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+    <text x="80" y="180" font-size="15" font-weight="700" fill="#1a1510">模型：ops_deploy</text>
+    <text x="80" y="204" font-size="13" fill="#6b6459">confirm + expectedRev</text>
+
+    <rect x="420" y="152" width="300" height="76" rx="10" fill="#eef2f4" stroke="#a9bcc7"/>
+    <text x="440" y="180" font-size="15" font-weight="700" fill="#1a1510">MCP Server</text>
+    <text x="440" y="204" font-size="13" fill="#4a5f6b">把动作名拼成 ssh 命令</text>
+
+    <rect x="780" y="152" width="360" height="76" rx="10" fill="#fdf6ee" stroke="#d9c3a8"/>
+    <text x="800" y="180" font-size="15" font-weight="700" fill="#1a1510">白名单脚本 deploy</text>
+    <text x="800" y="204" font-size="13" fill="#3d362c">五道闸门 → 起 worker → 返回 state=started</text>
+  </g>
+  <g stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#f1)">
+    <path d="M362 190 L416 190"/>
+    <path d="M722 190 L776 190"/>
+  </g>
+
+  <!-- phase 2 -->
+  <text x="60" y="290" font-size="18" font-weight="700" fill="#1a1510">第二段：后台 worker（几分钟，与 SSH 连接无关）</text>
+  <rect x="60" y="304" width="1080" height="120" rx="10" fill="#e7e2d8" stroke="#c9c2b6"/>
+  <g font-size="14" fill="#3d362c">
+    <text x="84" y="332">setsid nohup run.sh deploy-worker &lt;run-id&gt; &amp;</text>
+    <text x="84" y="360" font-size="15">npm run update ＝ 备份 → git pull → npm ci → db migrate → next build → pm2 restart</text>
+    <text x="84" y="386">全程写一个日志文件与一个退出码文件；即使 SSH 断开，worker 仍被 init 接管继续跑</text>
+    <text x="84" y="410" font-size="13" fill="#6b6459">这就是为什么不会出现「build 跑到一半被 SIGHUP 杀掉、留下半成品 .next」</text>
+  </g>
+
+  <path d="M960 232 L960 300" stroke="#4a4030" stroke-width="2" fill="none" stroke-dasharray="6 4" marker-end="url(#f1)"/>
+  <text x="972" y="272" font-size="13" fill="#6b6459">脱离终端</text>
+
+  <!-- phase 3 -->
+  <text x="60" y="470" font-size="18" font-weight="700" fill="#1a1510">第三段：轮询（每次只读一个文件）</text>
+  <g font-size="15">
+    <rect x="60" y="484" width="520" height="96" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+    <text x="80" y="512" font-size="15" font-weight="700" fill="#1a1510">MCP：每 4s 调一次 deploy-status</text>
+    <text x="80" y="538" font-size="13" fill="#6b6459">读到 state=running 就继续等；最多等 waitSeconds</text>
+    <text x="80" y="562" font-size="13" fill="#6b6459">超时也不打断部署，只返回「还在跑，稍后再看」</text>
+
+    <rect x="620" y="484" width="520" height="96" rx="10" fill="#fdf6ee" stroke="#d9c3a8"/>
+    <text x="640" y="512" font-size="15" font-weight="700" fill="#8a5a1f">脚本：读锁 / 读退出码 / tail 日志</text>
+    <text x="640" y="538" font-size="13" fill="#3d362c">state=success | failed | running | none</text>
+    <text x="640" y="562" font-size="13" fill="#3d362c">失败不自动回滚，只把日志与退出码交回去</text>
+  </g>
+  <path d="M584 532 L616 532" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#f1)"/>
+
+  <!-- result -->
+  <rect x="60" y="600" width="1080" height="44" rx="8" fill="#eef2f4" stroke="#a9bcc7"/>
+  <text x="80" y="628" font-size="15" fill="#1a1510">最终返回：state + 退出码 + 日志尾部 → 模型据此决定「报成功 / 读日志定位 / 建议回滚」</text>
+</svg>

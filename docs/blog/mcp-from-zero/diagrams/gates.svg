@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="e1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#4a4030"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="700" fill="#faf8f5"/>
+  <text x="60" y="58" font-size="30" font-weight="700" fill="#1a1510">部署前的五道闸门：任意一道不过就退出</text>
+  <text x="60" y="92" font-size="17" fill="#6b6459">退出码是给调用方看的：模型能据此判断「该修什么」，而不是只知道"失败了"</text>
+
+  <g font-size="15">
+    <!-- 0 -->
+    <rect x="60" y="126" width="1080" height="72" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+    <text x="84" y="154" font-size="17" font-weight="700" fill="#1a1510">⓪ 必须显式带目标版本号（7–40 位十六进制）</text>
+    <text x="84" y="180" font-size="14" fill="#6b6459">拦住「部署 main 上任何东西」这种模糊意图　→　退出码 64</text>
+
+    <path d="M600 198 L600 210" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#e1)"/>
+
+    <!-- 1 -->
+    <rect x="60" y="214" width="1080" height="72" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+    <text x="84" y="242" font-size="17" font-weight="700" fill="#1a1510">① 互斥锁（文件锁；超过 30 分钟视为陈旧并自动清理）</text>
+    <text x="84" y="268" font-size="14" fill="#6b6459">拦住并发部署：两个人同时按，会把 node_modules 与 .next 搅坏　→　退出码 75</text>
+
+    <path d="M600 286 L600 298" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#e1)"/>
+
+    <!-- 2 -->
+    <rect x="60" y="302" width="1080" height="72" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+    <text x="84" y="330" font-size="17" font-weight="700" fill="#1a1510">② 服务器工作区必须干净</text>
+    <text x="84" y="356" font-size="14" fill="#6b6459">拦住「git pull 覆盖掉别人手改的文件」　→　退出码 73</text>
+
+    <path d="M600 374 L600 386" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#e1)"/>
+
+    <!-- 3 -->
+    <rect x="60" y="390" width="1080" height="72" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+    <text x="84" y="418" font-size="17" font-weight="700" fill="#1a1510">③ 磁盘可用 ≥ 1GB</text>
+    <text x="84" y="444" font-size="14" fill="#6b6459">build 会把磁盘写满，写满之后整个站点连同数据库一起挂　→　退出码 74</text>
+
+    <path d="M600 462 L600 474" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#e1)"/>
+
+    <!-- 4 -->
+    <rect x="60" y="478" width="1080" height="86" rx="10" fill="#fdf6ee" stroke="#d9c3a8"/>
+    <text x="84" y="506" font-size="17" font-weight="700" fill="#8a5a1f">④ origin/main 必须真的等于调用方声明的版本（本文最关键的一条）</text>
+    <text x="84" y="532" font-size="14" fill="#3d362c">先 git fetch，再比对；不等就直接拒绝，并回显实际是哪个版本　→　退出码 76</text>
+    <text x="84" y="554" font-size="14" fill="#6b6459">它把「部署 main 上任何东西」变成「只能部署我明确指定的那一个提交」</text>
+
+    <path d="M600 564 L600 576" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#e1)"/>
+
+    <!-- pass -->
+    <rect x="60" y="580" width="1080" height="60" rx="10" fill="#eef2f4" stroke="#a9bcc7"/>
+    <text x="84" y="606" font-size="17" font-weight="700" fill="#1a1510">全部通过 → 起后台 worker，立刻返回 state=started</text>
+    <text x="84" y="628" font-size="14" fill="#4a5f6b">之后本体只轮询 deploy-status，不再持有长连接</text>
+  </g>
+
+  <text x="60" y="672" font-size="15" fill="#6b6459">注：代码里这五道闸门都在服务器侧，不在 MCP 进程里 —— 客户端的校验只用来提前给提示，不能当边界。</text>
+</svg>

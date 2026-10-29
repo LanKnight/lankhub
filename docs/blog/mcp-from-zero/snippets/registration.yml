@@ -1,0 +1,53 @@
+# ============================================================
+# 同一个 MCP 服务器，接到不同宿主的配置写法
+# ------------------------------------------------------------
+# 注意：MCP 的价值就在这里 —— 服务器只写一次，换个宿主只需改配置。
+# ============================================================
+
+# ---------- 1) Claude Desktop（macOS / Windows 通用格式） ----------
+# 文件位置：
+#   macOS   ~/Library/Application Support/Claude/claude_desktop_config.json
+#   Windows %APPDATA%\Claude\claude_desktop_config.json
+# 内容（JSON，不是 YAML）：
+#
+# {
+#   "mcpServers": {
+#     "demo-ops": {
+#       "command": "node",
+#       "args": ["/absolute/path/to/mcp-server.mjs"],
+#       "env": {
+#         "DEMO_HOST": "your.server.example",
+#         "DEMO_USER": "deploy",
+#         "DEMO_KEY": "/home/you/.ssh/demo-ops",
+#         "DEMO_PORT": "22"
+#       }
+#     }
+#   }
+# }
+
+# ---------- 2) DSH（Cordis 插件式配置，YAML） ----------
+# 文件：~/.dsh/cordis.patch.yml
+# 说明：transport 支持 stdio 与 streamable-http；serverName 决定工具前缀
+#       （工具会以 mcp__demo-ops__status 这样的名字出现）。
+#
+# - insert:
+#     - id: mcp-demo-ops
+#       name: '@deepseek-ai/dsh-mcp-client'
+#       config:
+#         serverName: demo-ops
+#         command: "node"
+#         args: ["/absolute/path/to/mcp-server.mjs"]
+#         transport: stdio
+#         toolCallTimeoutMs: 120000
+#         failOnStartupError: false
+#       # 环境变量同样通过 env 传（DSH 的 config.env）
+#       # env:
+#       #   DEMO_HOST: your.server.example
+#       #   DEMO_USER: deploy
+#       #   DEMO_KEY: ~/.ssh/demo-ops
+
+# ---------- 3) 手工验证（不接宿主，直接喂 JSON 帧） ----------
+# 这一招在调试时最有用：自己发一行 initialize，看回来什么。
+#
+# printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}' \
+#   | node mcp-server.mjs

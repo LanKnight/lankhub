@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#4a4030"/>
+    </marker>
+    <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9e2b25"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="700" fill="#faf8f5"/>
+  <text x="60" y="62" font-size="30" font-weight="700" fill="#1a1510">四个角色：谁在想、谁在干、谁被干</text>
+  <text x="60" y="96" font-size="17" fill="#6b6459">把这张图记住，后面所有概念都能挂上去</text>
+
+  <rect x="60" y="140" width="1080" height="110" rx="12" fill="#ffffff" stroke="#c9c2b6"/>
+  <text x="84" y="176" font-size="20" font-weight="700" fill="#1a1510">① LLM（模型）</text>
+  <text x="84" y="204" font-size="16" fill="#3d362c">只会输出文本。它能判断该做什么，但没有任何执行能力：不能读文件、不能联网、不能部署。</text>
+  <text x="84" y="230" font-size="16" fill="#6b6459">它唯一会做的「动作」，是说出一个结构化的意图（Function Calling 就在这一层）。</text>
+
+  <rect x="60" y="270" width="1080" height="130" rx="12" fill="#fdf6ee" stroke="#d9c3a8"/>
+  <text x="84" y="306" font-size="20" font-weight="700" fill="#8a5a1f">② Agent 平台（宿主 / Host）</text>
+  <text x="84" y="334" font-size="16" fill="#3d362c">Claude Desktop、Cursor、各种 CLI Agent、我用的 DSH 都属于这一层。它有三个职责：</text>
+  <text x="84" y="360" font-size="16" fill="#3d362c">跟模型对话 · 替模型真正执行 · 管理所有 MCP 连接的生命周期（拉起、握手、超时、断开）</text>
+  <text x="84" y="384" font-size="16" fill="#6b6459">MCP 的客户端（Client）就长在这一层里面。</text>
+
+  <rect x="60" y="420" width="520" height="150" rx="12" fill="#eef2f4" stroke="#a9bcc7"/>
+  <text x="84" y="456" font-size="20" font-weight="700" fill="#1a1510">③ MCP Server</text>
+  <text x="84" y="484" font-size="16" fill="#3d362c">一个普通进程。把「能力」翻译成 MCP 协议</text>
+  <text x="84" y="508" font-size="16" fill="#3d362c">（JSON-RPC 2.0）暴露出去：有哪些工具、</text>
+  <text x="84" y="532" font-size="16" fill="#3d362c">参数 schema 是什么、调用后返回什么。</text>
+  <text x="84" y="556" font-size="15" fill="#6b6459">它不知道模型的存在，也拿不到对话历史。</text>
+
+  <rect x="620" y="420" width="520" height="150" rx="12" fill="#e7e2d8" stroke="#c9c2b6"/>
+  <text x="644" y="456" font-size="20" font-weight="700" fill="#1a1510">④ 外部系统</text>
+  <text x="644" y="484" font-size="16" fill="#3d362c">真正被操作的东西：数据库、Git 仓库、</text>
+  <text x="644" y="508" font-size="16" fill="#3d362c">线上服务器、SaaS API、本机文件…</text>
+  <text x="644" y="540" font-size="15" fill="#6b6459">这一层才是「副作用」发生的地方，</text>
+  <text x="644" y="562" font-size="15" fill="#6b6459">也是所有安全风险的归属地。</text>
+
+  <path d="M600 252 L600 266" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#a1)"/>
+  <text x="612" y="264" font-size="14" fill="#6b6459">对话</text>
+
+  <path d="M300 402 L300 416" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#a1)"/>
+  <text x="312" y="414" font-size="14" fill="#6b6459">MCP（stdio / HTTP）</text>
+
+  <path d="M580 495 L616 495" stroke="#9e2b25" stroke-width="2.5" fill="none" marker-end="url(#a2)"/>
+  <text x="598" y="486" font-size="13" fill="#9e2b25" text-anchor="middle">exec</text>
+
+  <rect x="60" y="600" width="1080" height="72" rx="10" fill="#ffffff" stroke="#c9c2b6"/>
+  <text x="84" y="628" font-size="16" font-weight="700" fill="#1a1510">一句话分工</text>
+  <text x="84" y="654" font-size="16" fill="#3d362c">模型决定做什么（说意图）→ 宿主执行（发工具调用）→ MCP Server 翻译（协议到业务）→ 外部系统被改</text>
+</svg>

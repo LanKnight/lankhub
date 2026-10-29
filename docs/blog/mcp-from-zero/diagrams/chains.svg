@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="b1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#4a4030"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="700" fill="#faf8f5"/>
+  <text x="60" y="58" font-size="30" font-weight="700" fill="#1a1510">两条调用链：有 MCP 与没有 MCP</text>
+  <text x="60" y="92" font-size="17" fill="#6b6459">对照着看，就知道「哪一段被标准化了」</text>
+
+  <!-- LEFT: function calling -->
+  <text x="60" y="136" font-size="19" font-weight="700" fill="#1a1510">A. 只有 Function Calling（工具写死在宿主里）</text>
+  <rect x="60" y="158" width="500" height="330" rx="12" fill="#ffffff" stroke="#c9c2b6"/>
+
+  <g font-size="15" fill="#3d362c">
+    <rect x="84" y="182" width="452" height="52" rx="8" fill="#f3f0ea" stroke="#c9c2b6"/>
+    <text x="100" y="205" font-size="15" font-weight="700" fill="#1a1510">① 模型</text>
+    <text x="100" y="224" font-size="14" fill="#6b6459">输出 { name: "deploy", arguments: {...} }</text>
+
+    <rect x="84" y="250" width="452" height="52" rx="8" fill="#f3f0ea" stroke="#c9c2b6"/>
+    <text x="100" y="273" font-size="15" font-weight="700" fill="#1a1510">② 宿主里的这段代码</text>
+    <text x="100" y="292" font-size="14" fill="#6b6459">if (name === "deploy") { ssh(...) }</text>
+
+    <rect x="84" y="318" width="452" height="52" rx="8" fill="#e7e2d8" stroke="#c9c2b6"/>
+    <text x="100" y="341" font-size="15" font-weight="700" fill="#1a1510">③ 外部系统</text>
+    <text x="100" y="360" font-size="14" fill="#6b6459">副作用发生在这里</text>
+
+    <rect x="84" y="386" width="452" height="52" rx="8" fill="#f3f0ea" stroke="#c9c2b6"/>
+    <text x="100" y="409" font-size="15" font-weight="700" fill="#1a1510">④ 结果回填</text>
+    <text x="100" y="428" font-size="14" fill="#6b6459">tool_result → 模型继续</text>
+  </g>
+  <g stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#b1)">
+    <path d="M310 234 L310 248"/>
+    <path d="M310 302 L310 316"/>
+    <path d="M310 370 L310 384"/>
+  </g>
+  <text x="60" y="516" font-size="15" fill="#9e2b25">换一个宿主 = 这段代码重写一遍；换一个工具 = 这段代码再加一个分支</text>
+
+  <!-- RIGHT: mcp -->
+  <text x="620" y="136" font-size="19" font-weight="700" fill="#1a1510">B. 有 MCP（工具在独立进程里）</text>
+  <rect x="620" y="158" width="520" height="330" rx="12" fill="#ffffff" stroke="#c9c2b6"/>
+
+  <g font-size="15">
+    <rect x="644" y="182" width="472" height="44" rx="8" fill="#f3f0ea" stroke="#c9c2b6"/>
+    <text x="660" y="210" font-size="15" fill="#3d362c">① 模型：输出结构化意图（同 A）</text>
+
+    <rect x="644" y="238" width="472" height="44" rx="8" fill="#fdf6ee" stroke="#d9c3a8"/>
+    <text x="660" y="266" font-size="15" fill="#3d362c">② 宿主：只会「转发」，不认识业务</text>
+
+    <rect x="644" y="294" width="230" height="44" rx="8" fill="#eef2f4" stroke="#a9bcc7"/>
+    <text x="660" y="315" font-size="14" fill="#1a1510">③ MCP Client</text>
+    <text x="660" y="331" font-size="12" fill="#4a5f6b">JSON-RPC over stdio</text>
+
+    <rect x="886" y="294" width="230" height="44" rx="8" fill="#eef2f4" stroke="#a9bcc7"/>
+    <text x="902" y="315" font-size="14" fill="#1a1510">④ MCP Server</text>
+    <text x="902" y="331" font-size="12" fill="#4a5f6b">你的业务代码在这里</text>
+
+    <rect x="644" y="352" width="472" height="44" rx="8" fill="#e7e2d8" stroke="#c9c2b6"/>
+    <text x="660" y="380" font-size="15" fill="#3d362c">⑤ 外部系统（数据库 / 服务器 / SaaS）</text>
+
+    <rect x="644" y="408" width="472" height="44" rx="8" fill="#f3f0ea" stroke="#c9c2b6"/>
+    <text x="660" y="436" font-size="15" fill="#3d362c">⑥ 结果沿原路返回，格式由协议规定</text>
+  </g>
+  <g stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#b1)">
+    <path d="M880 226 L880 236"/>
+    <path d="M760 282 L760 292"/>
+    <path d="M874 316 L884 316"/>
+    <path d="M1000 338 L1000 350"/>
+    <path d="M880 396 L880 406"/>
+  </g>
+  <text x="620" y="516" font-size="15" fill="#1a1510">换宿主只改配置（一行），换工具只加一个 Server —— 业务代码不动</text>
+
+  <rect x="60" y="556" width="1080" height="112" rx="10" fill="#fdf6ee" stroke="#d9c3a8"/>
+  <text x="84" y="586" font-size="17" font-weight="700" fill="#8a5a1f">谁代表哪一部分</text>
+  <text x="84" y="614" font-size="16" fill="#3d362c">Function Calling = ①② 之间那句「话」的格式（模型说得出工具名和参数）</text>
+  <text x="84" y="640" font-size="16" fill="#3d362c">MCP = ③④⑤ 之间那条「管子」的格式（宿主怎么问、Server 怎么答、错误怎么报）</text>
+  <text x="84" y="664" font-size="15" fill="#6b6459">两者可以叠起来用：模型用 Function Calling 表达意图，宿主用 MCP 把意图送到工具进程。</text>
+</svg>

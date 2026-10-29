@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="660" viewBox="0 0 1200 660" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="c1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#4a4030"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="660" fill="#faf8f5"/>
+  <text x="60" y="58" font-size="30" font-weight="700" fill="#1a1510">连接的生命周期：一次握手，然后反复调用</text>
+  <text x="60" y="92" font-size="17" fill="#6b6459">顺序、方向、谁先说话，都有规定；写错顺序是最常见的「连不上」</text>
+
+  <!-- lanes -->
+  <g font-size="15">
+    <text x="120" y="140" font-size="16" font-weight="700" fill="#1a1510" text-anchor="middle">宿主</text>
+    <text x="600" y="140" font-size="16" font-weight="700" fill="#1a1510" text-anchor="middle">MCP Server</text>
+    <text x="1040" y="140" font-size="16" font-weight="700" fill="#1a1510" text-anchor="middle">外部系统</text>
+  </g>
+  <g stroke="#e2dcd1" stroke-width="1.5" stroke-dasharray="6 6">
+    <path d="M120 160 L120 600"/>
+    <path d="M600 160 L600 600"/>
+    <path d="M1040 160 L1040 600"/>
+  </g>
+
+  <!-- steps -->
+  <g font-size="14" fill="#3d362c">
+    <rect x="60" y="180" width="1080" height="34" rx="6" fill="#ffffff" stroke="#c9c2b6"/>
+    <text x="80" y="202">① initialize：宿主问「你支持哪个协议版本、有哪些能力」</text>
+
+    <path d="M120 214 L120 224 L600 224 L600 232" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#c1)"/>
+    <text x="360" y="220" font-size="13" fill="#6b6459" text-anchor="middle">initialize</text>
+
+    <path d="M600 238 L600 248 L120 248 L120 256" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#c1)"/>
+    <text x="360" y="244" font-size="13" fill="#6b6459" text-anchor="middle">result: protocolVersion / capabilities / serverInfo</text>
+
+    <rect x="60" y="270" width="1080" height="34" rx="6" fill="#fdf6ee" stroke="#d9c3a8"/>
+    <text x="80" y="292">② notifications/initialized：宿主说「握手完成，我准备好了」（通知，不需要回包）</text>
+
+    <path d="M120 306 L120 316 L600 316 L600 324" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#c1)"/>
+    <text x="360" y="312" font-size="13" fill="#6b6459" text-anchor="middle">tools/list</text>
+
+    <path d="M600 330 L600 340 L120 340 L120 348" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#c1)"/>
+    <text x="360" y="336" font-size="13" fill="#6b6459" text-anchor="middle">tools: [ 名称 / 描述 / inputSchema ]</text>
+
+    <rect x="60" y="362" width="1080" height="34" rx="6" fill="#ffffff" stroke="#c9c2b6"/>
+    <text x="80" y="384">③ 模型决定要调用；宿主按 schema 校验参数（不合法就别发出去）</text>
+
+    <path d="M120 398 L120 408 L600 408 L600 416" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#c1)"/>
+    <text x="360" y="404" font-size="13" fill="#6b6459" text-anchor="middle">tools/call { name, arguments }</text>
+
+    <path d="M600 422 L600 432 L1040 432 L1040 440" stroke="#9e2b25" stroke-width="2" fill="none" marker-end="url(#c1)"/>
+    <text x="820" y="428" font-size="13" fill="#9e2b25" text-anchor="middle">真正执行（副作用在这里）</text>
+
+    <path d="M1040 448 L1040 458 L600 458 L600 466" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#c1)"/>
+    <path d="M600 472 L600 482 L120 482 L120 490" stroke="#4a4030" stroke-width="2" fill="none" marker-end="url(#c1)"/>
+    <text x="360" y="478" font-size="13" fill="#6b6459" text-anchor="middle">result: content[] + isError</text>
+
+    <rect x="60" y="504" width="1080" height="34" rx="6" fill="#eef2f4" stroke="#a9bcc7"/>
+    <text x="80" y="526">④ 结果回到宿主 → 塞进上下文 → 模型接着说话；可以再调一次，或直接结束</text>
+
+    <rect x="60" y="548" width="1080" height="34" rx="6" fill="#f3f0ea" stroke="#c9c2b6"/>
+    <text x="80" y="570">⑤ 会话结束（宿主关闭进程 / 断开连接）；工具报「失败」要用 isError，而不是让进程崩掉</text>
+  </g>
+
+  <rect x="60" y="604" width="1080" height="44" rx="8" fill="#fdf6ee" stroke="#d9c3a8"/>
+  <text x="80" y="632" font-size="15" fill="#3d362c">stdio 传输下，每一帧就是「一行 JSON」——不是 LSP 那种 Content-Length 头，写错就一个字都收不到</text>
+</svg>

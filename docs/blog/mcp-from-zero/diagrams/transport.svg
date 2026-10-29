@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif">
+  <rect width="1200" height="620" fill="#faf8f5"/>
+  <text x="60" y="58" font-size="30" font-weight="700" fill="#1a1510">两种传输：stdio 与 Streamable HTTP</text>
+  <text x="60" y="92" font-size="17" fill="#6b6459">选题原则：服务器和宿主在同一台机器上就 stdio，跨机器才上 HTTP</text>
+
+  <!-- stdio -->
+  <rect x="60" y="136" width="520" height="286" rx="12" fill="#ffffff" stroke="#c9c2b6"/>
+  <text x="84" y="170" font-size="19" font-weight="700" fill="#1a1510">stdio（本地进程）</text>
+  <rect x="84" y="188" width="200" height="64" rx="8" fill="#fdf6ee" stroke="#d9c3a8"/>
+  <text x="184" y="216" font-size="15" font-weight="700" fill="#1a1510" text-anchor="middle">宿主</text>
+  <text x="184" y="238" font-size="13" fill="#6b6459" text-anchor="middle">spawn 一个子进程</text>
+
+  <rect x="380" y="188" width="176" height="64" rx="8" fill="#eef2f4" stroke="#a9bcc7"/>
+  <text x="468" y="216" font-size="15" font-weight="700" fill="#1a1510" text-anchor="middle">MCP Server</text>
+  <text x="468" y="238" font-size="13" fill="#4a5f6b" text-anchor="middle">读 stdin 写 stdout</text>
+
+  <path d="M286 206 L376 206" stroke="#4a4030" stroke-width="2" fill="none"/>
+  <path d="M376 232 L286 232" stroke="#4a4030" stroke-width="2" fill="none"/>
+  <text x="330" y="200" font-size="12" fill="#6b6459" text-anchor="middle">stdin</text>
+  <text x="330" y="252" font-size="12" fill="#6b6459" text-anchor="middle">stdout</text>
+
+  <text x="84" y="292" font-size="15" fill="#3d362c">优点：零网络、零鉴权、进程随宿主生死</text>
+  <text x="84" y="316" font-size="15" fill="#3d362c">代价：只能本机；宿主必须能 spawn 子进程</text>
+  <text x="84" y="340" font-size="15" fill="#9e2b25">注意：stdout 只能出现 JSON 帧</text>
+  <text x="84" y="362" font-size="15" fill="#9e2b25">任何 console.log 都会污染协议，日志一律走 stderr</text>
+  <text x="84" y="392" font-size="14" fill="#6b6459">适合：本地文件、本机命令、通过 SSH 操作远端（本文案例）</text>
+
+  <!-- http -->
+  <rect x="620" y="136" width="520" height="286" rx="12" fill="#ffffff" stroke="#c9c2b6"/>
+  <text x="644" y="170" font-size="19" font-weight="700" fill="#1a1510">Streamable HTTP（远程服务）</text>
+  <rect x="644" y="188" width="180" height="64" rx="8" fill="#fdf6ee" stroke="#d9c3a8"/>
+  <text x="734" y="216" font-size="15" font-weight="700" fill="#1a1510" text-anchor="middle">宿主</text>
+  <text x="734" y="238" font-size="13" fill="#6b6459" text-anchor="middle">HTTPS 请求</text>
+
+  <rect x="912" y="188" width="204" height="64" rx="8" fill="#eef2f4" stroke="#a9bcc7"/>
+  <text x="1014" y="216" font-size="15" font-weight="700" fill="#1a1510" text-anchor="middle">MCP Server</text>
+  <text x="1014" y="238" font-size="13" fill="#4a5f6b" text-anchor="middle">监听端口 + 鉴权</text>
+
+  <path d="M828 206 L908 206" stroke="#4a4030" stroke-width="2" fill="none"/>
+  <path d="M908 232 L828 232" stroke="#4a4030" stroke-width="2" fill="none"/>
+  <text x="868" y="200" font-size="12" fill="#6b6459" text-anchor="middle">POST</text>
+  <text x="868" y="252" font-size="12" fill="#6b6459" text-anchor="middle">SSE</text>
+
+  <text x="644" y="292" font-size="15" fill="#3d362c">优点：可以给多台机器、多人共用</text>
+  <text x="644" y="316" font-size="15" fill="#3d362c">代价：要自己做 TLS、鉴权、限流、审计</text>
+  <text x="644" y="340" font-size="15" fill="#9e2b25">风险：一个鉴权漏洞 = 服务器被人接管</text>
+  <text x="644" y="362" font-size="15" fill="#9e2b25">所以能不开公网就别开：优先「本机 + SSH」</text>
+  <text x="644" y="392" font-size="14" fill="#6b6459">适合：团队共享的工具、需要长期在线的服务</text>
+
+  <rect x="60" y="452" width="1080" height="128" rx="10" fill="#fdf6ee" stroke="#d9c3a8"/>
+  <text x="84" y="482" font-size="17" font-weight="700" fill="#8a5a1f">本文案例为什么选 stdio</text>
+  <text x="84" y="510" font-size="16" fill="#3d362c">我要操作的是「一台固定服务器」，而宿主跑在我自己的电脑上。</text>
+  <text x="84" y="536" font-size="16" fill="#3d362c">用 stdio + 本机 ssh 出站，等于把「公网暴露」这个最大风险直接删掉，同时还能复用已有的 SSH 鉴权。</text>
+  <text x="84" y="562" font-size="15" fill="#6b6459">代价：只有这台电脑能用；但对我这个单人项目，这不是问题。</text>
+</svg>
