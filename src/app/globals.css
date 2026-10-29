@@ -87,6 +87,42 @@ body {
   scroll-margin-top: 5rem;
 }
 
+/* -- 文章目录（宽屏侧栏）：长目录自己滚 -- */
+/*
+ * 为什么需要它：目录比视口高时，sticky 只能"钉住"上半截，
+ * 下半截会溢出到视口外，而页面滚动只挪整个 aside —— 那些条目永远看不到也点不到。
+ * 实测 23 条标题时目录高 944px，1440×800 下最后一条落在 y=1040（超出 240px）。
+ *
+ * 高度基准与 sticky 的 top-24（6rem）配套，再留 1rem 底部呼吸。
+ * overscroll-behavior: contain —— 滚到目录尽头时不要把页面一起带走。
+ */
+.toc-scroll {
+  max-height: calc(100vh - 7rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* 右侧留 2px，免得滚动条压着文字 */
+  padding-right: 2px;
+  /*
+   * 细滚动条：不抢视线，但一眼能看出"还能往下"。
+   * 用石灰色（stone）而不是纯灰，和站点的纸墨色系一致。
+   */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 113, 108, 0.28) transparent;
+}
+.toc-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.toc-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.toc-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(120, 113, 108, 0.24);
+  border-radius: 9999px;
+}
+.toc-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(120, 113, 108, 0.45);
+}
+
 /* Smooth scroll */
 html {
   scroll-behavior: smooth;

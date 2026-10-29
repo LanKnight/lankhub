@@ -180,7 +180,13 @@ export default async function BlogDetailPage({
         {/* 宽屏目录 */}
         {showToc && (
           <aside className="no-print absolute inset-y-0 right-4 hidden w-52 xl:block">
-            <div className="sticky top-24">
+            {/*
+              长目录的关键：sticky 只负责"钉住"，滚动交给 .toc-scroll（max-height + overflow-y）。
+              没有它的话，目录一旦比视口高，下半截会溢出到视口外且无法滚动 ——
+              实测 23 条标题时目录高 944px，在 1440×800 下最后一条落在 y=1040，超出 240px。
+              高度基准与 top-24（6rem）配套：留 1rem 底部呼吸。
+            */}
+            <div className="toc-scroll sticky top-24">
               <ArticleToc items={outline} />
             </div>
           </aside>

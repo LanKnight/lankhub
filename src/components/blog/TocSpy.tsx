@@ -30,7 +30,45 @@ export default function TocSpy({ ids }: { ids: string[] }) {
 
     if (headings.length === 0) return
 
+    /**
+     * 找到"能滚的那个祖先"：目录比视口高时，宽屏侧栏会给它套一个
+     * .toc-scroll（overflow-y: auto）。找不到就说明目录没溢出，不需要跟随。
+     *
+     * 注意不能用 `scrollIntoView` 让高亮进来 —— 它按定义会滚动**所有**可滚祖先，
+     * 包括正文所在的页面，表现就是"目录跟着动，正文也被滚走了"。
+     * 这里改成手算距离后写 scrollTop，只影响这一个容器。
+     */
+    const scroller = (() => {
+      const first = links.values().next().value
+      let el = first?.parentElement ?? null
+      while (el) {
+        const cs = getComputedStyle(el)
+        const scrollable = cs.overflowY === "auto" || cs.overflowY === "scroll"
+        if (scrollable && el.scrollHeight > el.clientHeight + 1) return el
+        el = el.parentElement
+      }
+      return null
+    })()
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
+    /** 高亮项滚出目录可视区时，把它带回来（只在"当前章节变了"时做一次） */
+    const followActive = (el: HTMLElement) => {
+      if (!scroller) return
+      const box = scroller.getBoundingClientRect()
+      const item = el.getBoundingClientRect()
+      const margin = 8
+      if (item.top >= box.top + margin && item.bottom <= box.bottom - margin) return
+
+      const target =
+        scroller.scrollTop + (item.top - box.top) - scroller.clientHeight / 2 + item.height / 2
+      scroller.scrollTo({
+        top: Math.max(0, target),
+        behavior: reduceMotion ? "auto" : "smooth",
+      })
+    }
+
     let frame = 0
+    let lastActive = ""
     const update = () => {
       frame = 0
 
@@ -52,6 +90,13 @@ export default function TocSpy({ ids }: { ids: string[] }) {
 
       for (const [id, el] of links) {
         el.dataset.active = id === current ? "true" : "false"
+      }
+
+      // 只在章节变化时跟随：否则用户手动把目录滚开，下一帧又会被拽回去
+      if (current !== lastActive) {
+        lastActive = current
+        const el = links.get(current)
+        if (el) followActive(el)
       }
     }
 
