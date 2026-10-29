@@ -7,6 +7,7 @@ import BackToTop from "@/components/layout/BackToTop"
 import NavHistoryTracker from "@/components/layout/NavHistory"
 import SessionGuard from "@/components/auth/SessionGuard"
 import { ToastProvider } from "@/components/ui/Toast"
+import AnnouncementProvider from "@/components/announcement/AnnouncementProvider"
 import "./globals.css"
 
 /*
@@ -57,10 +58,13 @@ export default function RootLayout({
           {/* 会话失效守卫：账号被删除后清掉浏览器里那个没用的 cookie */}
           <SessionGuard />
           <ToastProvider>
-            <Navbar />
-            <main className="flex-1">{children}</main>
-            <Footer />
-            <BackToTop />
+            {/* 公告：顶栏铃铛与首页自动弹出共用这一份状态（见该组件的注释） */}
+            <AnnouncementProvider>
+              <Navbar />
+              <main className="flex-1">{children}</main>
+              <Footer />
+              <BackToTop />
+            </AnnouncementProvider>
           </ToastProvider>
         </SessionProvider>
       </body>

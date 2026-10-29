@@ -236,6 +236,33 @@ html {
  * 右侧抽屉（PC）与底部弹层（窄屏）共用同一个类，用媒体查询换关键帧：
  * 只在 transform 上做，走合成层，不触发重排。
  */
+
+/* -- 公告弹窗：遮罩淡入 + 面板轻微上浮 -- */
+@keyframes announcement-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes announcement-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-announcement-fade {
+  animation: announcement-fade 180ms ease-out;
+}
+.animate-announcement-rise {
+  animation: announcement-rise 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @keyframes sheet-up {
   from {
     transform: translateY(100%);
@@ -270,7 +297,9 @@ html {
  */
 @media (prefers-reduced-motion: reduce) {
   .animate-drawer-in,
-  .animate-sheet-up {
+  .animate-sheet-up,
+  .animate-announcement-fade,
+  .animate-announcement-rise {
     animation: none !important;
   }
 }

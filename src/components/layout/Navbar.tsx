@@ -4,9 +4,10 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { Menu, X, User, PenLine, Settings } from "lucide-react"
+import { Menu, X, User, PenLine, Settings, Bell } from "lucide-react"
 import { resolveActiveHref } from "@/lib/nav"
 import { canAccessAdmin } from "@/lib/permissions"
+import { useAnnouncement } from "@/components/announcement/AnnouncementProvider"
 
 export default function Navbar() {
   const { data: session, status } = useSession()
@@ -14,6 +15,8 @@ export default function Navbar() {
   const pathname = usePathname()
   // session.user 的扩展字段由 src/types/next-auth.d.ts 声明，这里不再需要断言
   const user = session?.user
+  // 公告：铃铛随时可点开；小红点表示"这个版本还没读过"
+  const { show: showAnnouncement, unseen: announcementUnseen } = useAnnouncement()
 
   const navLinks = [
     { href: "/", label: "首页" },
@@ -51,13 +54,39 @@ export default function Navbar() {
     <header className="site-navbar sticky top-0 z-50 bg-paper/90 backdrop-blur-md border-b border-gray-200">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link
-            href="/"
-            className="text-xl font-bold text-gray-900 hover:text-gray-600 transition-colors"
-          >
-            lankHub
-          </Link>
+          {/*
+            Logo 与它右边的公告铃铛放在同一组里。
+            移动端也保持同样的位置（汉堡菜单在右端，不占这块），
+            所以「铃铛在 lankHub 右边」这个约定在两端一致。
+          */}
+          <div className="flex items-center gap-1">
+            <Link
+              href="/"
+              className="text-xl font-bold text-gray-900 hover:text-gray-600 transition-colors"
+            >
+              lankHub
+            </Link>
+            <button
+              type="button"
+              onClick={showAnnouncement}
+              aria-label={announcementUnseen ? "站点公告（有新内容）" : "站点公告"}
+              title="站点公告"
+              className="relative rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+            >
+              <Bell size={17} />
+              {/*
+                小红点：只在"当前公告版本还没读过"时显示。
+                首帧服务端渲染时明确不渲染它（读不到 localStorage），
+                挂载后才可能出现 —— 位置用 absolute 定位，不会推动任何布局。
+              */}
+              {announcementUnseen && (
+                <span
+                  aria-hidden
+                  className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent ring-2 ring-paper"
+                />
+              )}
+            </button>
+          </div>
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-8">

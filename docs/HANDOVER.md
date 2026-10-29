@@ -359,6 +359,12 @@ CDP over WebSocket（Node 24 自带 `WebSocket`，不需要 `ws` 包）。
 19. **`scrollIntoView` 会滚动所有可滚祖先**，用它"把高亮项带进目录可视区"，
     会把正在读的正文也一起滚走（和沉浸层那次"滚歌词把唱片滚上去"是同一个根因）。
     要跟随就手算距离后写容器的 `scrollTop`。
+20. **读 localStorage 别在 effect 里 setState。** 本项目的 eslint 会直接报
+    「Calling setState synchronously within an effect」（会触发级联渲染）。
+    正解是 `useSyncExternalStore(subscribe, readClient, readServer)`：
+    服务端快照返回一个"仿佛已读"的值，SSR 不渲染小红点，客户端再纠正 ——
+    这样已读的用户不会看到"闪一下又消失"。同一标签页内改完要手动通知订阅者
+    （`storage` 事件只在**别的**标签页触发）。
 
 ### 4.4 安全改动的验证要求
 
