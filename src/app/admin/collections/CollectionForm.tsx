@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation"
 import { Loader2, Save, ImageIcon, X } from "lucide-react"
 import { useToast } from "@/components/ui/Toast"
 import { uploadWithProgress } from "@/lib/upload"
+import { COVER_SUGGEST, describeCoverRatio, readImageSize } from "@/lib/cover-hint"
+import { useCoverRatioHint } from "@/lib/use-cover-ratio-hint"
 
 interface CollectionFormProps {
   initialData?: {
@@ -27,6 +29,9 @@ export default function CollectionForm({ initialData }: CollectionFormProps) {
   const [coverImage, setCoverImage] = useState(
     initialData?.coverImage || ""
   )
+  /** 封面比例提示：选图时立刻算，或预览图加载完补算（与文章表单共用同一个 hook） */
+  const { imgRef: coverImgRef, hint: coverHint, setHint: setCoverHint, measure: measureCover } =
+    useCoverRatioHint(coverImage)
   const [coverUploading, setCoverUploading] = useState(false)
   const [coverProgress, setCoverProgress] = useState(0)
   const coverInputRef = useRef<HTMLInputElement>(null)
@@ -56,6 +61,9 @@ export default function CollectionForm({ initialData }: CollectionFormProps) {
     setCoverUploading(true)
     setCoverProgress(0)
     setError("")
+
+    const size = await readImageSize(file)
+    setCoverHint(size ? describeCoverRatio(size.width, size.height) : null)
 
     const formData = new FormData()
     formData.append("file", file)
@@ -163,17 +171,25 @@ export default function CollectionForm({ initialData }: CollectionFormProps) {
         <label className="block text-sm font-medium text-gray-700 mb-1">
           封面图（可选，显示在合集列表和详情页顶部）
         </label>
+        <p className="mb-2 text-xs text-gray-500">
+          比例 2.35:1 · {COVER_SUGGEST}。其它比例的图会被<b className="font-medium">居中裁切</b>，具体损失见下方提示。
+        </p>
         {coverImage ? (
-          <div className="relative w-full max-w-md aspect-[3/1] rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
+          <div className="relative w-full max-w-md aspect-[47/20] rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              ref={coverImgRef}
               src={coverImage}
               alt="封面预览"
               className="w-full h-full object-cover"
+              onLoad={measureCover}
             />
             <button
               type="button"
-              onClick={() => setCoverImage("")}
+              onClick={() => {
+                setCoverImage("")
+                setCoverHint(null)
+              }}
               className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
               title="移除封面"
               aria-label="移除封面"
@@ -186,7 +202,7 @@ export default function CollectionForm({ initialData }: CollectionFormProps) {
             type="button"
             onClick={() => coverInputRef.current?.click()}
             disabled={coverUploading}
-            className="w-full max-w-md aspect-[3/1] rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors disabled:opacity-60"
+            className="w-full max-w-md aspect-[47/20] rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors disabled:opacity-60"
           >
             {coverUploading ? (
               <>
@@ -215,6 +231,15 @@ export default function CollectionForm({ initialData }: CollectionFormProps) {
               style={{ width: `${coverProgress}%` }}
             />
           </div>
+        )}
+        {coverHint && (
+          <p
+            className={`mt-2 text-xs ${
+              coverHint.level === "ok" ? "text-gray-500" : "text-amber-600"
+            }`}
+          >
+            {coverHint.text}
+          </p>
         )}
       </div>
 

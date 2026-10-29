@@ -53,9 +53,10 @@ export default async function CollectionsPage() {
                 className="group bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 animate-rise-in"
                 style={{ animationDelay: staggerDelay(index) }}
               >
-                {/* 合集封面（可选） */}
+                {/* 合集封面（可选）：比例与文章封面统一为 2.35:1。
+                    原来用固定 h-32，会随列宽变化（3 列时约 2.97:1），和文章卡片对不齐。 */}
                 {c.coverImage ? (
-                  <div className="relative h-32 bg-gray-100">
+                  <div className="relative aspect-[47/20] bg-gray-100 overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={c.coverImage}

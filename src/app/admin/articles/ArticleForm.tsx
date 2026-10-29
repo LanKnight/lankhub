@@ -17,6 +17,8 @@ import {
 } from "lucide-react"
 import { useToast } from "@/components/ui/Toast"
 import { uploadWithProgress } from "@/lib/upload"
+import { COVER_SUGGEST, describeCoverRatio, readImageSize } from "@/lib/cover-hint"
+import { useCoverRatioHint } from "@/lib/use-cover-ratio-hint"
 import type { RichTextEditorHandle } from "@/components/editor/RichTextEditor"
 
 const RichTextEditor = dynamic(
@@ -60,6 +62,9 @@ export default function ArticleForm({
   const [summary, setSummary] = useState(initialData?.summary || "")
   const [content, setContent] = useState(initialData?.content || "")
   const [coverImage, setCoverImage] = useState(initialData?.coverImage || "")
+  /** 封面比例提示：选图时立刻算，或预览图加载完补算（含"已缓存、load 不再触发"的情况） */
+  const { imgRef: coverImgRef, hint: coverHint, setHint: setCoverHint, measure: measureCover } =
+    useCoverRatioHint(coverImage)
   const [coverUploading, setCoverUploading] = useState(false)
   const [coverProgress, setCoverProgress] = useState(0)
   const coverInputRef = useRef<HTMLInputElement>(null)
@@ -98,6 +103,10 @@ export default function ArticleForm({
     setCoverUploading(true)
     setCoverProgress(0)
     setError("")
+
+    // 上传前先算比例：让"这张图会被裁多少"在传输过程中就能看到
+    const size = await readImageSize(file)
+    setCoverHint(size ? describeCoverRatio(size.width, size.height) : null)
 
     const formData = new FormData()
     formData.append("file", file)
@@ -226,17 +235,27 @@ export default function ArticleForm({
         <label className="block text-sm font-medium text-gray-700 mb-1">
           封面图（可选，显示在文章列表顶部横幅）
         </label>
+        {/* 静态建议尺寸 + 选图后的动态裁切提示（见下方 coverHint） */}
+        <p className="mb-2 text-xs text-gray-500">
+          比例 2.35:1 · {COVER_SUGGEST}。其它比例的图会被<b className="font-medium">居中裁切</b>，具体损失见下方提示。
+        </p>
         {coverImage ? (
-          <div className="relative w-full max-w-md aspect-[3/1] rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
+          <div className="relative w-full max-w-md aspect-[47/20] rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              ref={coverImgRef}
               src={coverImage}
               alt="封面预览"
               className="w-full h-full object-cover"
+              // 缓存命中时 onLoad 不会触发，measure 里也有一次"已加载则直接算"的兜底
+              onLoad={measureCover}
             />
             <button
               type="button"
-              onClick={() => setCoverImage("")}
+              onClick={() => {
+                setCoverImage("")
+                setCoverHint(null)
+              }}
               className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
               title="移除封面"
               aria-label="移除封面"
@@ -249,7 +268,7 @@ export default function ArticleForm({
             type="button"
             onClick={() => coverInputRef.current?.click()}
             disabled={coverUploading}
-            className="w-full max-w-md aspect-[3/1] rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors disabled:opacity-60"
+            className="w-full max-w-md aspect-[47/20] rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-gray-400 hover:text-gray-500 transition-colors disabled:opacity-60"
           >
             {coverUploading ? (
               <>
@@ -279,6 +298,16 @@ export default function ArticleForm({
               style={{ width: `${coverProgress}%` }}
             />
           </div>
+        )}
+        {/* 裁切提示：ok 灰色、会被裁的用琥珀色，一眼能看出"这张图会不会被切" */}
+        {coverHint && (
+          <p
+            className={`mt-2 text-xs ${
+              coverHint.level === "ok" ? "text-gray-500" : "text-amber-600"
+            }`}
+          >
+            {coverHint.text}
+          </p>
         )}
       </div>
 

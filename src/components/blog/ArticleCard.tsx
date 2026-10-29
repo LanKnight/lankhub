@@ -47,9 +47,13 @@ export default function ArticleCard({
       className="group relative block bg-white border border-gray-200 shadow-sm overflow-hidden hover:border-gray-400 hover:shadow-md transition-all duration-200 animate-rise-in"
       style={{ animationDelay: staggerDelay(index) }}
     >
-      {/* 封面图（有图时展示，3:1 横幅） */}
+      {/*
+        封面图（有图时展示）。比例 47/20 = 2.35:1，与站长常用素材一致；
+        以前是 3:1，同一张 2.35 的图会被多裁掉约 22% 的高度。
+        改动后 16 张存量封面里 15 张裁得更少（实测见 docs/CHANGELOG）。
+      */}
       {coverImage && (
-        <div className="relative aspect-[3/1] bg-gray-100 overflow-hidden">
+        <div className="relative aspect-[47/20] bg-gray-100 overflow-hidden">
           <Image
             src={coverImage}
             alt={title}

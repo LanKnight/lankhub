@@ -80,9 +80,10 @@ export default async function CollectionDetailPage({ params, searchParams }: Pro
         <BackLink fallbackHref="/blog/collections" className="mb-8" />
 
         <div className="mb-10">
-          {/* 合集封面横幅（可选） */}
+          {/* 合集封面横幅（可选）：固定 h-44 会随容器变宽而变得极扁（max-w-4xl 下约 5.1:1），
+              改成与文章封面一致的 2.35:1。 */}
           {collection.coverImage && (
-            <div className="relative h-44 rounded-2xl overflow-hidden bg-gray-100 mb-6">
+            <div className="relative aspect-[47/20] rounded-2xl overflow-hidden bg-gray-100 mb-6">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={collection.coverImage}
