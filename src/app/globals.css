@@ -431,7 +431,14 @@ html {
  * - 雪山态：顶部要淡到纸色，才能和同样纸色的导航栏接上（素材纸色更暖更深）
  * - 江湖态：顶部**不淡** —— 导航栏这时是深色的，淡出反而会在深色栏下面
  *   留一条发亮的纸色带（duotone 版尤其明显，实测就是这么发现的）
- * 两态的底部都淡到纸色，和下方形如「关于我」的纸白衔接。
+ *
+ * 底部：
+ * - 雪山态淡到纸色，正好被画面的白雪雾气接住，也和下方的纸白「关于我」衔接
+ * - 江湖态**不淡**。原来两态都淡，结果深色画面在 88% 处开始淡出、露出纸色底，
+ *   在视口内形成一条满宽的浅色渐变带（实测 y=800 亮度 38 → y=899 亮度 244）。
+ *   而淡出段有约 100px 落在视口里，一眼就看得见 —— 雪山态因为底下是白雾才没露馅。
+ *   取消之后底图铺到视口底边，接缝落在折线上，视口内不再有可见的白带；
+ *   代价是滚动时江湖态与下方纸白是硬边，但那在折线以外，不影响首屏观感。
  */
 .hero-scene[data-scene="snow"] {
   opacity: 1;
@@ -451,13 +458,8 @@ html {
   );
 }
 .hero-scene[data-scene="jianghu"] {
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    #000 0%,
-    #000 88%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(to bottom, #000 0%, #000 88%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 100%);
 }
 :root[data-hero-scene="jianghu"] .hero-scene[data-scene="snow"] {
   opacity: 0;
