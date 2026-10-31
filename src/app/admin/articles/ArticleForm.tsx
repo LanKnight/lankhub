@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import dynamic from "next/dynamic"
@@ -19,6 +19,8 @@ import { useToast } from "@/components/ui/Toast"
 import { uploadWithProgress } from "@/lib/upload"
 import { COVER_SUGGEST, describeCoverRatio, readImageSize } from "@/lib/cover-hint"
 import { useCoverRatioHint } from "@/lib/use-cover-ratio-hint"
+import { toUploadFile, type CompressResult } from "@/lib/image-compress"
+import ImageCompressor from "@/components/admin/ImageCompressor"
 import type { RichTextEditorHandle } from "@/components/editor/RichTextEditor"
 
 const RichTextEditor = dynamic(
@@ -67,7 +69,16 @@ export default function ArticleForm({
     useCoverRatioHint(coverImage)
   const [coverUploading, setCoverUploading] = useState(false)
   const [coverProgress, setCoverProgress] = useState(0)
+  const [coverCompressing, setCoverCompressing] = useState(false)
   const coverInputRef = useRef<HTMLInputElement>(null)
+  /** 选中的原始文件：留给压缩面板重新压缩（不必让用户再选一次） */
+  const [coverFile, setCoverFile] = useState<File | null>(null)
+  /** 压缩结果：决定实际上传哪个 blob */
+  const [coverResult, setCoverResult] = useState<CompressResult | null>(null)
+  /** 用户调过参数、且还没把新版本上传 —— 控制「用这版重新上传」按钮 */
+  const [coverAdjusted, setCoverAdjusted] = useState(false)
+  /** 已经为哪个文件自动上传过首轮压缩结果（只在回调里读写，不参与渲染） */
+  const autoUploadedFor = useRef<File | null>(null)
   const [collectionId, setCollectionId] = useState<number | null>(
     initialData?.collectionId ?? null
   )
@@ -94,48 +105,89 @@ export default function ArticleForm({
       e.target.value = ""
       return
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError("图片大小不能超过 10MB")
+    /*
+     * 这里只是"别把 100MP 的大怪物塞进解码器"的兜底，真正的上传上限是
+     * 反向代理的约 1MB —— 所以选完图要先在浏览器里压缩（见 ImageCompressor）。
+     */
+    if (file.size > 30 * 1024 * 1024) {
+      setError("图片太大了（超过 30MB），请先手动压缩后再上传")
       e.target.value = ""
       return
     }
 
-    setCoverUploading(true)
-    setCoverProgress(0)
     setError("")
 
-    // 上传前先算比例：让"这张图会被裁多少"在传输过程中就能看到
+    // 上传前先算比例：让"这张图会被裁多少"在压缩过程中就能看到
     const size = await readImageSize(file)
     setCoverHint(size ? describeCoverRatio(size.width, size.height) : null)
 
-    const formData = new FormData()
-    formData.append("file", file)
+    // 交给压缩面板：压完（首轮自动）再上传
+    autoUploadedFor.current = null
+    setCoverResult(null)
+    setCoverAdjusted(false)
+    setCoverFile(file)
+    e.target.value = ""
+  }
 
-    try {
-      const res = await uploadWithProgress(
-        "/api/upload",
-        formData,
-        setCoverProgress
-      )
-      const data = await res.json().catch(() => null)
-
-      if (!res.ok) {
-        setError(data?.error || "封面上传失败")
-        setCoverUploading(false)
+  /**
+   * 上传压缩结果。
+   *
+   * 之所以统一走这一个函数：压缩面板每次参数变化都会产出新的 blob，
+   * 首轮自动上传一次；之后用户点「调整」再改参数，需要手点「用这版重新上传」——
+   * 否则拖滑块的过程中会往服务器丢一串垃圾文件。
+   */
+  const uploadCover = useCallback(
+    async (result: CompressResult) => {
+      if (result.size > result.targetBytes) {
+        setError(
+          `压缩后仍有 ${(result.size / 1024 / 1024).toFixed(2)} MB，超过上传上限，请把长边或质量再调低`
+        )
         return
       }
 
-      if (data?.url) {
-        setCoverImage(data.url)
-        toast("封面上传成功", "success")
+      setCoverUploading(true)
+      setCoverProgress(0)
+      setError("")
+
+      try {
+        const formData = new FormData()
+        formData.append("file", toUploadFile(result, coverFile?.name || "cover.webp"))
+
+        const res = await uploadWithProgress("/api/upload", formData, setCoverProgress)
+        const data = await res.json().catch(() => null)
+
+        if (!res.ok) {
+          setError(data?.error || "封面上传失败")
+          return
+        }
+        if (data?.url) {
+          setCoverImage(data.url)
+          setCoverAdjusted(false)
+          toast("封面上传成功", "success")
+        }
+      } catch {
+        setError("封面上传失败，请重试")
+      } finally {
+        setCoverUploading(false)
       }
-    } catch {
-      setError("封面上传失败，请重试")
-    } finally {
-      setCoverUploading(false)
-      e.target.value = ""
-    }
-  }
+    },
+    [coverFile, toast]
+  )
+
+  /** 压缩面板回调：首轮结果自动上传，后续调整等用户点按钮 */
+  const handleCoverCompressed = useCallback(
+    (result: CompressResult) => {
+      setCoverResult(result)
+      if (autoUploadedFor.current === null) {
+        autoUploadedFor.current = coverFile
+        void uploadCover(result)
+        return
+      }
+      // 首轮之后（用户动了质量/长边）：只更新对比，不自动上传
+      setCoverAdjusted(true)
+    },
+    [coverFile, uploadCover]
+  )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -255,6 +307,9 @@ export default function ArticleForm({
               onClick={() => {
                 setCoverImage("")
                 setCoverHint(null)
+                setCoverFile(null)
+                setCoverResult(null)
+                autoUploadedFor.current = null
               }}
               className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
               title="移除封面"
@@ -290,6 +345,30 @@ export default function ArticleForm({
           onChange={handleCoverSelect}
           className="hidden"
         />
+        {/*
+          压缩面板：选完图自动压一次并上传；点「调整」可以改质量/长边，
+          改完点这里重新上传（拖滑块时不自动上传，免得留一串垃圾文件）。
+        */}
+        {coverFile && (
+          <>
+            <ImageCompressor
+              file={coverFile}
+              preset="cover"
+              onResult={handleCoverCompressed}
+              onBusyChange={setCoverCompressing}
+            />
+            {coverResult && coverAdjusted && (
+              <button
+                type="button"
+                onClick={() => void uploadCover(coverResult)}
+                disabled={coverUploading || coverCompressing}
+                className="mt-2 text-xs text-accent underline decoration-accent/40 underline-offset-2 disabled:opacity-50"
+              >
+                用这版重新上传
+              </button>
+            )}
+          </>
+        )}
         {/* 上传进度条 */}
         {coverUploading && (
           <div className="w-full max-w-md h-1.5 bg-gray-100 rounded-full overflow-hidden mt-2">

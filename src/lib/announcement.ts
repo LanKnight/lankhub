@@ -9,13 +9,15 @@
  * 以后随版本更新：改 `version` + `updatedAt` + 文案，就这三件事。
  * 不需要数据库、不需要后台界面。
  *
- * ⚠️ 「最近更新」只写**两条**：本次 + 上一次。
- * 不攒历史 —— 公告是"最近发生了什么"，不是 changelog；
- * 完整历史在 docs/CHANGELOG.md 里。站长明确要求过这个规则。
+ * ⚠️ 两条硬规则（站长定的）：
+ * 1. **每次会部署到服务器的改动，都要顺手更新这里** —— 改 `version`（用日期）、
+ *    `updatedAt`、以及「最近更新」的内容。只改别处不改公告 = 漏了一步。
+ * 2. 「最近更新」最多写**两条**（最新 + 上一条），而且**直接写内容**，
+ *    不要加「本次：」「上次：」这类前缀。完整历史在 docs/CHANGELOG.md 里。
  */
 
 /** 公告版本：改动它会让大家重新看到一次公告（建议用日期） */
-export const ANNOUNCEMENT_VERSION = "2026-10-30"
+export const ANNOUNCEMENT_VERSION = "2026-10-31"
 
 /** localStorage 的键：只存"看过的版本号"一个字符串 */
 export const ANNOUNCEMENT_STORAGE_KEY = "lankhub.announcement.seen"
@@ -41,7 +43,7 @@ export interface Announcement {
 
 export const ANNOUNCEMENT: Announcement = {
   version: ANNOUNCEMENT_VERSION,
-  updatedAt: "2026-10-30",
+  updatedAt: "2026-10-31",
   title: "欢迎来到 lankHub",
   lead: "这是一个人的长期笔记：记录成长，也分享技术与生活。站点有较大改动时，这里会更新一次。",
   sections: [
@@ -56,10 +58,10 @@ export const ANNOUNCEMENT: Announcement = {
     },
     {
       title: "最近更新",
-      // 只写两条：本次 + 上次（规则见文件顶部注释）
+      // 最多两条，直接写内容，不加「本次/上次」前缀（规则见文件顶部注释）
       list: [
-        "本次：首页江湖态底边不再发白（原来会露出一条纸色渐变带）",
-        "上次：新增站点公告与全站免责声明页，顶栏铃铛可随时查看",
+        "图片上传前会自动在浏览器里压缩，大图也能一次传成功",
+        "首页江湖态底边不再发白（原来会露出一条纸色渐变带）",
       ],
     },
   ],

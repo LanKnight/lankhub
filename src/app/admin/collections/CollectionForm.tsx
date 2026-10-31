@@ -1,12 +1,14 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Save, ImageIcon, X } from "lucide-react"
 import { useToast } from "@/components/ui/Toast"
 import { uploadWithProgress } from "@/lib/upload"
 import { COVER_SUGGEST, describeCoverRatio, readImageSize } from "@/lib/cover-hint"
 import { useCoverRatioHint } from "@/lib/use-cover-ratio-hint"
+import { toUploadFile, type CompressResult } from "@/lib/image-compress"
+import ImageCompressor from "@/components/admin/ImageCompressor"
 
 interface CollectionFormProps {
   initialData?: {
@@ -35,6 +37,12 @@ export default function CollectionForm({ initialData }: CollectionFormProps) {
   const [coverUploading, setCoverUploading] = useState(false)
   const [coverProgress, setCoverProgress] = useState(0)
   const coverInputRef = useRef<HTMLInputElement>(null)
+  /** 压缩相关的状态（与文章封面同一套做法） */
+  const [coverFile, setCoverFile] = useState<File | null>(null)
+  const [coverResult, setCoverResult] = useState<CompressResult | null>(null)
+  const [coverAdjusted, setCoverAdjusted] = useState(false)
+  const [coverCompressing, setCoverCompressing] = useState(false)
+  const autoUploadedFor = useRef<File | null>(null)
   const [sortOrder, setSortOrder] = useState(initialData?.sortOrder ?? 0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -52,47 +60,76 @@ export default function CollectionForm({ initialData }: CollectionFormProps) {
       e.target.value = ""
       return
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError("图片大小不能超过 10MB")
+    if (file.size > 30 * 1024 * 1024) {
+      setError("图片太大了（超过 30MB），请先手动压缩后再上传")
       e.target.value = ""
       return
     }
 
-    setCoverUploading(true)
-    setCoverProgress(0)
     setError("")
 
     const size = await readImageSize(file)
     setCoverHint(size ? describeCoverRatio(size.width, size.height) : null)
 
-    const formData = new FormData()
-    formData.append("file", file)
+    // 与文章封面同一套：先压缩再上传（反向代理上限约 1MB）
+    autoUploadedFor.current = null
+    setCoverResult(null)
+    setCoverAdjusted(false)
+    setCoverFile(file)
+    e.target.value = ""
+  }
 
-    try {
-      const res = await uploadWithProgress(
-        "/api/upload",
-        formData,
-        setCoverProgress
-      )
-      const data = await res.json().catch(() => null)
-
-      if (!res.ok) {
-        setError(data?.error || "封面上传失败")
-        setCoverUploading(false)
+  /** 上传压缩结果（首轮自动，之后由用户点「用这版重新上传」触发） */
+  const uploadCover = useCallback(
+    async (result: CompressResult) => {
+      if (result.size > result.targetBytes) {
+        setError(
+          `压缩后仍有 ${(result.size / 1024 / 1024).toFixed(2)} MB，超过上传上限，请把长边或质量再调低`
+        )
         return
       }
 
-      if (data?.url) {
-        setCoverImage(data.url)
-        toast("封面上传成功", "success")
+      setCoverUploading(true)
+      setCoverProgress(0)
+      setError("")
+
+      try {
+        const formData = new FormData()
+        formData.append("file", toUploadFile(result, coverFile?.name || "cover.webp"))
+
+        const res = await uploadWithProgress("/api/upload", formData, setCoverProgress)
+        const data = await res.json().catch(() => null)
+
+        if (!res.ok) {
+          setError(data?.error || "封面上传失败")
+          return
+        }
+        if (data?.url) {
+          setCoverImage(data.url)
+          setCoverAdjusted(false)
+          toast("封面上传成功", "success")
+        }
+      } catch {
+        setError("封面上传失败，请重试")
+      } finally {
+        setCoverUploading(false)
       }
-    } catch {
-      setError("封面上传失败，请重试")
-    } finally {
-      setCoverUploading(false)
-      e.target.value = ""
-    }
-  }
+    },
+    [coverFile, toast]
+  )
+
+  const handleCoverCompressed = useCallback(
+    (result: CompressResult) => {
+      setCoverResult(result)
+      if (autoUploadedFor.current === null) {
+        autoUploadedFor.current = coverFile
+        void uploadCover(result)
+        return
+      }
+      setCoverAdjusted(true)
+    },
+    [coverFile, uploadCover]
+  )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -189,6 +226,10 @@ export default function CollectionForm({ initialData }: CollectionFormProps) {
               onClick={() => {
                 setCoverImage("")
                 setCoverHint(null)
+                setCoverFile(null)
+                setCoverResult(null)
+                setCoverAdjusted(false)
+                autoUploadedFor.current = null
               }}
               className="absolute top-2 right-2 p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
               title="移除封面"
@@ -231,6 +272,27 @@ export default function CollectionForm({ initialData }: CollectionFormProps) {
               style={{ width: `${coverProgress}%` }}
             />
           </div>
+        )}
+        {/* 压缩面板：与文章封面同一套（自动压 + 可调整 + 对比） */}
+        {coverFile && (
+          <>
+            <ImageCompressor
+              file={coverFile}
+              preset="cover"
+              onResult={handleCoverCompressed}
+              onBusyChange={setCoverCompressing}
+            />
+            {coverResult && coverAdjusted && (
+              <button
+                type="button"
+                onClick={() => void uploadCover(coverResult)}
+                disabled={coverUploading || coverCompressing}
+                className="mt-2 text-xs text-accent underline decoration-accent/40 underline-offset-2 disabled:opacity-50"
+              >
+                用这版重新上传
+              </button>
+            )}
+          </>
         )}
         {coverHint && (
           <p

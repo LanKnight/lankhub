@@ -7,6 +7,8 @@ import Image from "next/image"
 import { Upload, X, Check, Trash2, Edit3, Loader2, Lock } from "lucide-react"
 import { PHOTO_CATEGORIES } from "@/lib/photo-categories"
 import { uploadWithProgress } from "@/lib/upload"
+import { toUploadFile, type CompressResult } from "@/lib/image-compress"
+import ImageCompressor from "@/components/admin/ImageCompressor"
 
 interface Photo {
   id: number
@@ -31,8 +33,9 @@ interface PhotoManagerProps {
 export default function PhotoManager({ initialPhotos }: PhotoManagerProps) {
   const router = useRouter()
   const { data: session } = useSession()
-  const myId = parseInt((session?.user as any)?.id || "0")
-  const isOwner = (session?.user as any)?.role === "OWNER"
+  // session.user 的扩展字段由 src/types/next-auth.d.ts 声明，不需要 any 断言
+  const myId = parseInt(session?.user?.id || "0")
+  const isOwner = session?.user?.role === "OWNER"
   const [photos, setPhotos] = useState<Photo[]>(initialPhotos)
   const [filter, setFilter] = useState<string>("all")
   const [uploading, setUploading] = useState(false)
@@ -49,6 +52,10 @@ export default function PhotoManager({ initialPhotos }: PhotoManagerProps) {
     width: number
     height: number
   } | null>(null)
+  /** 压缩结果（上传的就是它，不是原图） */
+  const [compressed, setCompressed] = useState<CompressResult | null>(null)
+  /** 压缩进行中（上传按钮据此禁用） */
+  const [compressing, setCompressing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Edit state
@@ -97,14 +104,20 @@ export default function PhotoManager({ initialPhotos }: PhotoManagerProps) {
       return
     }
 
-    const MAX_SIZE = 10 * 1024 * 1024
+
+    /*
+     * 真正的上传上限是反向代理的约 1MB（实测 1024KB 能进应用、1100KB 直接被 413）。
+     * 所以这里只兜"别把 100MP 的怪物塞进解码器"，压缩交给下面的 ImageCompressor。
+     */
+    const MAX_SIZE = 30 * 1024 * 1024
     if (file.size > MAX_SIZE) {
-      setError("图片大小不能超过 10MB")
+      setError("图片太大了（超过 30MB），请先手动压缩后再上传")
       return
     }
 
     setError(null)
     setSelectedFile(file)
+    setCompressed(null)
     // 释放旧预览 URL，避免内存泄漏
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setPreviewUrl(URL.createObjectURL(file))
@@ -124,10 +137,10 @@ export default function PhotoManager({ initialPhotos }: PhotoManagerProps) {
   async function safeJson(res: Response) {
     const contentType = res.headers.get("content-type") || ""
     if (!contentType.includes("application/json")) {
-      // Server returned non-JSON (e.g. HTML error page from Nginx)
-      const text = await res.text().catch(() => "")
+      // Server returned non-JSON (e.g. 413 HTML error page from the reverse proxy)。
+      // 正常流程下不该走到这里了：图片在浏览器里已压到 900KB 以内。
       if (res.status === 413) {
-        throw new Error("图片太大，服务器拒绝接收（最大支持约 1MB）。请压缩图片后重试。")
+        throw new Error("图片太大，被服务器拒绝（请求体上限约 1MB）。请把长边或质量再调低。")
       }
       throw new Error(`服务器错误 (${res.status})，请稍后重试`)
     }
@@ -140,15 +153,25 @@ export default function PhotoManager({ initialPhotos }: PhotoManagerProps) {
 
   async function handleUpload() {
     if (!selectedFile) return
+    if (!compressed) {
+      setError("还在压缩，稍等一下再上传")
+      return
+    }
+    if (compressed.size > compressed.targetBytes) {
+      setError(
+        `压缩后仍有 ${(compressed.size / 1024 / 1024).toFixed(2)} MB，超过约 1MB 的上传上限：请在「调整」里把长边或质量再调低`
+      )
+      return
+    }
 
     setUploading(true)
     setUploadProgress(0)
     setError(null)
 
     try {
-      // Step 1: Upload file（XHR 带进度）
+      // Step 1: Upload file（XHR 带进度）—— 传的是压缩后的 blob，不是原图
       const formData = new FormData()
-      formData.append("file", selectedFile)
+      formData.append("file", toUploadFile(compressed, selectedFile.name))
 
       const uploadRes = await uploadWithProgress(
         "/api/upload",
@@ -164,7 +187,7 @@ export default function PhotoManager({ initialPhotos }: PhotoManagerProps) {
       const { url } = await safeJson(uploadRes)
       const filename = url.split("/").pop()
 
-      // Step 2: Register in database
+      // Step 2: Register in database（宽高用压缩后的真实尺寸）
       const photoRes = await fetch("/api/admin/photos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -174,8 +197,8 @@ export default function PhotoManager({ initialPhotos }: PhotoManagerProps) {
           category: uploadCategory,
           title: uploadTitle || null,
           description: uploadDescription || null,
-          width: imageDims?.width ?? null,
-          height: imageDims?.height ?? null,
+          width: compressed.width ?? imageDims?.width ?? null,
+          height: compressed.height ?? imageDims?.height ?? null,
         }),
       })
 
@@ -193,6 +216,7 @@ export default function PhotoManager({ initialPhotos }: PhotoManagerProps) {
       setUploadTitle("")
       setUploadDescription("")
       setImageDims(null)
+      setCompressed(null)
       if (fileInputRef.current) fileInputRef.current.value = ""
 
       // Update list
@@ -306,6 +330,7 @@ export default function PhotoManager({ initialPhotos }: PhotoManagerProps) {
                     setSelectedFile(null)
                     setPreviewUrl(null)
                     setImageDims(null)
+                    setCompressed(null)
                     if (fileInputRef.current) fileInputRef.current.value = ""
                   }}
                   className="absolute top-1 right-1 p-1 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
@@ -331,13 +356,25 @@ export default function PhotoManager({ initialPhotos }: PhotoManagerProps) {
             />
             {imageDims && (
               <p className="text-xs text-gray-400 text-center mt-2">
-                {imageDims.width} × {imageDims.height}
+                原图 {imageDims.width} × {imageDims.height}
               </p>
             )}
           </div>
 
           {/* Form fields */}
           <div className="flex-1 flex flex-col gap-4">
+            {/*
+              压缩面板：选完图自动压（相册档 = 长边 2560 + WebP q0.82），
+              上传的是压缩结果，不是原图 —— 否则会被反向代理的 ~1MB 上限挡成 413。
+            */}
+            {selectedFile && (
+              <ImageCompressor
+                file={selectedFile}
+                preset="photo"
+                onResult={setCompressed}
+                onBusyChange={setCompressing}
+              />
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 分类
@@ -380,7 +417,7 @@ export default function PhotoManager({ initialPhotos }: PhotoManagerProps) {
             </div>
             <button
               onClick={handleUpload}
-              disabled={!selectedFile || uploading}
+              disabled={!selectedFile || !compressed || uploading || compressing}
               className="self-start flex items-center gap-2 px-4 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Upload size={16} />
