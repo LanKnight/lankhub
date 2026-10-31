@@ -55,6 +55,14 @@ uploads.bak.*.tar.gz
 dev.db.*
 *.db.*
 
+# 备份包（scripts/backup.sh 产出）
+#
+# ⚠️ 两条必须忽略的理由：
+# 1. 包里含 dev.db、data/ 与 .env.local —— **密钥与全部站内数据**，绝不可入库；
+# 2. 部署闸门要求「工作区干净」，备份目录若不被忽略，每次备份都会把部署挡回去。
+/backups/
+*.tar.gz
+
 # user uploads
 public/images/uploads/
 data/uploads/

@@ -106,8 +106,17 @@
 npm run update      # = backup.sh && git pull && npm ci && db:push && build && pm2 restart
 ```
 
-它第一步就是 `scripts/backup.sh`：备份 `dev.db` + `data/uploads/` + 打 git tag，
-保留最近 2 份。命令用 `&&` 串联，**失败会中断**，所以最坏情况可回滚。
+它第一步就是 `scripts/backup.sh`。**2026-10-31 重做过**（旧做法的坑见 §2.2）：
+
+- 一次备份 = **一个 tar.gz 整包**：`db.sqlite`（`backup()` 在线一致快照，
+  不是 `cp`）+ `data.tar.gz`（整个 `data/`）+ `env.local` + `manifest.json`（含每件 sha256）
+- 备份完**立刻自检**：解出包里的库跑 `integrity_check`，坏包不会留在磁盘上
+- 服务器保留 **2 份整包**（`LANKHUB_BACKUP_KEEP` 可改）；清理按整包计数，不会错位
+- 本机另存 3 份（`lankhub-ops` 的 `localBackupDir`），每次部署成功后自动拉取
+  —— 服务器哪天没了，本机还有"数据 + 密钥"
+
+回滚：`bash scripts/restore.sh --package <id> --yes`（或 `--mode data` 只回数据）。
+**回滚前会自动备份现状**，所以回滚本身也能再撤销。MCP 侧对应 `ops_rollback`。
 
 服务器上的库（2026-10 实测）：合集 4 · 简历 1 · 经历 11 · 技能 8 ·
 文章 15 · 歌单 97 · 评论 3 · 账号 4。
@@ -116,7 +125,6 @@ npm run update      # = backup.sh && git pull && npm ci && db:push && build && p
 但**加唯一约束**会需要（历史上加 `User.name @unique` 时遇到过）。
 
 ### 2.1 运维 MCP（2026-10-28 上线，先只读后加部署）
-
 站长不想每次都自己在服务器上跑 `npm run update`，所以做了一条受控通道：
 **AI 能自己看状态，部署要额外一步确认。**
 
@@ -161,7 +169,8 @@ DSH 工具 mcp__lankhub-ops__*  →  本机 node 进程（零依赖，约 400 �
 锁 / 日志 / 退出码都落在磁盘上，MCP 只负责触发与轮询 `deploy-status`。
 
 **失败不自动回滚**：只把退出码与日志尾部回传，回不回由人决定。
-回滚用仓库里的 `scripts/restore.sh`（库 + 上传文件 + 代码三件套一起回到备份点）。
+回滚用仓库里的 `scripts/restore.sh`（库 + 上传文件 + 代码三件套一起回到备份点），
+MCP 侧是 `ops_rollback`（要 `confirm` + 备份 id，`mode=data` 可只回数据）。
 
 首次真实部署记录：`19ff5e5`，耗时 3m49s，退出码 0，PM2 重启成功，站点 200。
 
@@ -170,6 +179,28 @@ DSH 工具 mcp__lankhub-ops__*  →  本机 node 进程（零依赖，约 400 �
 
 **撤销**：服务器上删掉带该密钥注释的那一行 `authorized_keys`、删掉白名单脚本目录；
 本机删掉 DSH 注册片段里对应那一段。细节见本机 `lankhub-ops/README.md`。
+
+### 2.2 旧备份的三个坑（2026-10-31 修掉）
+
+重做备份脚本的起因是站长一句「两个数据库分开压很麻烦，也不知道备全了没有」。
+查下来旧 `backup.sh` 确有四个问题，都在真出事时会咬人：
+
+1. **`cp dev.db` 不是一致快照**。本项目 `journal_mode=delete`（实测），
+   应用正在写的时候 `cp` 可能拷到半截。现在用 `better-sqlite3` 的 `backup()`。
+2. **三件东西靠时间戳对齐，清理却各删各的**：`ls -t dev.db.bak.*` 与
+   `ls -t uploads.bak.*` 分别 `tail -n +3`，某次 uploads 目录不存在就错位；
+   `restore.sh` 按 db 的时间戳找 tarball，找不到会**静默跳过** → 回滚成"半套"。
+   现在一个整包，清理只按整包计数。
+3. **没有任何校验**：没有 `integrity_check`、没有 sha256、没有清单，
+   所以"备全了没有"根本无法回答。现在备份完立刻自检，清单里写清
+   每件 sha256、表数与行数、文件数与字节数。
+4. **回滚不可逆**：旧 `restore.sh` 直接 `rm -rf data/uploads` 覆盖库，
+   回滚前不备份现状。现在**回滚前自动备份现状**，回滚本身也能再撤销；
+   并且 `--mode data` 不再跑 `db:push`（旧脚本无条件跑，会按新 schema 改旧库）。
+
+另外旧 `restore.sh` 用 `read -p` 等键盘输入（MCP 无 TTY 跑不了），
+且用 `git checkout backup/<ts>` 会进 detached HEAD。现在都改掉了：
+非交互 `--yes`，代码回滚用 manifest 里的 commit 做 `git reset --hard`。
 
 ---
 

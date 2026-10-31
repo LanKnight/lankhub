@@ -28,6 +28,22 @@
 
 **适用对象：所有人。** 不涉及数据库与依赖变化，正常 `npm run update` 即可。
 
+### 重做备份与回滚（运维）
+
+- **一次备份 = 一个整包** `lankhub-backup-<id>.tar.gz`，内含
+  `db.sqlite` / `data.tar.gz`（整个 `data/`）/ `env.local` / `manifest.json`。
+  旧做法是 `dev.db.bak.*` + `uploads.bak.*.tar.gz` + 一个 git tag，三件东西靠时间戳对齐、清理各删各的
+- **数据库用一致快照**：旧做法 `cp dev.db`，而本项目 `journal_mode=delete`（实测），
+  写入过程中拷可能拿到半截。现在用 `better-sqlite3` 的 `backup()`；node_modules 坏掉时退回 `cp` 并在清单里标记
+- **备份完立刻自检**：把包里的库解出来跑 `integrity_check`，坏包不会留在磁盘上；
+  清单里写清每件 sha256、表数与行数、文件数与字节数（"备全了没有"变成可查的数字）
+- **保留策略按整包计数**：服务器留 2 份（`LANKHUB_BACKUP_KEEP` 可调），不会出现"库 3 份、图 2 份"的错位
+- **回滚可撤销**：`restore.sh` 现在会**先备份现状**再动数据；`--mode data` 只回数据、
+  不跑 `db:push`（旧脚本无条件跑，会按新 schema 改旧库）；代码回滚用清单里的 commit 做
+  `git reset --hard`（旧做法 `git checkout backup/<ts>` 会进 detached HEAD）
+- 全程非交互：`--package <id> --yes`，所以 MCP 能驱动；旧的 `read -p` 在没有 TTY 时会直接卡死
+- 备份包与 `backups/` 目录已加入 `.gitignore`（包内含密钥与全部站内数据）
+
 ### 新功能：上传前在浏览器里自动压缩图片
 
 - **先修的是真问题**：上传失败的根因不是接口里那个 10MB 检查，而是反向代理
