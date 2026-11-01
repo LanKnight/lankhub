@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "start": "next start",
+    "start": "next start -H 127.0.0.1",
     "lint": "eslint",
     "postinstall": "prisma generate",
     "setup": "prisma generate && prisma db push && tsx prisma/seed.ts",
