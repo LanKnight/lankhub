@@ -3,7 +3,6 @@
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import ImageExtension from "@tiptap/extension-image"
-import LinkExtension from "@tiptap/extension-link"
 import Placeholder from "@tiptap/extension-placeholder"
 import { Markdown } from "@tiptap/markdown"
 import { TableKit } from "@tiptap/extension-table"
@@ -214,6 +213,20 @@ export default function RichTextEditor({
         },
         // 代码块换成带语法高亮 / 语言下拉 / 复制按钮的扩展
         codeBlock: false,
+        /*
+         * tiptap 3.32 起 StarterKit **内置了 Link / Underline / ListKeymap**。
+         * 以前单独挂一个 LinkExtension 会得到两个同名扩展（实测控制台警告：
+         * `Duplicate extension names found: ['link']`），链接属性可能被重复应用。
+         * 所以改成把我们的配置直接交给 StarterKit，不再额外注册一个。
+         */
+        link: {
+          openOnClick: false,
+          validate: (href) => isSafeUrl(href),
+          HTMLAttributes: {
+            target: "_blank",
+            rel: "noopener noreferrer",
+          },
+        },
       }),
       CodeBlockWithTools,
       TableKit,
@@ -224,14 +237,6 @@ export default function RichTextEditor({
        */
       Markdown,
       ImageExtension,
-      LinkExtension.configure({
-        openOnClick: false,
-        validate: (href) => isSafeUrl(href),
-        HTMLAttributes: {
-          target: "_blank",
-          rel: "noopener noreferrer",
-        },
-      }),
       Placeholder.configure({
         placeholder: "开始写作...",
       }),
