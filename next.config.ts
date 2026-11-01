@@ -33,7 +33,9 @@ const nextConfig: NextConfig = {
     return [
       {
         // 所有 HTML 页面和 API 路由
-        source: "/((?!_next/static|_next/image|favicon.ico).*)",
+        // 注意排除 admin：后台的 CSP 由 src/proxy.ts 下发（带 per-request nonce）。
+        // 两处都下发会变成两个 CSP 头，浏览器按**交集**执行，容易产生难查的行为差异。
+        source: "/((?!_next/static|_next/image|favicon.ico|admin).*)",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
