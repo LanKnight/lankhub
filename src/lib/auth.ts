@@ -196,6 +196,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   session: {
     strategy: "jwt",
+    /*
+     * 7 天。JWT 无法在服务端吊销 —— 缩短有效期是唯一能"自动到期"的手段。
+     * 项目已有两层缓解（session 回调每次查库刷新角色权限、删号后会话内容清空），
+     * 所以不是非改不可；但默认的 30 天对个人站偏长，7 天在体验与风险之间更平衡。
+     */
+    maxAge: 60 * 60 * 24 * 7,
   },
   callbacks: {
     async jwt({ token, user }) {

@@ -39,6 +39,11 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+          // 本站不需要任何浏览器硬件能力，全部关掉（减少被恶意页面借用/指纹识别的面）
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=()",
+          },
           // CSP 基础策略（TipTap 依赖内联样式，需放开 style-src）
           {
             key: "Content-Security-Policy",

@@ -244,7 +244,8 @@ const articleFields = {
   summary: z.string().max(500, "摘要过长").optional().nullable(),
   // 刻意只校验"非空字符串"，不校验是否为合法 TipTap JSON：
   // 库里可能存在早期以 HTML 存储的正文，收紧会让这些文章无法再编辑
-  content: z.string().min(1, "内容不能为空"),
+  // 上限 2MB 是安全栏杆：防误粘贴整篇网页把详情页/列表查询拖慢（外部攻击者到不了这里，只有作者能触发）
+  content: z.string().min(1, "内容不能为空").max(2_000_000, "正文过长（上限约 2MB）"),
   coverImage: z.string().max(500, "封面地址过长").optional().nullable(),
   published: z.boolean().optional(),
   pinned: z.boolean().optional(),
