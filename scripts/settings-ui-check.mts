@@ -129,7 +129,7 @@ async function connect(wsUrl: string) {
 
 const email = `settingsui-${Date.now()}@test.local`
 const name = `设置页测试${Date.now() % 100000}`
-const pwd = "test123456"
+const pwd = "T" + crypto.randomUUID().replace(/-/g, "").slice(0, 20)
 
 const edge = spawn(
   EDGE,

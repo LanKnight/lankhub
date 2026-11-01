@@ -162,7 +162,7 @@ async function main() {
      * 测试账号用完即删（finally 里清），db-state --clean 也会兜底。
      */
     const email = `mdeditor-${Date.now()}@test.local`
-    const pwd = "MdEditor!2026"
+    const pwd = "T" + crypto.randomUUID().replace(/-/g, "").slice(0, 20)
 
     await fetch(`${BASE}/api/auth/register`, {
       method: "POST",

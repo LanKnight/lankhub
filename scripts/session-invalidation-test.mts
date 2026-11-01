@@ -98,7 +98,7 @@ function mergeCookie(res: Response, prev = ""): string {
 
 const email = `sessinv-${Date.now()}@test.local`
 const name = `会话失效测试${Date.now() % 100000}`
-const pwd = "test123456"
+const pwd = "T" + crypto.randomUUID().replace(/-/g, "").slice(0, 20)
 
 // 临时插一首带 apiId 的歌，用来验证「需要登录的接口」确实被拦
 const tmpSong = await prisma.song.create({

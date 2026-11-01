@@ -149,7 +149,7 @@ async function connect(wsUrl: string) {
 // 后面的竞态/加载/失败分流全都测不到（请求数为 0）。
 const email = `musicui-${Date.now()}@test.local`
 const name = `播放器测试${Date.now() % 100000}`
-const pwd = "test123456"
+const pwd = "T" + crypto.randomUUID().replace(/-/g, "").slice(0, 20)
 const createdSongIds: number[] = []
 for (let i = 1; i <= 4; i++) {
   const s = await prisma.song.create({

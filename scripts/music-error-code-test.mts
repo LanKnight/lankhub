@@ -92,7 +92,7 @@ function mergeCookie(res: Response, prev = ""): string {
 
 const email = `musiccode-${Date.now()}@test.local`
 const name = `错误码测试${Date.now() % 100000}`
-const pwd = "test123456"
+const pwd = "T" + crypto.randomUUID().replace(/-/g, "").slice(0, 20)
 // 临时歌：一首已绑定（会真的去打第三方）、一首未绑定
 const bound = await prisma.song.create({
   data: { title: "__errcode_bound__", artist: "t", source: "netease", apiId: "1" },
