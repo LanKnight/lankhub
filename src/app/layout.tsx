@@ -8,6 +8,7 @@ import NavHistoryTracker from "@/components/layout/NavHistory"
 import SessionGuard from "@/components/auth/SessionGuard"
 import { ToastProvider } from "@/components/ui/Toast"
 import AnnouncementProvider from "@/components/announcement/AnnouncementProvider"
+import { SITE_URL } from "@/lib/site"
 import "./globals.css"
 
 /*
@@ -31,11 +32,31 @@ const notoSerifSC = Noto_Serif_SC({
 })
 
 export const metadata: Metadata = {
+  /*
+   * metadataBase 决定所有**相对地址**（og:image、图标、canonical）最终拼成什么绝对 URL。
+   * 之前没有它，Next 在线上把 og:image 解析成了 http://localhost:3000/opengraph-image
+   * —— 外部访问不到 localhost，等于分享出去没有卡片图。
+   */
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "lankHub — 个人博客",
     template: "%s | lankHub",
   },
   description: "记录成长，分享技术与生活 — lankHub 个人博客",
+  openGraph: {
+    type: "website",
+    siteName: "lankHub",
+    locale: "zh_CN",
+    url: SITE_URL,
+    title: "lankHub — 个人博客",
+    description: "记录成长，分享技术与生活 — lankHub 个人博客",
+    // 图片由 src/app/opengraph-image.tsx 自动生成，这里不必再写 images
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "lankHub — 个人博客",
+    description: "记录成长，分享技术与生活 — lankHub 个人博客",
+  },
 }
 
 export default function RootLayout({

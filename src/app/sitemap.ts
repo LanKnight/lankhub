@@ -1,12 +1,10 @@
 import type { MetadataRoute } from "next"
 import { prisma } from "@/lib/prisma"
 import { PHOTO_CATEGORIES } from "@/lib/photo-categories"
+import { SITE_URL } from "@/lib/site"
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.NEXTAUTH_URL ||
-    "http://localhost:3000"
+  const baseUrl = SITE_URL
 
   const articles = await prisma.article.findMany({
     where: { published: true },

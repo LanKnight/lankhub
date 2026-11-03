@@ -17,7 +17,7 @@
  */
 
 /** 公告版本：改动它会让大家重新看到一次公告（建议用日期） */
-export const ANNOUNCEMENT_VERSION = "2026-10-31"
+export const ANNOUNCEMENT_VERSION = "2026-11-03"
 
 /** localStorage 的键：只存"看过的版本号"一个字符串 */
 export const ANNOUNCEMENT_STORAGE_KEY = "lankhub.announcement.seen"
@@ -43,7 +43,7 @@ export interface Announcement {
 
 export const ANNOUNCEMENT: Announcement = {
   version: ANNOUNCEMENT_VERSION,
-  updatedAt: "2026-10-31",
+  updatedAt: "2026-11-03",
   title: "欢迎来到 lankHub",
   lead: "这是一个人的长期笔记：记录成长，也分享技术与生活。站点有较大改动时，这里会更新一次。",
   sections: [
@@ -60,8 +60,8 @@ export const ANNOUNCEMENT: Announcement = {
       title: "最近更新",
       // 最多两条，直接写内容，不加「本次/上次」前缀（规则见文件顶部注释）
       list: [
+        "换了新站标：标签页、书签与手机主屏都用新图标，分享出去的链接也能看到卡片图了",
         "图片上传前会自动在浏览器里压缩，大图也能一次传成功",
-        "首页江湖态底边不再发白（原来会露出一条纸色渐变带）",
       ],
     },
   ],

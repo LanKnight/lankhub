@@ -28,6 +28,24 @@
 
 **适用对象：所有人。** 不涉及数据库与依赖变化，正常 `npm run update` 即可。
 
+### 换新站标 + 修掉分享卡片与站点地图里的 localhost
+
+- **图标按尺寸分开做，不再一张图缩到底**：16px 下剑身会被压到 0.06 像素、糊成一团
+  （放大 8 倍实测是一块白斑）。现在 16/32/48 用**按几何重画的简化标**
+  （帽子 + 剑 + L 三块粗形），180/512 用完整 logo
+- **透明底 + 1px 深色描边**：纯白剪影放透明背景上，在浅色标签栏里几乎看不见；
+  加一圈深色描边后深浅两种标签栏都清楚
+- 新增 `src/app/icon.png`（512）与 `src/app/apple-icon.png`（180，黑底 ——
+  iOS 会给透明区填黑，不如自己给）
+- **修掉一个会毁掉宣传的问题**：线上 `sitemap.xml` 里 29 条网址全是
+  `http://localhost:3000`，`robots.txt` 把搜索引擎指向 localhost，
+  分享卡片的 `og:image` 也解析成 localhost（外部访问不到，等于没有图）。
+  根因是服务器没设 `NEXT_PUBLIC_SITE_URL`、`layout` 又没有 `metadataBase`
+- 现在统一到 `src/lib/site.ts` 的 `SITE_URL`：`NEXT_PUBLIC_SITE_URL` → `NEXTAUTH_URL` →
+  正式域名三级兜底，**生产环境拒绝 localhost**（漏配时退回正式域名并告警，不再安静地错）
+- `layout` 加了 `metadataBase` 与 openGraph/twitter 默认值，
+  `og:image` / `twitter:image` 都是 https 绝对地址
+
 ### 重做备份与回滚（运维）
 
 - **一次备份 = 一个整包** `lankhub-backup-<id>.tar.gz`，内含
