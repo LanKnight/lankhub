@@ -1,9 +1,11 @@
 import { Fragment, type ReactNode } from "react"
 
 import CodeBlock from "@/components/blog/CodeBlock"
+import MermaidDiagram from "@/components/blog/MermaidDiagram"
 
 import { hastToReact } from "./hast-to-react"
 import { lowlight } from "./highlight"
+import { isMermaidLanguage } from "./mermaid"
 import { isSafeUrl } from "./utils"
 
 /** TipTap 文档里实际会出现的节点 / 标记结构 */
@@ -327,6 +329,15 @@ function renderCodeBlock(node: TipTapNode, key: number): ReactNode {
   const code = collectText(node)
   const language =
     typeof node.attrs?.language === "string" ? node.attrs.language : ""
+
+  /*
+   * mermaid 不当代码块渲染：交给客户端组件画成图。
+   * 「整理 Markdown」解析围栏时就已经把语言存进 attrs.language，所以这里只需分流。
+   * 渲染失败会降级成「错误提示 + 源码」，见 MermaidDiagram。
+   */
+  if (isMermaidLanguage(language)) {
+    return <MermaidDiagram key={key} source={code} />
+  }
 
   return (
     <CodeBlock key={key} code={code} language={language}>

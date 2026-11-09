@@ -19,7 +19,14 @@ import {
   Pilcrow,
   SquareCode,
   Wand2,
+  Workflow,
 } from "lucide-react"
+
+/** 「插入图表」用的起步模板：最能说明写法的那一种 */
+const MERMAID_TEMPLATE = `flowchart TD
+  A[开始] --> B{判断条件}
+  B -->|是| C[执行分支]
+  B -->|否| D[结束]`
 
 interface EditorToolbarProps {
   editor: Editor
@@ -164,6 +171,27 @@ export default function EditorToolbar({
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
         >
           <SquareCode size={16} />
+        </ToolButton>
+        {/*
+          插入图表：直接建一个 language=mermaid 的代码块并填入模板。
+          之后在代码块的语言下拉里选「Mermaid 图表」也一样，这里只是少两步。
+        */}
+        <ToolButton
+          title="插入图表（Mermaid）"
+          active={editor.isActive("codeBlock", { language: "mermaid" })}
+          onClick={() =>
+            editor
+              .chain()
+              .focus()
+              .insertContent({
+                type: "codeBlock",
+                attrs: { language: "mermaid" },
+                content: [{ type: "text", text: MERMAID_TEMPLATE }],
+              })
+              .run()
+          }
+        >
+          <Workflow size={16} />
         </ToolButton>
       </div>
 

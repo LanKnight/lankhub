@@ -1771,6 +1771,122 @@ html {
   color: inherit;
 }
 
+/* -- Mermaid 图表 --
+ *
+ * 代码块语言选 mermaid 时，前台与编辑器都不再显示源码块，而是一张图
+ * （见 src/components/blog/MermaidDiagram.tsx）。
+ *
+ * 用纸色卡片而不是深色代码块：图里的文字是墨色的，深底会看不清。
+ * 高度先按 loading 占位撑起来，避免图渲染完把正文往下顶（布局抖动）。
+ */
+.mermaid-diagram {
+  margin: 1.6em 0;
+  border: 1px solid #ddd6c8;
+  border-radius: 0.5rem;
+  background: #fdfcf9;
+  overflow: hidden;
+}
+
+.prose > .mermaid-diagram:first-child {
+  margin-top: 0;
+}
+.prose > .mermaid-diagram:last-child {
+  margin-bottom: 0;
+}
+
+.mermaid-canvas {
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  /* mermaid 输出的是带 viewBox 的 svg，宽度交给它自己按容器算 */
+  text-align: center;
+}
+
+.mermaid-canvas svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 7.5rem;
+  padding: 1rem;
+  color: #8a8275;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+}
+
+.mermaid-error {
+  padding: 0.85rem 1.1rem;
+  border-left: 3px solid #c07a5f;
+  background: #fbf4f0;
+}
+
+.mermaid-error-title {
+  margin: 0 0 0.5rem;
+  color: #9a4f35;
+  font-size: 0.8125rem;
+}
+
+.mermaid-source-details {
+  border-top: 1px solid #e8e2d6;
+  font-size: 0.8125rem;
+}
+
+.mermaid-source-details > summary {
+  padding: 0.45rem 1.1rem;
+  color: #8a8275;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.mermaid-source-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.mermaid-source-details > summary::before {
+  content: "▸ ";
+}
+
+.mermaid-source-details[open] > summary::before {
+  content: "▾ ";
+}
+
+.mermaid-source-details[open] > summary {
+  color: #4a443b;
+}
+
+.mermaid-source-pre {
+  margin: 0;
+  padding: 0.85rem 1.1rem;
+  background: #f7f4ee;
+  border: 0;
+  border-radius: 0;
+  color: #3d372f;
+  font-family: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  line-height: 1.7;
+  overflow-x: auto;
+}
+
+/* 编辑器里的预览：紧贴代码块内部，不再外挂一层边框 */
+.code-block-preview {
+  border-top: 1px solid #3d3730;
+  background: #fdfcf9;
+}
+
+.mermaid-diagram-editor {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  /* 编辑器里渲染失败时不要撑得太高，否则代码块会被推得很长 */
+  max-height: 32rem;
+  overflow-y: auto;
+}
+
 /* -- 表格 --
  *
  * 正文与编辑器里的表格外观都由 Tailwind Typography 的 prose 规则提供

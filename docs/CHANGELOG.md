@@ -26,7 +26,29 @@
 
 ## 未发布
 
-**适用对象：所有人。** 不涉及数据库与依赖变化，正常 `npm run update` 即可。
+**适用对象：所有人。** 不涉及数据库与 schema 变化；新增依赖 `mermaid`，正常 `npm run update` 即可。
+
+### 文章支持 Mermaid 图表
+
+- **「整理 Markdown」这一环不需要改**：`@tiptap/extension-code-block` 解析围栏时
+  已经把语言存进 `attrs.language`，```mermaid 本来就落成了 mermaid 代码块。
+  卡住的是渲染 —— 前台一律按代码块输出，`lowlight` 又不认识 mermaid
+- 新增 `src/lib/mermaid.ts` + `src/components/blog/MermaidDiagram.tsx`：
+  阅读时**按需**动态加载 mermaid（只有页面上真有图才下这几百 KB），渲染成 SVG
+- 编辑器里的代码块，语言选到 Mermaid 时**下方出现实时预览**（防抖 400ms）；
+  工具栏新增「插入图表」按钮，一键插入带模板的 mermaid 代码块
+- 语言下拉新增「Mermaid 图表」；图下方有「查看源码」折叠，读者想看源码也方便
+- 渲染失败只降级成「错误提示 + 源码」，不会让整篇文章白屏
+
+**安全**：`securityLevel: 'strict'` + 自己写的定点清洗（`DOMParser` 解析后只删
+`<script>/<iframe>/<object>/<embed>`、`on*` 事件属性、`javascript:` 链接）。
+为什么不用 DOMPurify：它的 svg profile 会把 mermaid 的 `foreignObject` 标签整块剥掉，
+图上只剩空方框（实测两种配法都试过）；按 DOM 定点删才能既保留结构又去掉执行面。
+CSS：图表用纸色卡片（`.mermaid-diagram`），与代码块的深色块区分开。
+
+**验证**：`npm run editor:mermaid-check`（无头浏览器，9 项断言）——
+阅读侧 svg 出现且有 4 个节点、节点文字完整、源码折叠存在；
+编辑器插入后语言为 mermaid 且预览出图；全程无 CSP 违规、无控制台报错。
 
 ### 换新站标 + 修掉分享卡片与站点地图里的 localhost
 

@@ -30,6 +30,12 @@ export const CODE_LANGUAGES: ReadonlyArray<CodeLanguageOption> = [
   { value: "lua", label: "Lua" },
   { value: "makefile", label: "Makefile" },
   { value: "markdown", label: "Markdown" },
+  /*
+   * mermaid 不是语法高亮语言，而是让代码块渲染成**图表**的开关：
+   * 前台由 MermaidDiagram 接管（见 src/lib/tiptap-render.tsx），
+   * 编辑器里选中它会在代码下方出现实时预览。
+   */
+  { value: "mermaid", label: "Mermaid 图表" },
   { value: "objectivec", label: "Objective-C" },
   { value: "perl", label: "Perl" },
   { value: "php", label: "PHP" },
