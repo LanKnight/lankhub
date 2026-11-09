@@ -40,15 +40,26 @@
 - 语言下拉新增「Mermaid 图表」；图下方有「查看源码」折叠，读者想看源码也方便
 - 渲染失败只降级成「错误提示 + 源码」，不会让整篇文章白屏
 
-**安全**：`securityLevel: 'strict'` + 自己写的定点清洗（`DOMParser` 解析后只删
-`<script>/<iframe>/<object>/<embed>`、`on*` 事件属性、`javascript:` 链接）。
-为什么不用 DOMPurify：它的 svg profile 会把 mermaid 的 `foreignObject` 标签整块剥掉，
-图上只剩空方框（实测两种配法都试过）；按 DOM 定点删才能既保留结构又去掉执行面。
-CSS：图表用纸色卡片（`.mermaid-diagram`），与代码块的深色块区分开。
+**配色**：改用 `base` 主题 + 自定义「青黛」配色（淡青蓝节点 `#e9f0f5`、
+蓝灰连线 `#5f88a3`、纸色背景不变），替掉原来只有黑白灰的 `neutral`。
+单张图仍可在源码首行用 `%%{init: {...}}%%` 覆盖主题（mermaid 原生能力）。
 
-**验证**：`npm run editor:mermaid-check`（无头浏览器，9 项断言）——
-阅读侧 svg 出现且有 4 个节点、节点文字完整、源码折叠存在；
-编辑器插入后语言为 mermaid 且预览出图；全程无 CSP 违规、无控制台报错。
+**宽图可读性**：像 8 节点 `flowchart LR` 那种超宽图，按容器宽度缩放后字只有 5px 左右。
+现在**点击图可以打开放大层**，按原始尺寸（如 1904px）显示并在面板内滚动；
+Esc 或点背景关闭，打开时锁定页面滚动。
+
+**两个踩过的坑**（都在代码注释里写清了）：
+1. **`<br/>` 让整张图报错**：第一版用 `DOMParser("image/svg+xml")` 严格解析 SVG，
+   而 mermaid 会把 `<br/>` 规范化成未闭合的 `<br>`，XML 解析器直接抛 parsererror，
+   于是报「生成的 SVG 无法解析」。改成 `<template>` + `innerHTML`（容错 HTML 解析）
+   后正常，并用带 `<br/>` 的图做了回归断言
+2. **为什么不用 DOMPurify**：它的 svg profile 会把 mermaid 的 `foreignObject`
+   （节点标签）整块剥掉，图上只剩空方框；加 `html: true` 后又把边标签也丢了。
+   最终改成按 DOM 定点删（脚本元素、`on*` 事件属性、`javascript:` 链接）
+
+**验证**：`npm run editor:mermaid-check`（无头浏览器，16 项断言）——
+两张图（含 `<br/>` 宽图）都渲染成功、节点文字完整、配色为青黛、
+点击放大后宽度 1904 > 正文 631、Esc 可关且恢复滚动、全程无 CSP 违规。
 
 ### 换新站标 + 修掉分享卡片与站点地图里的 localhost
 

@@ -29,6 +29,16 @@ type MermaidModule = {
 /**
  * 定点清洗 mermaid 产出的 SVG。
  *
+ * ## 为什么用 <template> + innerHTML，而不是 DOMParser("image/svg+xml")
+ *
+ * 第一版用的是严格 XML 解析。实测遇到带 `<br/>` 的标签就整段失败 ——
+ * mermaid 会把空标签规范成 `<br>`（HTML 写法），XML 解析器遇到未闭合标签直接报
+ * parsererror，于是图表报「生成的 SVG 无法解析」。
+ *
+ * `<template>` 走的是**容错的 HTML 解析器**：<br> 这类空标签、命名空间、
+ * foreignObject 里的 div 都能正确落到 DOM 上，而且 SVG 元素在 HTML 解析器里
+ * 会正确进入 SVG 命名空间，序列化回去浏览器照样认。
+ *
  * ## 为什么不用 DOMPurify
  *
  * 试过两种配法都失败：
@@ -37,16 +47,17 @@ type MermaidModule = {
  *  - 加上 `html: true` 并放行 foreignObject → 连边标签也一起消失
  *    （DOMPurify 按 namespace 处理 foreignObject 里的 HTML 时会连内容一起丢）
  *
- * 于是改成**按 DOM 结构定点删**：用 DOMParser 解析成真正的 SVG 文档，
- * 只删「脚本元素」和「事件属性 / javascript: 链接」，其余原样保留。
- * 这样 mermaid 的输出结构完全不被破坏，而真正的执行面被去掉了。
- *
+ * 于是改成**按 DOM 结构定点删**：只删「脚本类元素」和「事件属性 / javascript: 链接」，
+ * 其余原样保留。这样 mermaid 的输出结构完全不被破坏，而真正的执行面被去掉了。
  * 另外 mermaid 本身在 `securityLevel: 'strict'` 下会转义标签文本，这是第一层。
  */
 function sanitizeSvg(svg: string): string {
-  const doc = new DOMParser().parseFromString(svg, "image/svg+xml")
-  if (doc.querySelector("parsererror")) {
-    throw new Error("生成的 SVG 无法解析")
+  const template = document.createElement("template")
+  template.innerHTML = svg
+
+  const root = template.content.firstElementChild
+  if (!root || root.tagName.toLowerCase() !== "svg") {
+    throw new Error("生成的 SVG 结构异常")
   }
 
   const walk = (element: Element) => {
@@ -73,8 +84,8 @@ function sanitizeSvg(svg: string): string {
     }
   }
 
-  walk(doc.documentElement)
-  return new XMLSerializer().serializeToString(doc.documentElement)
+  walk(root)
+  return template.innerHTML
 }
 
 async function loadModules(): Promise<{ mermaid: MermaidModule }> {
@@ -90,8 +101,56 @@ async function loadModules(): Promise<{ mermaid: MermaidModule }> {
        * 它**是会执行的**，所以输出还要过下面的 sanitizeSvg。
        */
       securityLevel: "strict",
-      // neutral 是灰阶主题，和站点的水墨风最接近（default 是蓝色系）
-      theme: "neutral",
+      /*
+       * 用 base 主题 + 自定义配色，而不是内置的 neutral/default：
+       *  - neutral 只有黑白灰（站长反馈"单调"）
+       *  - default 是 lavender 紫，一眼是"第三方默认主题"，和站点水墨风不搭
+       * 这里取「青黛」：淡青蓝节点 + 蓝灰连线，纸色背景不变。
+       * 单张图仍可在源码首行用 `%%{init: {...}}%%` 覆盖（mermaid 原生能力）。
+       */
+      theme: "base",
+      themeVariables: {
+        background: "#fdfcf9",
+        primaryColor: "#e9f0f5",
+        primaryBorderColor: "#8aa8bd",
+        primaryTextColor: "#1f2f3a",
+        secondaryColor: "#dde9f1",
+        secondaryBorderColor: "#7d9cb2",
+        tertiaryColor: "#f4f8fb",
+        tertiaryBorderColor: "#c2d3df",
+        lineColor: "#5f88a3",
+        textColor: "#2b3a45",
+        mainBkg: "#e9f0f5",
+        nodeBorder: "#8aa8bd",
+        clusterBkg: "#f1f6fa",
+        clusterBorder: "#cbdae5",
+        edgeLabelBackground: "#fdfcf9",
+        fontSize: "15px",
+        // 时序图
+        actorBkg: "#e9f0f5",
+        actorBorder: "#8aa8bd",
+        actorTextColor: "#1f2f3a",
+        signalColor: "#5f88a3",
+        labelBoxBkgColor: "#e9f0f5",
+        labelBoxBorderColor: "#8aa8bd",
+        loopTextColor: "#2b3a45",
+        noteBkgColor: "#fdf3e6",
+        noteBorderColor: "#d9b98a",
+        noteTextColor: "#4a3b28",
+        // 甘特图
+        sectionBkgColor: "#f1f6fa",
+        altSectionBkgColor: "#fdfcf9",
+        taskBkgColor: "#e9f0f5",
+        taskBorderColor: "#8aa8bd",
+        taskTextColor: "#1f2f3a",
+        // 饼图（保留一点暖色，避免全蓝）
+        pie1: "#8aa8bd",
+        pie2: "#a8c2d2",
+        pie3: "#c2d3df",
+        pie4: "#5f88a3",
+        pie5: "#d9b98a",
+        pie6: "#c9c1b0",
+      },
       logLevel: "fatal",
       fontFamily:
         'ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',

@@ -27,11 +27,25 @@ const check = (n, ok, d = "") => {
 // ---- 准备一篇带 mermaid 的临时文章 ----
 const SLUG = `mermaid-check-${Date.now()}`
 const mermaidSource = "flowchart TD\n  A[开始] --> B{判断}\n  B -->|是| C[执行]\n  B -->|否| D[结束]"
+/*
+ * 第二张图是回归用：带 <br/> 的宽图。
+ * 早期版本用 DOMParser("image/svg+xml") 严格解析，遇到 mermaid 规范化后的
+ * `<br>`（未闭合）会整段报错「生成的 SVG 无法解析」，线上就是这么炸的。
+ */
+const brSource = `flowchart LR
+  S0["正常：文件 Medium"] -->|"工作区打标签"| S1["文件变 Low"]
+  S1 -->|"启动"| S2["进程变 Low"]
+  S2 -->|"写 Medium 对象"| S3["报错 / 断言崩溃"]
+  S3 -->|"只改文件标签"| S4["文件已 Medium<br/>旧进程仍 Low"]
+  S4 -->|"再次启动"| S5["进程 Medium"]
+  S5 --> S6["功能恢复"]`
 const content = JSON.stringify({
   type: "doc",
   content: [
     { type: "paragraph", content: [{ type: "text", text: "这是一段图表测试正文。" }] },
     { type: "codeBlock", attrs: { language: "mermaid" }, content: [{ type: "text", text: mermaidSource }] },
+    { type: "paragraph", content: [{ type: "text", text: "第二张：带 br 的宽图（回归用）。" }] },
+    { type: "codeBlock", attrs: { language: "mermaid" }, content: [{ type: "text", text: brSource }] },
     { type: "paragraph", content: [{ type: "text", text: "图表之后的正文。" }] },
   ],
 })
@@ -125,16 +139,20 @@ try {
   // ---------- 1) 阅读侧 ----------
   await cdp.send("Page.navigate", { url: `${BASE}/blog/${SLUG}` })
   let ready = false
-  for (let i = 0; i < 120; i++) {
-    ready = await run(`Boolean(document.querySelector('.mermaid-diagram[data-state="ready"] svg'))`)
+  for (let i = 0; i < 160; i++) {
+    ready = await run(`document.querySelectorAll('.mermaid-diagram[data-state="ready"] svg').length >= 2`)
     if (ready) break
     await sleep(250)
   }
   const articleState = await run(`(() => {
-    const box = document.querySelector('.mermaid-diagram')
+    const boxes = [...document.querySelectorAll('.mermaid-diagram')]
+    const box = boxes[0]
     const svg = box?.querySelector('svg')
+    const nodeRect = svg?.querySelector('g.node rect')
     return {
       state: box?.getAttribute('data-state') || null,
+      boxCount: boxes.length,
+      allReady: boxes.every((b) => b.getAttribute('data-state') === 'ready'),
       hasSvg: Boolean(svg),
       viewBox: svg?.getAttribute('viewBox') || null,
       nodes: svg ? svg.querySelectorAll('g.node').length : 0,
@@ -144,15 +162,56 @@ try {
         .join('')
         .replace(/\s+/g, '')
         .slice(0, 60) || ''),
+      nodeFill: nodeRect ? getComputedStyle(nodeRect).fill : null,
       details: Boolean(document.querySelector('.mermaid-source-details')),
       error: (document.querySelector('.mermaid-error-title')?.textContent || '').slice(0, 80),
+      inlineWidth: Math.round(svg?.getBoundingClientRect().width || 0),
     }
   })()`)
-  check("阅读侧图表渲染成功（svg 出现）", Boolean(articleState.hasSvg), JSON.stringify(articleState))
+  check("阅读侧图表渲染成功（svg 出现）", Boolean(articleState.hasSvg), JSON.stringify(articleState).slice(0, 200))
+  check("两张图都渲染成功（含 <br/> 的宽图 —— 回归）", Boolean(articleState.allReady) && articleState.boxCount === 2, `boxes=${articleState.boxCount} allReady=${articleState.allReady}`)
   check("图里有节点（node 分组 > 0）", Number(articleState.nodes) > 0, `nodes=${articleState.nodes}`)
   check("节点文字进了图里", String(articleState.text).includes("开始") || String(articleState.text).includes("判断"), articleState.text)
+  check("配色是青黛（节点底色 rgb(233, 240, 245)）", String(articleState.nodeFill || "").replace(/\s/g, "") === "rgb(233,240,245)", String(articleState.nodeFill))
   check("图下有「查看源码」折叠", Boolean(articleState.details))
+
+  // ---------- 1b) 点击放大（用第二张宽图验证，它才是"看不清"的那种） ----------
+  const wideInline = await run(`(() => {
+    const boxes = [...document.querySelectorAll('.mermaid-diagram')]
+    const svg = boxes[1]?.querySelector('.mermaid-canvas svg')
+    return Math.round(svg?.getBoundingClientRect().width || 0)
+  })()`)
+  const opened = await run(`(() => {
+    const btns = [...document.querySelectorAll('.mermaid-zoom-trigger')]
+    const btn = btns[1]
+    if (!btn) return false
+    btn.click()
+    return true
+  })()`)
+  await sleep(400)
+  const zoomState = await run(`(() => {
+    const backdrop = document.querySelector('.mermaid-zoom-backdrop')
+    const svg = backdrop?.querySelector('.mermaid-zoom-canvas svg')
+    return {
+      open: Boolean(backdrop),
+      zoomWidth: Math.round(svg?.getBoundingClientRect().width || 0),
+      hasClose: Boolean(backdrop?.querySelector('.mermaid-zoom-close')),
+      bodyLocked: document.body.style.overflow === 'hidden',
+    }
+  })()`)
+  check("点击图能打开放大层", Boolean(opened) && Boolean(zoomState.open), JSON.stringify(zoomState))
+  check("宽图在放大层里比正文里宽（真的能看清）", Number(zoomState.zoomWidth) > Number(wideInline), `zoom=${zoomState.zoomWidth} inline=${wideInline}`)
+  check("放大层锁定了页面滚动", Boolean(zoomState.bodyLocked))
   let shot = await cdp.send("Page.captureScreenshot", { format: "png" })
+  writeFileSync(`${OUT}/zoom.png`, Buffer.from(shot.data, "base64"))
+
+  await cdp.send("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 })
+  await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 })
+  await sleep(300)
+  const closed = await run(`!document.querySelector('.mermaid-zoom-backdrop')`)
+  check("Esc 能关闭放大层并恢复滚动", Boolean(closed) && (await run(`document.body.style.overflow !== 'hidden'`)), String(closed))
+
+  shot = await cdp.send("Page.captureScreenshot", { format: "png" })
   writeFileSync(`${OUT}/article.png`, Buffer.from(shot.data, "base64"))
 
   // ---------- 2) 编辑器 ----------
