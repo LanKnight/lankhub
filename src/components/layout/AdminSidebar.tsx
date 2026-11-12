@@ -9,7 +9,6 @@ import {
   ImageIcon,
   MessageSquare,
   FileUser,
-  ScrollText,
   Users,
   Headphones,
   type LucideIcon,
@@ -30,8 +29,8 @@ const links: AdminLink[] = [
   { href: "/admin", label: "仪表盘", icon: LayoutDashboard, perm: null },
   { href: "/admin/articles", label: "文章管理", icon: FileText, perm: "article" },
   { href: "/admin/collections", label: "合集管理", icon: FolderOpen, perm: null },
-  { href: "/admin/photos", label: "相册管理", icon: ImageIcon, perm: "photo" },
-  { href: "/admin/poems", label: "拾章管理", icon: ScrollText, perm: "poem" },
+  { href: "/admin/moments", label: "动态管理", icon: ImageIcon, perm: null },
+
   // perm 为 null = 仅站长可见（歌单是站长私人的收藏）
   { href: "/admin/music", label: "歌单管理", icon: Headphones, perm: null },
   { href: "/admin/comments", label: "评论管理", icon: MessageSquare, perm: null },

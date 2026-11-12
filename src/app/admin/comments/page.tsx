@@ -34,6 +34,8 @@ export default async function AdminCommentsPage({
       include: {
         author: { select: { id: true, name: true, email: true } },
         article: { select: { id: true, title: true, slug: true } },
+        // 评论现在也可能挂在动态上（文章与动态恰好一个非空）
+        moment: { select: { id: true, title: true, kind: true, text: true } },
       },
     }),
     prisma.comment.count(),
@@ -56,7 +58,7 @@ export default async function AdminCommentsPage({
               <tr>
                 <th className="text-left px-5 py-3 font-medium">评论内容</th>
                 <th className="text-left px-5 py-3 font-medium">作者</th>
-                <th className="text-left px-5 py-3 font-medium">所属文章</th>
+                <th className="text-left px-5 py-3 font-medium">来源</th>
                 <th className="text-left px-5 py-3 font-medium">日期</th>
                 <th className="text-right px-5 py-3 font-medium">操作</th>
               </tr>
@@ -73,13 +75,28 @@ export default async function AdminCommentsPage({
                       : "匿名用户"}
                   </td>
                   <td className="px-5 py-3">
-                    <Link
-                      href={`/blog/${comment.article.slug}`}
-                      className="text-accent hover:underline line-clamp-1"
-                      target="_blank"
-                    >
-                      {comment.article.title}
-                    </Link>
+                    {comment.article ? (
+                      <Link
+                        href={`/blog/${comment.article.slug}`}
+                        className="text-accent hover:underline line-clamp-1"
+                        target="_blank"
+                      >
+                        {comment.article.title}
+                      </Link>
+                    ) : comment.moment ? (
+                      <Link
+                        href="/blog/moments"
+                        className="text-accent hover:underline line-clamp-1"
+                        target="_blank"
+                      >
+                        <span className="mr-1 text-xs text-gray-400">
+                          {comment.moment.kind === "poem" ? "诗句" : "动态"}
+                        </span>
+                        {(comment.moment.title || comment.moment.text || "无标题").slice(0, 24)}
+                      </Link>
+                    ) : (
+                      <span className="text-gray-400">（已删除）</span>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-gray-400 whitespace-nowrap">
                     {formatDate(comment.createdAt, "YYYY-MM-DD HH:mm")}

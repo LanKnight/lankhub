@@ -360,3 +360,35 @@ export const ResumeSaveSchema = z.object({
   skills: z.array(ResumeSkillSchema).max(100, "技能过多").optional(),
   experiences: z.array(ResumeExperienceSchema).max(200, "经历过多").optional(),
 })
+
+/* ------------------------------------------------------------------ *
+ * 动态（图文动态 / 诗句）
+ * ------------------------------------------------------------------ */
+
+/** 动态里的一张图（url 来自本站上传接口） */
+export const MomentImageSchema = z.object({
+  url: z.string().trim().min(1, "图片地址不能为空").max(500, "图片地址过长"),
+  width: z.number().int().positive().max(20000).optional().nullable(),
+  height: z.number().int().positive().max(20000).optional().nullable(),
+})
+
+/**
+ * 新建动态。
+ *
+ * 上限都收得比较紧：这是信息流，不是长文编辑器。
+ * images 最多 9 张 —— 再多就该写成文章了。
+ */
+export const MomentSchema = z.object({
+  kind: z.enum(["moment", "poem"]).default("moment"),
+  topic: z.string().trim().max(40, "主题过长").optional().nullable(),
+  title: z.string().trim().max(120, "标题过长").optional().nullable(),
+  text: z.string().max(5000, "正文过长").optional().nullable(),
+  poemAuthor: z.string().trim().max(40, "作者过长").optional().nullable(),
+  poemSource: z.string().trim().max(80, "出处过长").optional().nullable(),
+  images: z.array(MomentImageSchema).max(9, "单条动态最多 9 张图").optional(),
+  published: z.boolean().optional(),
+  sortOrder: z.number().int().min(-9999).max(9999).optional(),
+})
+
+/** 更新动态：字段全部可选（局部更新语义） */
+export const MomentUpdateSchema = MomentSchema.partial()

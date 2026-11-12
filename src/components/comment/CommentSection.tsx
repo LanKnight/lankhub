@@ -6,13 +6,20 @@ import Link from "next/link"
 import { Send, Loader2 } from "lucide-react"
 import { timeAgo } from "@/lib/utils"
 
+/** 评论可以挂在文章或动态上；两种内容的接口路径不同，其余逻辑完全一致 */
+export type CommentTarget = { type: "article" | "moment"; id: number }
+
 export default function CommentSection({
-  articleId,
+  target,
   initialComments,
 }: {
-  articleId: number
+  target: CommentTarget
   initialComments: any[]
 }) {
+  const endpoint =
+    target.type === "moment"
+      ? `/api/moments/${target.id}/comments`
+      : `/api/articles/${target.id}/comments`
   const [comments, setComments] = useState<any[]>(initialComments)
 
   // 新评论本地插入评论树（不刷新页面）
@@ -41,10 +48,10 @@ export default function CommentSection({
       <h2 className="text-xl font-bold text-gray-900">
         评论 ({comments.length})
       </h2>
-      <CommentForm articleId={articleId} onSuccess={handleCommentCreated} />
+      <CommentForm endpoint={endpoint} onSuccess={handleCommentCreated} />
       <CommentList
         comments={comments}
-        articleId={articleId}
+        endpoint={endpoint}
         onCommentCreated={handleCommentCreated}
       />
     </section>
@@ -52,11 +59,12 @@ export default function CommentSection({
 }
 
 function CommentForm({
-  articleId,
+  endpoint,
   parentId,
   onSuccess,
 }: {
-  articleId: number
+  /** 评论接口地址（文章或动态） */
+  endpoint: string
   parentId?: number
   onSuccess?: (comment: any) => void
 }) {
@@ -88,7 +96,7 @@ function CommentForm({
     setError("")
 
     try {
-      const res = await fetch(`/api/articles/${articleId}/comments`, {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -145,11 +153,11 @@ function CommentForm({
 
 function CommentList({
   comments,
-  articleId,
+  endpoint,
   onCommentCreated,
 }: {
   comments: any[]
-  articleId: number
+  endpoint: string
   onCommentCreated: (comment: any) => void
 }) {
   if (comments.length === 0) {
@@ -166,7 +174,7 @@ function CommentList({
         <CommentItem
           key={comment.id}
           comment={comment}
-          articleId={articleId}
+          endpoint={endpoint}
           onCommentCreated={onCommentCreated}
         />
       ))}
@@ -176,11 +184,11 @@ function CommentList({
 
 function CommentItem({
   comment,
-  articleId,
+  endpoint,
   onCommentCreated,
 }: {
   comment: any
-  articleId: number
+  endpoint: string
   onCommentCreated: (comment: any) => void
 }) {
   const [showReply, setShowReply] = useState(false)
@@ -233,7 +241,7 @@ function CommentItem({
           {showReply && (
             <div className="mt-3 ml-2 pl-3 border-l-2 border-gray-100">
               <CommentForm
-                articleId={articleId}
+                endpoint={endpoint}
                 parentId={comment.id}
                 onSuccess={(c) => {
                   setShowReply(false)
@@ -252,7 +260,7 @@ function CommentItem({
             <CommentItem
               key={reply.id}
               comment={reply}
-              articleId={articleId}
+              endpoint={endpoint}
               onCommentCreated={onCommentCreated}
             />
           ))}

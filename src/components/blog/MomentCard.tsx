@@ -1,3 +1,4 @@
+import MomentComments from "./MomentComments"
 import { formatDate } from "@/lib/utils"
 
 export interface MomentImageProp {
@@ -20,6 +21,8 @@ export interface MomentCardProps {
   /** 诗句作者与出处（仅 kind=poem） */
   poemAuthor?: string | null
   poemSource?: string | null
+  /** 评论入口：传了才显示（旧兼容模式没有动态 id，就不显示） */
+  comments?: { momentId: number; count: number }
 }
 
 /**
@@ -42,6 +45,7 @@ export default function MomentCard({
   createdAt,
   poemAuthor,
   poemSource,
+  comments,
 }: MomentCardProps) {
   const isPoem = kind === "poem"
 
@@ -121,6 +125,10 @@ export default function MomentCard({
           {poemAuthor && <span>—— {poemAuthor}</span>}
           {poemSource && <span className="ml-2 text-gray-400">《{poemSource}》</span>}
         </footer>
+      )}
+
+      {comments && (
+        <MomentComments momentId={comments.momentId} count={comments.count} />
       )}
     </article>
   )

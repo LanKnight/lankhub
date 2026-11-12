@@ -174,7 +174,7 @@ export default async function BlogDetailPage({
           <hr className="my-12 border-gray-200" />
 
           {/* Comments */}
-          <CommentSection articleId={article.id} initialComments={comments} />
+          <CommentSection target={{ type: "article", id: article.id }} initialComments={comments} />
         </article>
 
         {/* 宽屏目录 */}

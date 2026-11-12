@@ -32,6 +32,7 @@ model User {
   comments    Comment[]
   photos      Photo[]
   poems       Poem[]
+  moments     Moment[]
   songs       Song[]
   sessions    Session[]
   accounts    Account[]
@@ -150,8 +151,18 @@ model Article {
 model Comment {
   id        Int       @id @default(autoincrement())
   content   String
-  articleId Int
-  article   Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  /*
+   * 评论现在可以挂在两种内容上：文章 或 动态。
+   *
+   * 为什么用两个可空外键而不是 targetType+targetId：
+   *  - 外键能级联删除（文章/动态删了评论跟着走），多态字段做不到
+   *  - Prisma 的类型与 include 都能直接用，不用自己在应用层拼
+   * 应用层（接口）保证两者**恰好一个非空**。
+   */
+  articleId Int?
+  article   Article?  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  momentId  Int?
+  moment    Moment?   @relation(fields: [momentId], references: [id], onDelete: Cascade)
   authorId  Int?
   author    User?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
   parentId  Int?
@@ -161,6 +172,7 @@ model Comment {
   updatedAt DateTime  @updatedAt
 
   @@index([articleId, createdAt])
+  @@index([momentId, createdAt])
 }
 
 model ResumeProfile {
@@ -281,4 +293,61 @@ model Song {
   /// 前台按歌手分组取数，所以索引带上 artist
   @@index([artist, sortOrder])
   @@index([sortOrder, createdAt])
+}
+
+/// 动态：朋友圈式的信息流（图文动态 / 诗句）
+///
+/// 为什么单独建表而不是继续用 Photo：
+///  - 动态要支持「纯文字」「多图」，Photo 是「一行一张图」
+///  - 诗句也要进同一个信息流（kind = "poem"），Photot 表放不下
+/// 旧表 Photo / Poem **保留不动**，迁移时把数据复制过来，随时可以回滚。
+model Moment {
+  id    Int    @id @default(autoincrement())
+  /// "moment"（图文动态）| "poem"（诗句）
+  kind  String @default("moment")
+  /// 主题：沿用相册分类的 slug（programming / gaming / …），诗句为空
+  topic String?
+  title String?
+  /// 正文；诗句存诗句内容
+  text  String?
+  /// 诗句作者与出处（仅 kind = "poem"）
+  poemAuthor String?
+  poemSource String?
+  published  Boolean @default(true)
+  sortOrder  Int     @default(0)
+
+  /*
+   * 迁移溯源：记录这条动态是从哪张旧 Photo / 哪条旧 Poem 迁来的。
+   * 用途有三：① 迁移脚本可重复执行不重复插入；② 出问题能反查；
+   * ③ 将来确定不再需要旧表时，可据此对账。
+   */
+  legacyKind String?
+  legacyId   Int?
+
+  authorId  Int?
+  author    User?  @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  images    MomentImage[]
+  comments  Comment[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([legacyKind, legacyId])
+  @@index([published, createdAt])
+  @@index([kind, createdAt])
+  @@index([topic, createdAt])
+}
+
+/// 动态里的图片（一条动态可挂多张）
+model MomentImage {
+  id        Int    @id @default(autoincrement())
+  momentId  Int
+  moment    Moment @relation(fields: [momentId], references: [id], onDelete: Cascade)
+  url       String
+  /// 原始文件名（迁移自 Photo.filename；新上传可为空）
+  filename  String?
+  width     Int?
+  height    Int?
+  sortOrder Int    @default(0)
+
+  @@index([momentId, sortOrder])
 }
