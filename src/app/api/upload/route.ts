@@ -7,15 +7,13 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit"
 import { isAllowedImage } from "@/lib/file-type"
 
 export async function POST(req: NextRequest) {
-  // 站长或拥有任一内容权限（文章/相册/拾章）的读者可上传图片
+  // 站长或拥有任一内容权限（文章 / 动态）的读者可上传图片
   const user = await getCurrentUser()
   if (!user) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 })
   }
   const hasContentPerm =
-    hasPermission(user, "article") ||
-    hasPermission(user, "photo") ||
-    hasPermission(user, "poem")
+    hasPermission(user, "article") || hasPermission(user, "moment")
   if (!hasContentPerm) {
     return NextResponse.json({ error: "无权限上传" }, { status: 403 })
   }

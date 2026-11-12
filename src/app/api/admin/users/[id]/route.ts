@@ -5,7 +5,7 @@ import { isPermissionCode } from "@/lib/permissions"
 
 /**
  * 更新账号权限（站长专属）
- * body: { permissions: ["article","photo"] }（空数组 = 收回全部）
+ * body: { permissions: ["article","moment"] }（空数组 = 收回全部）
  * 保护：不能修改自己的权限、站长账号权限不可改
  */
 export async function PUT(

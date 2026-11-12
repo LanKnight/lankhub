@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound, redirect } from "next/navigation"
 
 import { getCurrentUser } from "@/lib/auth-helpers"
+import { userHasPermission } from "@/lib/permissions"
 import { prisma } from "@/lib/prisma"
 import MomentForm from "../../MomentForm"
 
@@ -15,7 +16,8 @@ export default async function EditMomentPage({
   params: Promise<{ id: string }>
 }) {
   const user = await getCurrentUser()
-  if (user?.role !== "OWNER") redirect("/admin")
+  // 有「动态管理」权限即可（站长恒有）
+  if (!userHasPermission(user, "moment")) redirect("/admin")
 
   const { id } = await params
   const momentId = Number.parseInt(id, 10)

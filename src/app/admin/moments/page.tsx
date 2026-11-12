@@ -5,6 +5,7 @@ import { Plus } from "lucide-react"
 
 import DeleteConfirmButton from "@/components/admin/DeleteConfirmButton"
 import { getCurrentUser } from "@/lib/auth-helpers"
+import { userHasPermission } from "@/lib/permissions"
 import { prisma } from "@/lib/prisma"
 import { PHOTO_CATEGORIES, getPhotoCategory } from "@/lib/photo-categories"
 import { formatDate } from "@/lib/utils"
@@ -21,7 +22,8 @@ export const metadata: Metadata = {
  */
 export default async function AdminMomentsPage() {
   const user = await getCurrentUser()
-  if (user?.role !== "OWNER") redirect("/admin")
+  // 有「动态管理」权限即可（站长恒有）
+  if (!userHasPermission(user, "moment")) redirect("/admin")
 
   const moments = await prisma.moment.findMany({
     orderBy: [{ sortOrder: "desc" }, { createdAt: "desc" }],

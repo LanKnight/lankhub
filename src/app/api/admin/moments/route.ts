@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireOwner } from "@/lib/auth-helpers"
+import { requirePermission } from "@/lib/auth-helpers"
 import { MomentSchema } from "@/lib/validations"
 
 /**
- * 动态管理（站长专属）。
+ * 动态管理（需要「动态管理」权限；站长恒有）。
  *
- * 为什么是 requireOwner 而不是按内容权限：
- * 动态是这个站的「内容流总入口」（图文 + 诗句），发布权收在站长手里最清楚；
- * 授权读者仍可在文章/相册那边按权限协作。
+ * 2026-11 调整：原来只有站长能发动态，现在把「动态管理」作为一项可授予
+ * 读者的内容权限 —— 与「文章管理」并列。相机权限码 photo/poem 已废弃，
+ * 存量的 photo/poem 在 src/lib/permissions.ts 里会自动按 moment 读取。
  */
 
 export async function GET() {
-  const authError = await requireOwner()
-  if (authError) return authError
+  const auth = await requirePermission("moment")
+  if (auth instanceof NextResponse) return auth
 
   const moments = await prisma.moment.findMany({
     orderBy: [{ sortOrder: "desc" }, { createdAt: "desc" }],
@@ -27,8 +27,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const authError = await requireOwner()
-  if (authError) return authError
+  const auth = await requirePermission("moment")
+  if (auth instanceof NextResponse) return auth
 
   try {
     const body = await req.json().catch(() => null)

@@ -25,11 +25,24 @@
 
 export const PERMISSIONS = [
   { code: "article", label: "文章管理" },
-  { code: "photo", label: "相册管理" },
-  { code: "poem", label: "拾章管理" },
+  { code: "moment", label: "动态管理" },
 ] as const
 
 export type PermissionCode = (typeof PERMISSIONS)[number]["code"]
+
+/**
+ * 已废弃的权限码 → 现在对应的码。
+ *
+ * 为什么保留这张表而不是"直接删掉旧码":
+ * 库里存的是历史数据（线上真有一个读者的 permissions 是 "photo"）。
+ * 如果把旧码当非法值扔掉，`canAccessAdmin()` 会判他"没有任何权限" →
+ * 他**直接进不去后台，而且界面上不会提示原因**。
+ * 读的时候先映射一次，迁移脚本跑没跑都不会把人锁在门外。
+ */
+const LEGACY_PERMISSION_MAP: Record<string, PermissionCode> = {
+  photo: "moment",
+  poem: "moment",
+}
 
 /** 全部权限码，供接口做白名单过滤 */
 export const PERMISSION_CODES: readonly PermissionCode[] = PERMISSIONS.map(
@@ -46,17 +59,24 @@ export function isPermissionCode(value: unknown): value is PermissionCode {
 
 /**
  * 把 User.permissions 那串逗号分隔的文本解析成权限码数组。
- * 顺带过滤掉不认识的值 —— 库里可能残留已废弃的权限码，不能让它们继续生效。
+ *
+ * 两件事：
+ *  1. 旧码按 LEGACY_PERMISSION_MAP 映射成新码（如 photo → moment）
+ *  2. 丢弃完全不认识的值，并去重 —— 库里可能残留历史垃圾值，
+ *     不能让它们继续生效（也不该因为它们把整串权限判成空）
  * （仅本模块内部使用，对外只暴露 userHasPermission / canAccessAdmin）
  */
 function parsePermissionList(
   raw: string | null | undefined
 ): PermissionCode[] {
   if (!raw) return []
-  return raw
+  const codes = raw
     .split(",")
     .map((p) => p.trim())
+    .filter((p) => p.length > 0)
+    .map((p) => LEGACY_PERMISSION_MAP[p] ?? p)
     .filter(isPermissionCode)
+  return [...new Set(codes)]
 }
 
 /** 是否拥有某权限（站长恒有） */

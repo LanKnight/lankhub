@@ -1,5 +1,5 @@
 import MomentComments from "./MomentComments"
-import { formatDate } from "@/lib/utils"
+import MomentImages from "./MomentImages"
 
 export interface MomentImageProp {
   url: string
@@ -76,50 +76,8 @@ export default function MomentCard({
       )}
 
       {images.length > 0 && (
-        <div
-          className={`mt-4 grid gap-2 ${
-            images.length === 1
-              ? "grid-cols-1"
-              : images.length === 2
-                ? "grid-cols-2"
-                : "grid-cols-3"
-          }`}
-        >
-          {images.map((image, index) => {
-            /*
-             * 单图不强行裁成 16:9：相册里有大量竖构图，硬裁会把主体切掉。
-             * 有宽高就按真实比例显示（并限制最高 70vh），没有才退回 16:9。
-             */
-            const single = images.length === 1
-            const ratio =
-              single && image.width && image.height
-                ? `${image.width} / ${image.height}`
-                : null
-
-            return (
-              <div
-                key={`${image.url}-${index}`}
-                className="overflow-hidden rounded-xl bg-gray-100"
-              >
-                {/* 图片来自本站上传接口（/api/images/...），外链已在编辑器侧拦截 */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={image.url}
-                  alt={title ?? topic ?? `动态配图 ${index + 1}`}
-                  loading="lazy"
-                  style={ratio ? { aspectRatio: ratio } : undefined}
-                  className={
-                    single
-                      ? `w-full object-cover ${ratio ? "max-h-[70vh]" : "aspect-[16/9]"}`
-                      : "aspect-square w-full object-cover"
-                  }
-                />
-              </div>
-            )
-          })}
-        </div>
+        <MomentImages images={images} alt={title ?? topic ?? "动态配图"} />
       )}
-
       {isPoem && (poemAuthor || poemSource) && (
         <footer className="mt-3 text-right text-sm text-gray-500">
           {poemAuthor && <span>—— {poemAuthor}</span>}

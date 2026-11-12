@@ -6,6 +6,7 @@ import Link from "next/link"
 import { ImagePlus, Loader2, Trash2 } from "lucide-react"
 
 import { PHOTO_CATEGORIES } from "@/lib/photo-categories"
+import { COMPRESS_PRESETS, compressImage, toUploadFile } from "@/lib/image-compress"
 
 interface MomentImageState {
   url: string
@@ -49,6 +50,7 @@ export default function MomentForm({ initial }: { initial?: MomentFormValue }) {
   const [images, setImages] = useState<MomentImageState[]>(initial?.images ?? [])
 
   const [uploading, setUploading] = useState(false)
+  const [uploadLabel, setUploadLabel] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
@@ -66,27 +68,38 @@ export default function MomentForm({ initial }: { initial?: MomentFormValue }) {
     try {
       const picked = Array.from(files).slice(0, room)
       const added: MomentImageState[] = []
-      for (const file of picked) {
+      for (const [index, file] of picked.entries()) {
+        setUploadLabel(`处理中 ${index + 1}/${picked.length}`)
+
+        /*
+         * 先压缩再上传（不能省）。
+         * 反向代理的请求体上限约 1MB，原图基本都超过 —— 不压的话大图会被 413 挡掉，
+         * 表现就是"上传失败"或者卡很久。压缩统一走 src/lib/image-compress.ts，
+         * 与文章封面/编辑器插图用的是同一套参数。
+         */
+        const result = await compressImage(file, COMPRESS_PRESETS.photo)
+        if (result.size > 1020 * 1024) {
+          setError(`「${file.name}」压缩后仍有 ${(result.size / 1024 / 1024).toFixed(2)}MB，超过上传上限，换小一点的图`)
+          continue
+        }
+
+        const uploadFile = toUploadFile(result, file.name)
         const form = new FormData()
-        form.append("file", file)
+        form.append("file", uploadFile)
         const res = await fetch("/api/upload", { method: "POST", body: form })
         const data = await res.json().catch(() => null)
         if (!res.ok || !data?.url) {
-          setError(data?.error || "上传失败")
+          setError(data?.error || `「${file.name}」上传失败`)
           continue
         }
-        // 顺手记录尺寸，让前台按真实比例显示（竖图不被裁）
-        const size = await new Promise<{ width?: number; height?: number }>((resolve) => {
-          const img = new Image()
-          img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
-          img.onerror = () => resolve({})
-          img.src = data.url
-        })
-        added.push({ url: data.url, width: size.width, height: size.height })
+
+        // 记压缩后的真实宽高：瀑布流靠它预留位置，避免加载时页面跳动
+        added.push({ url: data.url, width: result.width, height: result.height })
       }
       setImages((prev) => [...prev, ...added])
     } finally {
       setUploading(false)
+      setUploadLabel("")
     }
   }
 
@@ -244,7 +257,7 @@ export default function MomentForm({ initial }: { initial?: MomentFormValue }) {
               }`}
             >
               {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
-              {uploading ? "上传中…" : "添加图片"}
+              {uploading ? uploadLabel || "上传中…" : "添加图片"}
               <input
                 type="file"
                 accept="image/*"

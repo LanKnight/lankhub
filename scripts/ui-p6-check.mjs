@@ -63,7 +63,8 @@ try {
   )
   check(
     "公告含新的两条最近更新",
-    announcementSrc.includes("站点挪了位置") && announcementSrc.includes("相册和诗句都搬进了博客")
+    announcementSrc.includes("动态里的图片改成瀑布流") &&
+      announcementSrc.includes("相册和诗句都搬进了博客")
   )
   const listBlock = announcementSrc.match(/list:\s*\[([\s\S]*?)\]/)
   const listItems = listBlock ? listBlock[1].split("\n").filter((line) => line.trim().startsWith('"')) : []

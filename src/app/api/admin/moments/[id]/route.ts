@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { requireOwner } from "@/lib/auth-helpers"
+import { requirePermission } from "@/lib/auth-helpers"
 import { MomentUpdateSchema } from "@/lib/validations"
 
 /** 解析并校验路径里的动态 id（不合法返回 400，而不是让 NaN 流进 Prisma 变 500） */
@@ -15,8 +15,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authError = await requireOwner()
-  if (authError) return authError
+  const auth = await requirePermission("moment")
+  if (auth instanceof NextResponse) return auth
 
   const id = await readId(params)
   if (id === null) return NextResponse.json({ error: "动态 ID 不合法" }, { status: 400 })
@@ -102,8 +102,8 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authError = await requireOwner()
-  if (authError) return authError
+  const auth = await requirePermission("moment")
+  if (auth instanceof NextResponse) return auth
 
   const id = await readId(params)
   if (id === null) return NextResponse.json({ error: "动态 ID 不合法" }, { status: 400 })

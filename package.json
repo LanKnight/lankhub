@@ -16,6 +16,7 @@
     "db:migrate": "prisma db push && prisma generate",
     "db:moments-migrate": "tsx scripts/migrate-moments.mts",
     "db:moments-check": "node scripts/migrate-moments-check.mjs",
+    "db:permissions-migrate": "tsx scripts/migrate-permissions.mts",
     "db:check-limits": "tsx prisma/check-limits.ts",
     "db:bind-music": "tsx prisma/bind-music.ts",
     "db:cleanup-unverified": "tsx prisma/cleanup-unverified.ts",
