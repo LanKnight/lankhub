@@ -8,6 +8,8 @@ import NavHistoryTracker from "@/components/layout/NavHistory"
 import SessionGuard from "@/components/auth/SessionGuard"
 import { ToastProvider } from "@/components/ui/Toast"
 import AnnouncementProvider from "@/components/announcement/AnnouncementProvider"
+import { PlayerProvider } from "@/components/music/player-context"
+import MusicDock from "@/components/music/MusicDock"
 import { SITE_URL } from "@/lib/site"
 import "./globals.css"
 
@@ -81,10 +83,19 @@ export default function RootLayout({
           <ToastProvider>
             {/* 公告：顶栏铃铛与首页自动弹出共用这一份状态（见该组件的注释） */}
             <AnnouncementProvider>
-              <Navbar />
-              <main className="flex-1">{children}</main>
-              <Footer />
-              <BackToTop />
+              {/*
+                播放器提到根布局（2026-11 改版）。
+                以前 PlayerProvider 挂在 /music 页面内部，一切换路由 React 就卸载整棵子树，
+                <audio> 当场销毁、歌直接停。放在这里，跨页面导航时它不会被卸载。
+              */}
+              <PlayerProvider>
+                <Navbar />
+                <main className="flex-1">{children}</main>
+                <Footer />
+                <BackToTop />
+                {/* 音乐悬浮按钮 + 侧边抽屉（/music 页面内自动隐藏） */}
+                <MusicDock />
+              </PlayerProvider>
             </AnnouncementProvider>
           </ToastProvider>
         </SessionProvider>

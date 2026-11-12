@@ -6,7 +6,6 @@ import { Headphones } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser } from "@/lib/auth-helpers"
 import BackLink from "@/components/ui/BackLink"
-import { PlayerProvider } from "@/components/music/player-context"
 import ArtistGrid, { type ArtistGroup } from "@/components/music/ArtistGrid"
 import PlayerBar from "@/components/music/PlayerBar"
 
@@ -109,10 +108,10 @@ export default async function MusicPage() {
               <p className="mt-2 text-sm">敬请期待</p>
             </div>
           ) : (
-            <PlayerProvider>
+            <>
               <ArtistGrid groups={groups} />
               <PlayerBar />
-            </PlayerProvider>
+            </>
           )}
 
           {/* 来源标注：第三方接口要求注明数据来源 */}
