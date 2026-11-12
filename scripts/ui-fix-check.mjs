@@ -33,6 +33,7 @@ const mkUser = db.prepare(
 const momentUser = mkUser.run(`tmp-moment-${ts}@test.local`, "x", `tmpmoment${ts}`, "READER", "moment", now, now).lastInsertRowid
 const legacyUser = mkUser.run(`tmp-legacy-${ts}@test.local`, "x", `tmplegacy${ts}`, "READER", "photo", now, now).lastInsertRowid
 const noneUser = mkUser.run(`tmp-none-${ts}@test.local`, "x", `tmpnone${ts}`, "READER", null, now, now).lastInsertRowid
+const articleUser = mkUser.run(`tmp-article-${ts}@test.local`, "x", `tmparticle${ts}`, "READER", "article", now, now).lastInsertRowid
 
 // 一条带 3 张不同比例图的动态（宽高都写对，用来验证瀑布流不裁切）
 const svg = (w, h, label) =>
@@ -93,6 +94,7 @@ try {
   const momentCookie = await cookieOf(momentUser, "READER", "moment")
   const legacyCookie = await cookieOf(legacyUser, "READER", "photo")
   const noneCookie = await cookieOf(noneUser, "READER", null)
+  const articleCookie = await cookieOf(articleUser, "READER", "article")
 
   const get = async (path, cookie) => {
     const res = await fetch(`${BASE}${path}`, { headers: { cookie }, redirect: "manual" })
@@ -117,6 +119,13 @@ try {
     !nBody.includes("新建动态"),
     `落地 ${new URL(nFollow.url).pathname}`
   )
+
+  const mArticles = await get("/admin/articles", momentCookie)
+  check("只有动态权限时进不了文章模块（看不到「新建文章」）", !mArticles.body.includes("新建文章"), `HTTP ${mArticles.status}`)
+
+  const aList = await get("/admin/articles", articleCookie)
+  check("只有文章权限时能进文章模块", aList.body.includes("新建文章"), `HTTP ${aList.status}`)
+  check("只有文章权限时侧栏没有「动态管理」入口", !aList.body.includes('href="/admin/moments"'))
 
   const postMoment = await fetch(`${BASE}/api/admin/moments`, {
     method: "POST",
@@ -297,7 +306,7 @@ try {
   const cleanup = new Database("dev.db")
   cleanup.prepare("delete from MomentImage where momentId = ?").run(momentId)
   cleanup.prepare("delete from Moment where id = ?").run(momentId)
-  for (const id of [momentUser, legacyUser, noneUser]) cleanup.prepare("delete from User where id = ?").run(id)
+  for (const id of [momentUser, legacyUser, noneUser, articleUser]) cleanup.prepare("delete from User where id = ?").run(id)
   cleanup.close()
   await sleep(600)
 }

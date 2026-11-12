@@ -1,7 +1,9 @@
 import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser } from "@/lib/auth-helpers"
+import { userHasPermission } from "@/lib/permissions"
 import { pagedHref } from "@/lib/utils"
 import BackLink from "@/components/ui/BackLink"
 import ArticleForm from "../../ArticleForm"
@@ -39,6 +41,8 @@ export default async function EditArticlePage({
 
   // 越权防护：授权读者只能编辑自己创建的文章（返回 404 避免泄露他人内容）
   const user = await getCurrentUser()
+  // 没有「文章管理」权限的人根本不该进这个模块（站长恒有）
+  if (!userHasPermission(user, "article")) redirect("/admin")
   if (user?.role !== "OWNER" && article.authorId !== parseInt(user?.id || "0")) {
     notFound()
   }

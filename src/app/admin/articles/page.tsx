@@ -1,8 +1,10 @@
 import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Plus, Edit, Pin, FolderOpen } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser } from "@/lib/auth-helpers"
+import { userHasPermission } from "@/lib/permissions"
 import { formatDate, pagedHref } from "@/lib/utils"
 import DeleteButton from "./DeleteButton"
 import Pagination from "@/components/blog/Pagination"
@@ -18,9 +20,14 @@ export default async function AdminArticlesPage({
 }: {
   searchParams: Promise<{ page?: string }>
 }) {
-  const user = await getCurrentUser()
+  const authUser = await getCurrentUser()
+  // 没有「文章管理」权限就别进文章模块（站长恒有）
+  if (!userHasPermission(authUser, "article")) redirect("/admin")
+
+  const user = authUser
   const myId = parseInt(user?.id || "0")
   const isOwner = user?.role === "OWNER"
+
   // 看全部文章（含站长的）；授权读者只能操作自己创建的文章（别人的行只读）
 
   const params = await searchParams
