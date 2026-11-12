@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { ViewTransition } from "react"
 import Link from "next/link"
+import BlogHeader from "@/components/blog/BlogHeader"
 import { prisma } from "@/lib/prisma"
 import { staggerDelay } from "@/lib/motion"
 import { FolderOpen, FileText } from "lucide-react"
@@ -33,10 +34,7 @@ export default async function CollectionsPage() {
   return (
     <ViewTransition enter="auto" exit="auto" default="none">
       <div className="max-w-4xl mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900">文章合集</h1>
-          <p className="text-gray-500 mt-3">按主题浏览，发现更多精彩内容</p>
-        </div>
+        <BlogHeader active="collections" />
 
         {visible.length === 0 ? (
           <div className="text-center py-16 text-gray-400">

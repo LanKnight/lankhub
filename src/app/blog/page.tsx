@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Suspense, ViewTransition } from "react"
 import ArticleCard from "@/components/blog/ArticleCard"
+import BlogHeader from "@/components/blog/BlogHeader"
 import Pagination from "@/components/blog/Pagination"
 import BlogSearch from "@/components/blog/BlogSearch"
 import { prisma } from "@/lib/prisma"
@@ -75,10 +76,7 @@ export default async function BlogListPage({
   return (
     <ViewTransition enter="auto" exit="auto" default="none">
       <div className="max-w-4xl mx-auto px-4 py-16">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-gray-900">博客</h1>
-          <p className="text-gray-500 mt-3">分享技术心得与生活感悟</p>
-        </div>
+        <BlogHeader active="articles" />
 
         <Suspense>
           <BlogSearch />
