@@ -1,32 +1,19 @@
 import { ViewTransition } from "react"
 import HeroSection from "@/components/home/HeroSection"
-import AboutSection from "@/components/home/AboutSection"
-import HobbiesSection from "@/components/home/HobbiesSection"
-import MottoSection from "@/components/home/MottoSection"
-import Reveal from "@/components/ui/Reveal"
 
-/*
- * 首屏两张底图**不需要** <link rel="preload">：
- * 两个场景层都在 DOM 里、两张 <img> 都是 eager 的，页面一解析就会各下一张
- * （正常态 fetchPriority="high"、江湖态 low），浏览器预扫描同样能提前发现。
+/**
+ * 首页。
  *
- * 试过手写 preload：SSR 出来的 HTML 里会变成 **8 条重复链接** ——
- * React 19 会把 `<link rel="preload">` 提升到 head，同时又保留了原位置那一份。
- * 浏览器按 URL 去重不会多下载，但 DOM 里多出 4 个节点纯属噪音，于是删掉。
+ * 2026-11 改版：按站长要求删掉了「关于我 / 兴趣爱好 / 座右铭」三段，
+ * 首页**只保留欢迎界面**。原来那三段的内容已经在站点其它地方有归属
+ * （文章、动态、简历），首页不再复述一遍。
+ *
+ * 保留 <ViewTransition>：首屏进入时的转场与页面切换动画依赖它。
  */
 export default function HomePage() {
   return (
     <ViewTransition enter="auto" exit="auto" default="none">
       <HeroSection />
-      <Reveal>
-        <AboutSection />
-      </Reveal>
-      <Reveal delay={100}>
-        <HobbiesSection />
-      </Reveal>
-      <Reveal delay={150}>
-        <MottoSection />
-      </Reveal>
     </ViewTransition>
   )
 }

@@ -1,13 +1,11 @@
 "use client"
 
-import { ChevronDown } from "lucide-react"
 
 import CyclingSubtitle from "./CyclingSubtitle"
 import HeroScene from "./HeroScene"
 import HeroType from "./HeroType"
 import { HERO_SCENES } from "./hero-scene"
 import { useHeroMotion } from "./use-hero-motion"
-import { useHeroPaging } from "./hero-paging"
 import { useHeroScene } from "./use-hero-scene"
 
 /** 首屏三拍的入场延迟（ms），错峰出现制造层次。头像已删，节奏沿用原来的 */
@@ -19,8 +17,7 @@ export default function HeroSection() {
    * 滚轮把页面推走时，必须先把江湖态收回雪山态，
    * 否则下一次回到顶部会停在一个残留的暗场里。
    */
-  const { scene, toggle, reset, hoverHandlers, tapHandlers } = useHeroScene()
-  const { goToNextScreen } = useHeroPaging({ onJump: reset })
+  const { scene, toggle, hoverHandlers, tapHandlers } = useHeroScene()
   // 首屏滚出视口 / 标签页切走时把循环动画暂停（见 use-hero-motion）
   const heroRef = useHeroMotion()
 
@@ -97,22 +94,11 @@ export default function HeroSection() {
         ⚠️ 必须 z-20：上面的文字容器是「整屏高度的 flex 容器」且带 z-10，
         会连按钮所在的这条区域一起盖住 —— 少了这一层，按钮点不动（回归测试抓到的）。
       */}
-      <div
-        className="absolute bottom-8 inset-x-0 z-20 flex justify-center animate-rise-in"
-        style={{ animationDelay: `${ENTER_DELAY.indicator}ms` }}
-      >
-        <button
-          onClick={(event) => {
-            // 首屏整块是「轻点切换图景」的热区，这里必须拦住，否则点按钮会顺带把图切了
-            event.stopPropagation()
-            goToNextScreen()
-          }}
-          className="hero-scroll-hint animate-bounce transition-colors"
-          aria-label="向下滚动"
-        >
-          <ChevronDown size={28} />
-        </button>
-      </div>
+      {/*
+        2026-11 改版：首页只保留首屏，「向下滚动」按钮与它驱动的翻屏逻辑一并删掉
+        —— 下面已经没有内容可去了，留一个点了没反应的箭头反而像坏了。
+        首屏的「轻点切换图景」仍然保留（见下面的读屏等价按钮）。
+      */}
 
       {/*
         键盘/读屏的等价入口：整块首屏的「轻点切换」对他们不可达，

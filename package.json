@@ -43,6 +43,7 @@
     "music:shuffle-test": "tsx scripts/shuffle-start-test.mts",
     "music:upstream-test": "tsx scripts/upstream-shape-test.mts",
     "ui:check": "node scripts/ui-check.mjs",
+    "ui:p1": "node scripts/ui-p1-check.mjs",
     "ui:settings": "tsx scripts/settings-ui-check.mts",
     "db:state": "tsx scripts/db-state.mts"
   },

@@ -15,12 +15,18 @@
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-noto-serif-sc);
 
-  /* Ink wash monochrome palette — override Tailwind gray scale */
-  --color-gray-50: #faf8f5;
-  --color-gray-100: #f2efe8;
-  --color-gray-200: #e5e0d7;
-  --color-gray-300: #d4cfc5;
-  --color-gray-400: #aba49a;
+  /*
+   * 中性灰阶（2026-11 改版：全站由米白改为纯白）。
+   *
+   * 原来是一套暖调「水墨纸色」：#faf8f5 / #f2efe8 / #e5e0d7 / #d4cfc5。
+   * 现在页面底改纯白，卡片用极浅中性灰、边线用中性灰，避免暖色在纯白上发黄。
+   * 只覆盖 50–400；500 以上（正文/标题的深色）保持原值，墨色观感不变。
+   */
+  --color-gray-50: #ffffff;
+  --color-gray-100: #f6f6f6;
+  --color-gray-200: #e8e8e8;
+  --color-gray-300: #d9d9d9;
+  --color-gray-400: #a3a3a3;
   --color-gray-500: #7d766d;
   --color-gray-600: #5c554d;
   --color-gray-700: #3d3730;
@@ -32,10 +38,10 @@
   --color-ink-black: #1a1510;
   --color-ink-dark: #2a241e;
   --color-ink-gray: #5c554d;
-  --color-ink-light: #aba49a;
-  --color-paper: #faf8f5;
-  --color-paper-dark: #f2efe8;
-  --color-ink-brush: #e5e0d7;
+  --color-ink-light: #a3a3a3;
+  --color-paper: #ffffff;
+  --color-paper-dark: #f6f6f6;
+  --color-ink-brush: #e8e8e8;
 
   /* Brand colors — now monochrome */
   --color-brand-navy: #1a1510;
@@ -50,12 +56,12 @@
 }
 
 :root {
-  --bg-primary: #faf8f5;
-  --bg-secondary: #f2efe8;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f6f6;
   --text-primary: #1a1510;
   --text-secondary: #5c554d;
-  --text-muted: #aba49a;
-  --border-color: #d4cfc5;
+  --text-muted: #a3a3a3;
+  --border-color: #d9d9d9;
   --accent: #1a1510;
   --accent-hover: #0d0a07;
 }

@@ -1,64 +1,128 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useSession } from "next-auth/react"
-import { Menu, X, User, PenLine, Settings, Bell } from "lucide-react"
+import { signOut, useSession } from "next-auth/react"
+import {
+  Bell,
+  ChevronDown,
+  LogIn,
+  LogOut,
+  Menu,
+  Settings,
+  Sparkles,
+  User,
+  X,
+} from "lucide-react"
 import { resolveActiveHref } from "@/lib/nav"
 import { canAccessAdmin } from "@/lib/permissions"
 import { useAnnouncement } from "@/components/announcement/AnnouncementProvider"
 
+/**
+ * 站点顶栏。
+ *
+ * 2026-11 改版（站长要求）：
+ *  - 内容导航从「首页 / 博客 / 合集 / 简历」收敛为「首页 / 博客 / 简历」
+ *    （合集已经并进 /blog 的标签页，不再占顶栏）
+ *  - 「管理」与「设置」两个入口合并成一个齿轮下拉：
+ *    管理后台 / 账号设置 / 退出登录（未登录时显示「登录」）
+ */
 export default function Navbar() {
   const { data: session, status } = useSession()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
+  const accountRef = useRef<HTMLDivElement | null>(null)
   const pathname = usePathname()
-  // session.user 的扩展字段由 src/types/next-auth.d.ts 声明，这里不再需要断言
   const user = session?.user
-  // 公告：铃铛随时可点开；小红点表示"这个版本还没读过"
   const { show: showAnnouncement, unseen: announcementUnseen } = useAnnouncement()
 
   const navLinks = [
     { href: "/", label: "首页" },
     { href: "/blog", label: "博客" },
-    { href: "/blog/collections", label: "合集" },
     { href: "/resume", label: "简历" },
   ]
 
-  // 只有最长匹配的那一项高亮：/blog 是 /blog/collections 的前缀，
-  // 逐项 startsWith 会让「博客」和「合集」同时亮起
+  // 只有最长匹配的那一项高亮（/blog 是 /blog/xxx 的前缀）
   const activeHref = resolveActiveHref(
     pathname,
     navLinks.map((link) => link.href)
   )
   const isActive = (href: string) => href === activeHref
 
-  // 管理入口：站长 或 拥有任一内容权限（文章/相册/拾章）的授权读者
-  // 管理入口：站长 或 拥有任一内容权限的授权读者。
-  // 与后台布局共用 canAccessAdmin，不再各写一份权限清单
   const canManage = canAccessAdmin(user)
 
   /**
-   * 后台页面收窄导航栏。
-   *
-   * 后台本来就有自己的侧栏，再叠一整条站点导航，一个屏幕上会挤到十几个入口
-   * （其中「首页」出现三次、「退出」出现两次）。所以进到 /admin 后只保留
-   * logo（回首页）与「设置」：内容导航在管理时没有意义，「管理」更是自己指自己。
-   *
-   * 用 startsWith("/admin/") 而不是 startsWith("/admin")，
-   * 免得将来出现 /administration 这类路径被误判。
+   * 后台页面收窄导航栏：后台有自己的侧栏，再叠一条站点导航会挤到十几个入口。
+   * 所以进 /admin 后只保留 logo（回首页）与齿轮。
    */
   const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/")
+
+  // 下拉：点外面或按 Esc 关闭
+  useEffect(() => {
+    if (!accountOpen) return
+
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (!accountRef.current?.contains(event.target as Node)) setAccountOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAccountOpen(false)
+    }
+
+    document.addEventListener("mousedown", onPointerDown)
+    document.addEventListener("touchstart", onPointerDown)
+    document.addEventListener("keydown", onKeyDown)
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown)
+      document.removeEventListener("touchstart", onPointerDown)
+      document.removeEventListener("keydown", onKeyDown)
+    }
+  }, [accountOpen])
+
+  // 路由变化时收起两个菜单
+  useEffect(() => {
+    setAccountOpen(false)
+    setMenuOpen(false)
+  }, [pathname])
+
+  const accountMenu = (
+    <div className="py-1">
+      {canManage && (
+        <Link
+          href="/admin"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+          onClick={() => setAccountOpen(false)}
+        >
+          <Sparkles size={15} className="text-gray-400" />
+          管理后台
+        </Link>
+      )}
+      <Link
+        href="/settings"
+        className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+        onClick={() => setAccountOpen(false)}
+      >
+        <Settings size={15} className="text-gray-400" />
+        账号设置
+      </Link>
+      <button
+        type="button"
+        onClick={() => {
+          setAccountOpen(false)
+          void signOut({ callbackUrl: `${window.location.origin}/` })
+        }}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100"
+      >
+        <LogOut size={15} className="text-gray-400" />
+        退出登录
+      </button>
+    </div>
+  )
 
   return (
     <header className="site-navbar sticky top-0 z-50 bg-paper/90 backdrop-blur-md border-b border-gray-200">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/*
-            Logo 与它右边的公告铃铛放在同一组里。
-            移动端也保持同样的位置（汉堡菜单在右端，不占这块），
-            所以「铃铛在 lankHub 右边」这个约定在两端一致。
-          */}
           <div className="flex items-center gap-1">
             <Link
               href="/"
@@ -74,11 +138,6 @@ export default function Navbar() {
               className="relative rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
             >
               <Bell size={17} />
-              {/*
-                小红点：只在"当前公告版本还没读过"时显示。
-                首帧服务端渲染时明确不渲染它（读不到 localStorage），
-                挂载后才可能出现 —— 位置用 absolute 定位，不会推动任何布局。
-              */}
               {announcementUnseen && (
                 <span
                   aria-hidden
@@ -88,9 +147,8 @@ export default function Navbar() {
             </button>
           </div>
 
-          {/* Desktop nav */}
+          {/* 桌面端 */}
           <nav className="hidden md:flex items-center gap-8">
-            {/* 后台页面不显示内容导航：管理时看这些没有意义，且侧栏已承担后台导航 */}
             {!isAdmin &&
               navLinks.map((link) => (
                 <Link
@@ -104,7 +162,6 @@ export default function Navbar() {
                   }`}
                 >
                   {link.label}
-                  {/* 水墨风下划线：active 时从左到右淡出，如毛笔一划 */}
                   <span
                     aria-hidden
                     className={`absolute -bottom-1.5 left-0 h-[2px] rounded-full bg-gradient-to-r from-accent via-accent to-transparent transition-all duration-300 ${
@@ -115,26 +172,32 @@ export default function Navbar() {
               ))}
 
             {status === "loading" ? (
-              <div className="w-20 h-8 bg-gray-100 animate-pulse rounded-sm" />
+              <div className="w-16 h-8 bg-gray-100 animate-pulse rounded-sm" />
             ) : user ? (
-              <div className="flex items-center gap-3">
-                {/* 已经在后台里了就不必再给「管理」入口 */}
-                {canManage && !isAdmin && (
-                  <Link
-                    href="/admin"
-                    className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                  >
-                    <PenLine size={14} />
-                    管理
-                  </Link>
-                )}
-                <Link
-                  href="/settings"
-                  className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+              <div className="relative" ref={accountRef}>
+                <button
+                  type="button"
+                  onClick={() => setAccountOpen((open) => !open)}
+                  aria-haspopup="menu"
+                  aria-expanded={accountOpen}
+                  aria-label="账号菜单"
+                  title="账号"
+                  className="flex items-center gap-1 rounded-lg p-1.5 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900"
                 >
-                  <Settings size={14} />
-                  设置
-                </Link>
+                  <Settings size={18} />
+                  <ChevronDown
+                    size={13}
+                    className={`transition-transform ${accountOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {accountOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 top-full mt-2 w-44 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
+                  >
+                    {accountMenu}
+                  </div>
+                )}
               </div>
             ) : (
               <Link
@@ -147,44 +210,27 @@ export default function Navbar() {
             )}
           </nav>
 
-          {/*
-            后台页面没有内容导航可展开，汉堡菜单里会只剩「账号设置」一项，
-            那就直接把这一项摆出来，省掉一次点击。
-          */}
-          {isAdmin ? (
-            <Link
-              href="/settings"
-              className="md:hidden flex items-center gap-1 p-2 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <Settings size={18} />
-              设置
-            </Link>
-          ) : (
-            <button
-              className="md:hidden p-2 text-gray-600 hover:text-gray-900"
-              onClick={() => setMenuOpen(!menuOpen)}
-              aria-label="菜单"
-              aria-expanded={menuOpen}
-            >
-              {menuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-          )}
+          {/* 移动端：右侧只留汉堡 */}
+          <button
+            className="md:hidden p-2 text-gray-600 hover:text-gray-900"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="菜单"
+            aria-expanded={menuOpen}
+          >
+            {menuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
         </div>
       </div>
 
-      {/*
-        移动端展开菜单（仅非后台页面）。
-        后台页面下整个菜单都不渲染 —— 否则从普通页面带着展开状态进到 /admin 时，
-        菜单里会留下已经用不到的「管理后台」，而入口正指着当前页面。
-      */}
-      {!isAdmin && (
-        <div
-          className={`md:hidden border-t border-gray-100 bg-white overflow-hidden transition-all duration-300 ease-in-out ${
-            menuOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
-          }`}
-        >
-          <div className="px-4 py-3 space-y-3">
-            {navLinks.map((link) => (
+      {/* 移动端展开菜单 */}
+      <div
+        className={`md:hidden border-t border-gray-100 bg-white overflow-hidden transition-all duration-300 ease-in-out ${
+          menuOpen ? "max-h-[26rem] opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        <div className="px-4 py-3 space-y-3">
+          {!isAdmin &&
+            navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -199,40 +245,53 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
-            <hr className="border-gray-100" />
-            {status === "loading" ? (
-              <div className="w-full h-8 bg-gray-100 animate-pulse rounded-sm" />
-            ) : user ? (
-              <>
-                {canManage && (
-                  <Link
-                    href="/admin"
-                    className="block text-sm text-gray-600 hover:text-gray-900"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    管理后台
-                  </Link>
-                )}
+          <hr className="border-gray-100" />
+          {status === "loading" ? (
+            <div className="w-full h-8 bg-gray-100 animate-pulse rounded-sm" />
+          ) : user ? (
+            <div className="space-y-3">
+              {canManage && (
                 <Link
-                  href="/settings"
-                  className="block text-sm text-gray-600 hover:text-gray-900"
+                  href="/admin"
+                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
                   onClick={() => setMenuOpen(false)}
                 >
-                  账号设置
+                  <Sparkles size={15} className="text-gray-400" />
+                  管理后台
                 </Link>
-              </>
-            ) : (
+              )}
               <Link
-                href="/auth/login"
-                className="block text-sm text-accent font-medium"
+                href="/settings"
+                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
                 onClick={() => setMenuOpen(false)}
               >
-                登录
+                <Settings size={15} className="text-gray-400" />
+                账号设置
               </Link>
-            )}
-          </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false)
+                  void signOut({ callbackUrl: `${window.location.origin}/` })
+                }}
+                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+              >
+                <LogOut size={15} className="text-gray-400" />
+                退出登录
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/auth/login"
+              className="flex items-center gap-2 text-sm text-accent font-medium"
+              onClick={() => setMenuOpen(false)}
+            >
+              <LogIn size={15} />
+              登录
+            </Link>
+          )}
         </div>
-      )}
+      </div>
     </header>
   )
 }
