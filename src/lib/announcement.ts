@@ -17,7 +17,7 @@
  */
 
 /** 公告版本：改动它会让大家重新看到一次公告（建议用日期） */
-export const ANNOUNCEMENT_VERSION = "2026-11-09"
+export const ANNOUNCEMENT_VERSION = "2026-11-12"
 
 /** localStorage 的键：只存"看过的版本号"一个字符串 */
 export const ANNOUNCEMENT_STORAGE_KEY = "lankhub.announcement.seen"
@@ -43,13 +43,13 @@ export interface Announcement {
 
 export const ANNOUNCEMENT: Announcement = {
   version: ANNOUNCEMENT_VERSION,
-  updatedAt: "2026-11-09",
+  updatedAt: "2026-11-12",
   title: "欢迎来到 lankHub",
   lead: "这是一个人的长期笔记：记录成长，也分享技术与生活。站点有较大改动时，这里会更新一次。",
   sections: [
     {
       title: "关于这里",
-      body: "个人博客，写技术实践也写生活观察。文章按主题收进「合集」，音乐是私人歌单，简历与相册是顺带做的小页面。站内没有广告与付费内容，也不收集你的个人信息。",
+      body: "个人博客，写技术实践也写生活观察。文章按主题收进「合集」，音乐是私人歌单，简历与动态是顺带做的小页面。站内没有广告与付费内容，也不收集你的个人信息。",
     },
     {
       title: "免责说明",
@@ -60,8 +60,8 @@ export const ANNOUNCEMENT: Announcement = {
       title: "最近更新",
       // 最多两条，直接写内容，不加「本次/上次」前缀（规则见文件顶部注释）
       list: [
-        "写文章时能插入 Mermaid 图表了：流程图、时序图写在代码块里就有实时预览，发布后自动渲染；宽图可以点开放大看",
-        "换了新站标：标签页、书签与手机主屏都用新图标，分享出去的链接也能看到卡片图了",
+        "站点挪了位置：首页只留欢迎界面，顶栏变成首页 / 博客 / 简历，管理和设置收进右上角齿轮；整站底色从米白改成纯白",
+        "相册和诗句都搬进了博客的「动态」栏（照片带主题、诗句可读可看），动态也能评论；音乐改成右下角常驻按钮，点开就能切歌，双击进歌单",
       ],
     },
   ],

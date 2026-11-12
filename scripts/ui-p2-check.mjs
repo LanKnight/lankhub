@@ -32,8 +32,16 @@ const IMG =
 const db = new Database("dev.db")
 const owner = db.prepare("select id from User where role='OWNER' limit 1").get()
 const now = new Date().toISOString().replace("Z", "+00:00")
-const insert = db.prepare(
-  "insert into Photo (filename, url, category, title, description, width, height, sortOrder, authorId, createdAt, updatedAt) values (?,?,?,?,?,?,?,?,?,?,?)"
+
+/*
+ * P3 之后动态页读的是 Moment 表（不再是旧 Photo），所以这里直接种 Moment 数据。
+ * 每条动态同时插一张 MomentImage，用来验证卡片里的图片网格与主题筛选。
+ */
+const insertMoment = db.prepare(
+  "insert into Moment (kind, topic, title, text, published, sortOrder, authorId, createdAt, updatedAt) values (?,?,?,?,?,?,?,?,?)"
+)
+const insertImage = db.prepare(
+  "insert into MomentImage (momentId, url, width, height, sortOrder) values (?,?,?,?,?)"
 )
 const inserted = []
 for (const [i, item] of [
@@ -41,20 +49,19 @@ for (const [i, item] of [
   { cat: "programming", title: "第二次提交", desc: null },
   { cat: "gaming", title: "周末开黑", desc: "临时测试" },
 ].entries()) {
-  const info = insert.run(
-    `tmp-p2-${Date.now()}-${i}.png`,
-    IMG,
+  const momentId = insertMoment.run(
+    "moment",
     item.cat,
     item.title,
     item.desc,
-    800,
-    450,
+    1,
     0,
     owner.id,
     now,
     now
-  )
-  inserted.push(info.lastInsertRowid)
+  ).lastInsertRowid
+  insertImage.run(momentId, IMG, 800, 450, 0)
+  inserted.push(momentId)
 }
 
 const article = db.prepare("select slug from Article where published = 1 limit 1").get()
@@ -164,7 +171,7 @@ try {
 } finally {
   spawn("taskkill", ["/PID", String(edge.pid), "/T", "/F"], { stdio: "ignore" })
   spawn("taskkill", ["/PID", String(app.pid), "/T", "/F"], { stdio: "ignore" })
-  for (const id of inserted) db.prepare("delete from Photo where id = ?").run(id)
+  for (const id of inserted) db.prepare("delete from Moment where id = ?").run(id)
   db.close()
   await sleep(600)
 }

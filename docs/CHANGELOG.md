@@ -26,7 +26,49 @@
 
 ## 未发布
 
-**适用对象：所有人。** 不涉及数据库与 schema 变化；新增依赖 `mermaid`，正常 `npm run update` 即可。
+**适用对象：所有人。** 涉及数据库 schema 变化（新增 Moment / MomentImage，Comment 增加可空 momentId）。
+升级步骤：`npm run update` 之后**再跑一次迁移脚本**（一次性的，可重复执行，不跑也不会报错、只是动态栏为空）：
+
+```bash
+npx tsx scripts/migrate-moments.mts          # 预演，只看数字
+npx tsx scripts/migrate-moments.mts --commit  # 确认后写入
+```
+
+旧表 `Photo` / `Poem` 原样保留，迁移只是复制；出问题删掉 `Moment` 数据即可回到原状。
+
+### 信息架构重构（首页 / 博客 / 动态 / 音乐）
+
+**首页**只保留欢迎界面，删掉「关于我 / 兴趣爱好 / 座右铭」三段，以及只为它们服务的
+翻屏逻辑（`hero-paging.ts`）与首屏「向下滚动」按钮。
+
+**顶栏**从「首页 / 博客 / 合集 / 简历」收敛为「首页 / 博客 / 简历」；原来的
+「管理」「设置」两个入口合并成右上角一个齿轮下拉（管理后台 / 账号设置 / 退出登录）。
+
+**博客页**变成三栏：博客 / 合集 / 动态。三栏是三个真实路由
+（`/blog`、`/blog/collections`、`/blog/moments`），不是单页切状态 —— 每个标签能单独
+分享与收录，前进后退天然正确。
+
+**相册与诗句并入「动态」**：
+- 新增 `Moment`（kind = moment/poem）+ `MomentImage`（一条多图）
+- 迁移脚本把旧 `Photo`（一条 = 一条动态 + 一张图）与旧 `Poem`（kind = poem）复制进来，
+  每条带 `legacyKind`/`legacyId`（唯一索引）→ 可重复执行、可反查、可回滚
+- 后台「相册管理」「拾章管理」合并为「动态管理」（多图上传、主题下拉、发布开关）
+- `/photos`、`/photos/:category`、`/poems` 保留 308 重定向到 `/blog/moments`
+
+**动态支持评论**：`Comment` 的 `articleId` 改可空、新增 `momentId`（两者恰好一个非空，
+外键级联删除）。`/api/moments/[id]/comments` 与文章评论共用一套限流与嵌套树，
+评论组件改成 `target={{type,id}}` 同时服务两种内容。
+
+**音乐**：播放器上下文从 `/music` 页面内部提到根布局（`src/app/layout.tsx`）——
+以前切换路由 React 会卸载整棵子树，`<audio>` 被销毁、歌当场停。现在右下角常驻
+悬浮按钮：单击开侧边抽屉（上一首 / 播放暂停 / 下一首 / 进入歌单），双击直接进歌单。
+未登录不显示（歌单是私人的，`/music` 与播放接口都要求登录）。
+
+**配色**：全站从米白（`#faf8f5`）改为纯白，卡片用极浅中性灰 + 细边。
+只改 `globals.css` 的 token 层，30+ 处引用自动跟随。
+
+验证：`npm run ui:p1`(34) / `ui:p2`(10) / `ui:p3`(12) / `ui:p5`(13) /
+`db:moments-check`(10) / 既有 `ui:check`(35) / `editor:mermaid-check`(16)。
 
 ### 文章支持 Mermaid 图表
 

@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
         // 它曾被分类页的「返回相册总览」硬编码链接指向过，可能被搜索引擎收录，
         // 因此保留 308 永久重定向，避免旧链接和收藏变成 404。
         source: "/photos",
-        destination: "/",
+        destination: "/blog/moments",
         permanent: true,
       },
       {
@@ -23,6 +23,19 @@ const nextConfig: NextConfig = {
         // 注意 `/photos` 那条是精确匹配、不会吃掉 `/photos/music`，所以这条是必要的。
         source: "/photos/music",
         destination: "/music",
+        permanent: true,
+      },
+      {
+        // 2026-11 改版：相册并入「动态」。分类页带着主题参数跳过去，
+        // 老链接与搜索引擎里的收录都不会变成 404。
+        source: "/photos/:category",
+        destination: "/blog/moments?topic=:category",
+        permanent: true,
+      },
+      {
+        // 「拾章」并入动态：诗句现在是动态的一种类型（kind=poem）
+        source: "/poems",
+        destination: "/blog/moments?kind=poem",
         permanent: true,
       },
     ];

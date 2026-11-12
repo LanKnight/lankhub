@@ -65,7 +65,7 @@ try {
   // ---------- 首页 ----------
   await cdp.send("Page.navigate", { url: `${BASE}/` })
   await sleep(2600)
-  await run(`localStorage.setItem("lankhub.announcement.seen","2026-11-09")`)
+  await run(`localStorage.setItem("lankhub.announcement.seen","2026-11-12")`)
   // 万一还弹着（版本号被改过），直接点关闭
   await run(`(() => { const btn = [...document.querySelectorAll("button")].find((b) => (b.getAttribute("aria-label") || "") === "关闭" || (b.textContent || "").trim() === "确定"); if (btn) btn.click(); return true })()`)
   await cdp.send("Page.navigate", { url: `${BASE}/` })
@@ -101,7 +101,7 @@ try {
     ["blog-collections", "/blog/collections"],
     ["blog-article", `/blog/${article.slug}`],
     ["resume", "/resume"],
-    ["poems", "/poems"],
+    ["blog-moments", "/blog/moments"],
     ["music", "/music"],
   ]
   for (const [name, path] of pages) {
