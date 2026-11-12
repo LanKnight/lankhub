@@ -4,11 +4,15 @@ import { ViewTransition } from "react"
 
 import BlogHeader from "@/components/blog/BlogHeader"
 import MomentCard from "@/components/blog/MomentCard"
+import Pagination from "@/components/blog/Pagination"
 import { prisma } from "@/lib/prisma"
 import { PHOTO_CATEGORIES, getPhotoCategory } from "@/lib/photo-categories"
 import { formatDate } from "@/lib/utils"
 
 export const dynamic = "force-dynamic"
+
+/** 每页条数。93 条一次性铺满会到 265KB、首屏 1 秒，分页后只有 20 条。 */
+const PAGE_SIZE = 20
 
 export const metadata: Metadata = {
   title: "动态 - lankHub",
@@ -26,13 +30,14 @@ export const metadata: Metadata = {
 export default async function MomentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ topic?: string; kind?: string }>
+  searchParams: Promise<{ topic?: string; kind?: string; page?: string }>
 }) {
   const params = await searchParams
   const topic =
     typeof params.topic === "string" && params.topic.length > 0 ? params.topic : undefined
   const kind =
     params.kind === "poem" || params.kind === "moment" ? params.kind : undefined
+  const page = Math.max(1, parseInt(params.page || "1", 10) || 1)
 
   const totalMoments = await prisma.moment.count()
 
@@ -41,19 +46,24 @@ export default async function MomentsPage({
     return <LegacyPhotoFeed topic={topic} />
   }
 
-  const [moments, topicGroups] = await Promise.all([
+  const where = {
+    published: true,
+    ...(topic ? { topic } : {}),
+    ...(kind ? { kind } : {}),
+  }
+
+  const [moments, filteredTotal, topicGroups] = await Promise.all([
     prisma.moment.findMany({
-      where: {
-        published: true,
-        ...(topic ? { topic } : {}),
-        ...(kind ? { kind } : {}),
-      },
+      where,
       orderBy: [{ sortOrder: "desc" }, { createdAt: "desc" }],
+      skip: (page - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
       include: {
         images: { orderBy: { sortOrder: "asc" } },
         _count: { select: { comments: true } },
       },
     }),
+    prisma.moment.count({ where }),
     prisma.moment.groupBy({
       by: ["topic"],
       where: { published: true, kind: "moment", topic: { not: null } },
@@ -64,6 +74,9 @@ export default async function MomentsPage({
   const counts = new Map(topicGroups.map((g) => [g.topic as string, g._count._all]))
   const topics = PHOTO_CATEGORIES.filter((c) => counts.has(c.slug))
   const totalVisible = [...counts.values()].reduce((a, b) => a + b, 0)
+
+  // 分页链接要带着当前的筛选条件，否则翻到第 2 页筛选就丢了
+  const paginationBase = `/blog/moments${topic ? `?topic=${topic}` : kind ? `?kind=${kind}` : ""}`
 
   const isActive = (href: string) => {
     const url = new URL(href, "http://local")
@@ -109,32 +122,40 @@ export default async function MomentsPage({
             <p className="mt-2 text-sm">照片和随手记会陆续放到这里</p>
           </div>
         ) : (
-          <div className="grid gap-5">
-            {moments.map((moment) => {
-              const category = moment.topic ? getPhotoCategory(moment.topic) : undefined
-              return (
-                <MomentCard
-                  key={moment.id}
-                  kind={moment.kind === "poem" ? "poem" : "moment"}
-                  topic={category?.label ?? moment.topic}
-                  title={moment.title}
-                  text={moment.text}
-                  images={moment.images.map((image) => ({
-                    url: image.url,
-                    width: image.width,
-                    height: image.height,
-                  }))}
-                  createdAt={formatDate(moment.createdAt)}
-                  poemAuthor={moment.poemAuthor}
-                  poemSource={moment.poemSource}
-                  comments={{
-                    momentId: moment.id,
-                    count: moment._count.comments,
-                  }}
-                />
-              )
-            })}
-          </div>
+          <>
+            <div className="grid gap-5">
+              {moments.map((moment) => {
+                const category = moment.topic ? getPhotoCategory(moment.topic) : undefined
+                return (
+                  <MomentCard
+                    key={moment.id}
+                    kind={moment.kind === "poem" ? "poem" : "moment"}
+                    topic={category?.label ?? moment.topic}
+                    title={moment.title}
+                    text={moment.text}
+                    images={moment.images.map((image) => ({
+                      url: image.url,
+                      width: image.width,
+                      height: image.height,
+                    }))}
+                    createdAt={formatDate(moment.createdAt)}
+                    poemAuthor={moment.poemAuthor}
+                    poemSource={moment.poemSource}
+                    comments={{
+                      momentId: moment.id,
+                      count: moment._count.comments,
+                    }}
+                  />
+                )
+              })}
+            </div>
+
+            <Pagination
+              currentPage={page}
+              totalPages={Math.ceil(filteredTotal / PAGE_SIZE)}
+              baseUrl={paginationBase}
+            />
+          </>
         )}
       </div>
     </ViewTransition>
