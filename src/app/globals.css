@@ -1367,6 +1367,33 @@ html {
   border-color: #f2efe8;
 }
 
+/* -- 江湖模式下，页脚与页面底色也要变暗 -- */
+/*
+ * 之前只把导航栏与首屏做了暗色，页脚仍是白底浅灰字：切到江湖后往回滚，
+ * 首屏下面会露出一条白条（站长反馈的现象）。
+ * body 一起变暗还能顺带管住回弹/溢出区域。
+ */
+:root[data-hero-scene="jianghu"] body {
+  background-color: #0f0d0a;
+}
+:root[data-hero-scene="jianghu"] .site-footer {
+  background-color: #0f0d0a;
+  border-top-color: #3d3730;
+}
+:root[data-hero-scene="jianghu"] .site-footer .text-gray-500,
+:root[data-hero-scene="jianghu"] .site-footer .text-gray-400 {
+  color: #aba49a;
+}
+:root[data-hero-scene="jianghu"] .site-footer .hover\:text-gray-900:hover {
+  color: #f2efe8;
+}
+:root[data-hero-scene="jianghu"] .site-footer .hover\:text-gray-600:hover {
+  color: #d4cfc5;
+}
+:root[data-hero-scene="jianghu"] .site-footer .border-gray-100 {
+  border-color: #2a241e;
+}
+
 /* -- 简历打印视图（/resume/print）-- */
 /*
  * 单栏 A4 排版。屏幕上模拟一张纸，打印时把页边距交给 @page。

@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 export default async function AdminMomentsPage() {
   const user = await getCurrentUser()
   // 有「动态管理」权限即可（站长恒有）
-  if (!userHasPermission(user, "moment")) redirect("/admin")
+  if (!user || !userHasPermission(user, "moment")) redirect("/admin")
 
   const moments = await prisma.moment.findMany({
     orderBy: [{ sortOrder: "desc" }, { createdAt: "desc" }],
@@ -35,10 +35,16 @@ export default async function AdminMomentsPage() {
       text: true,
       published: true,
       createdAt: true,
+      authorId: true,
       images: { select: { id: true, url: true }, orderBy: { sortOrder: "asc" }, take: 1 },
       _count: { select: { images: true, comments: true } },
     },
   })
+
+  // 站长能改全部；授权读者只能改自己发的（别人的行只读，与文章模块一致）
+  const isOwner = user.role === "OWNER"
+  const myId = Number.parseInt(user.id, 10)
+  const canEdit = (authorId: number | null) => isOwner || authorId === myId
 
   return (
     <div className="space-y-6">
@@ -125,13 +131,19 @@ export default async function AdminMomentsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-3">
-                        <Link
-                          href={`/admin/moments/${moment.id}/edit`}
-                          className="text-sm text-accent hover:underline"
-                        >
-                          编辑
-                        </Link>
-                        <DeleteConfirmButton apiPath={`/api/admin/moments/${moment.id}`} />
+                        {canEdit(moment.authorId) ? (
+                          <>
+                            <Link
+                              href={`/admin/moments/${moment.id}/edit`}
+                              className="text-sm text-accent hover:underline"
+                            >
+                              编辑
+                            </Link>
+                            <DeleteConfirmButton apiPath={`/api/admin/moments/${moment.id}`} />
+                          </>
+                        ) : (
+                          <span className="text-xs text-gray-400">只读</span>
+                        )}
                       </div>
                     </td>
                   </tr>

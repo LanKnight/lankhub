@@ -25,6 +25,15 @@ export async function PUT(
     const existing = await prisma.moment.findUnique({ where: { id } })
     if (!existing) return NextResponse.json({ error: "动态不存在" }, { status: 404 })
 
+    /*
+     * 归属校验：站长全权；授权读者只能改自己发的那条。
+     * 光有「动态管理」权限还不够 —— 否则拿到权限的读者能改站长发的动态。
+     * 存量动态的 authorId 为 null（迁移时没有作者信息），理所当然只有站长能动。
+     */
+    if (auth.role !== "OWNER" && existing.authorId !== Number.parseInt(auth.id, 10)) {
+      return NextResponse.json({ error: "只能修改自己发布的动态" }, { status: 403 })
+    }
+
     const body = await req.json().catch(() => null)
     if (!body || typeof body !== "object") {
       return NextResponse.json({ error: "请求体不是合法的 JSON" }, { status: 400 })
@@ -111,6 +120,11 @@ export async function DELETE(
   try {
     const existing = await prisma.moment.findUnique({ where: { id } })
     if (!existing) return NextResponse.json({ error: "动态不存在" }, { status: 404 })
+
+    // 删除同样要校验归属：有权限 ≠ 能删别人的内容
+    if (auth.role !== "OWNER" && existing.authorId !== Number.parseInt(auth.id, 10)) {
+      return NextResponse.json({ error: "只能删除自己发布的动态" }, { status: 403 })
+    }
 
     // 图片与评论由外键级联删除（schema 里都是 onDelete: Cascade）
     await prisma.moment.delete({ where: { id } })

@@ -17,7 +17,7 @@ export default async function EditMomentPage({
 }) {
   const user = await getCurrentUser()
   // 有「动态管理」权限即可（站长恒有）
-  if (!userHasPermission(user, "moment")) redirect("/admin")
+  if (!user || !userHasPermission(user, "moment")) redirect("/admin")
 
   const { id } = await params
   const momentId = Number.parseInt(id, 10)
@@ -28,6 +28,11 @@ export default async function EditMomentPage({
     include: { images: { orderBy: { sortOrder: "asc" } } },
   })
   if (!moment) notFound()
+
+  // 归属校验：授权读者只能编辑自己发的动态（返回 404，不暴露"这条存在但不是你的"）
+  if (user.role !== "OWNER" && moment.authorId !== Number.parseInt(user.id, 10)) {
+    notFound()
+  }
 
   return (
     <div className="space-y-6">

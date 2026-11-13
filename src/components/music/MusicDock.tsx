@@ -36,7 +36,8 @@ export default function MusicDock() {
   const pathname = usePathname()
   const router = useRouter()
   const { status } = useSession()
-  const { current, playing, loading, queue, play, toggle, next, prev, audioRef } = usePlayer()
+  const { current, playing, loading, queue, play, playShuffled, toggle, next, prev, audioRef } =
+    usePlayer()
 
   const [open, setOpen] = useState(false)
   const [preparing, setPreparing] = useState(false)
@@ -76,10 +77,17 @@ export default function MusicDock() {
     return () => clearInterval(timer)
   }, [playing, audioRef])
 
-  /** 什么都没播时，抽屉里的「开始播放」：拉一次歌单，从第一首放起 */
+  /**
+   * 什么都没播时，抽屉里的「开始播放」。
+   *
+   * 站长要求：**随机开始**，而不是每次从歌单第一首放起。
+   * 用 playShuffled 而不自己 Math.random 取一首：它会把播放模式也设成随机，
+   * 这样后续「下一首」也是随机的；自己 random 一首的话模式仍是顺序，
+   * 点下一首就跳回列表下一首，感觉像"随机了一次就没了"。
+   */
   const startDefault = useCallback(async () => {
     if (queue.length > 0) {
-      play(queue[0], queue)
+      playShuffled(queue)
       return
     }
     setPreparing(true)
@@ -87,12 +95,12 @@ export default function MusicDock() {
       const res = await fetch("/api/music/queue")
       const data = await res.json().catch(() => null)
       if (Array.isArray(data) && data.length > 0) {
-        play(data[0] as PlayerSong, data as PlayerSong[])
+        playShuffled(data as PlayerSong[])
       }
     } finally {
       setPreparing(false)
     }
-  }, [queue, play])
+  }, [queue, playShuffled])
 
   /** 单击开抽屉、双击进歌单：用定时器区分，避免单击时立刻跳走 */
   const handleButtonClick = useCallback(() => {

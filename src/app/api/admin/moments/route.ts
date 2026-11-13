@@ -61,6 +61,11 @@ export async function POST(req: NextRequest) {
     const moment = await prisma.moment.create({
       data: {
         kind: data.kind,
+        /*
+         * 记录作者：没有这一行，"这条动态是谁发的"就无从判断。
+         * 之前漏了它，导致后台列表的作者列全空、也没法做"只能改自己的"校验。
+         */
+        authorId: Number.parseInt(auth.id, 10) || null,
         topic: data.topic ?? null,
         title: data.title ?? null,
         text: data.text ?? null,

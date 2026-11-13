@@ -59,7 +59,7 @@ try {
   const announcementSrc = readFileSync("src/lib/announcement.ts", "utf8")
   check(
     "公告版本号已更新",
-    /ANNOUNCEMENT_VERSION\s*=\s*"2026-11-12"/.test(announcementSrc)
+    /ANNOUNCEMENT_VERSION\s*=\s*"2026-11-13"/.test(announcementSrc)
   )
   check(
     "公告含新的两条最近更新",

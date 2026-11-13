@@ -52,11 +52,6 @@ export default function Navbar() {
 
   const canManage = canAccessAdmin(user)
 
-  /**
-   * 后台页面收窄导航栏：后台有自己的侧栏，再叠一条站点导航会挤到十几个入口。
-   * 所以进 /admin 后只保留 logo（回首页）与齿轮。
-   */
-  const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/")
 
   // 下拉：点外面或按 Esc 关闭
   useEffect(() => {
@@ -147,10 +142,9 @@ export default function Navbar() {
             </button>
           </div>
 
-          {/* 桌面端 */}
+          {/* 桌面端（后台页面也显示，站长要求保留） */}
           <nav className="hidden md:flex items-center gap-8">
-            {!isAdmin &&
-              navLinks.map((link) => (
+            {navLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
@@ -229,8 +223,7 @@ export default function Navbar() {
         }`}
       >
         <div className="px-4 py-3 space-y-3">
-          {!isAdmin &&
-            navLinks.map((link) => (
+          {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
