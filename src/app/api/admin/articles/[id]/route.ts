@@ -134,6 +134,19 @@ export async function DELETE(
   if (access instanceof NextResponse) return access
   const { existing } = access
 
+  /*
+   * 二级校验：删除必须带上「手打的标题」，与原标题完全一致才放行。
+   * 只靠前端禁用按钮是拦不住脚本直接调接口的，所以服务端也验一遍。
+   * 不带 confirm 一律拒绝 —— 保证这条删除路径必须经过手写确认。
+   */
+  const confirm = req.nextUrl.searchParams.get("confirm")?.trim() ?? ""
+  if (confirm !== (existing.title ?? "").trim()) {
+    return NextResponse.json(
+      { error: "标题不匹配，已取消删除" },
+      { status: 400 }
+    )
+  }
+
   try {
     await prisma.article.delete({
       where: { id: existing.id },

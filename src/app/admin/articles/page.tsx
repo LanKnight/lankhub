@@ -171,7 +171,7 @@ export default async function AdminArticlesPage({
                             >
                               <Edit size={16} />
                             </Link>
-                            <DeleteButton articleId={article.id} />
+                            <DeleteButton articleId={article.id} title={article.title} />
                           </>
                         ) : (
                           <span

@@ -7,6 +7,8 @@ import { useToast } from "@/components/ui/Toast"
 
 interface DeleteButtonProps {
   collectionId: number
+  /** 合集名称：删除时要求手打一遍，防点错行 */
+  name: string
   /** 合集下的文章数（含草稿）。大于 0 时删除会把这些文章迁到「未分类」 */
   articleCount: number
   /** 兜底合集不允许删除（服务端同样会拒绝） */
@@ -15,6 +17,7 @@ interface DeleteButtonProps {
 
 export default function DeleteButton({
   collectionId,
+  name,
   articleCount,
   isFallback,
 }: DeleteButtonProps) {
@@ -36,6 +39,8 @@ export default function DeleteButton({
     <DeleteConfirmButton
       apiPath={`/api/admin/collections/${collectionId}`}
       iconTitle="删除合集"
+      confirmName={name}
+      resourceLabel="合集"
       warning={
         articleCount > 0
           ? `该合集下 ${articleCount} 篇文章将移入「未分类」`

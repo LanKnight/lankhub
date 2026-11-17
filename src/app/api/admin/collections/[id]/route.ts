@@ -106,6 +106,19 @@ export async function DELETE(
       )
     }
 
+    /*
+     * 二级校验：删除必须带上「手打的合集名」，与原名完全一致才放行。
+     * 只靠前端是拦不住脚本直接调接口的，所以服务端也验一遍；
+     * 不带 confirm 一律拒绝，保证这条删除路径一定经过手写确认。
+     */
+    const confirm = req.nextUrl.searchParams.get("confirm")?.trim() ?? ""
+    if (confirm !== (existing.name ?? "").trim()) {
+      return NextResponse.json(
+        { error: "合集名不匹配，已取消删除" },
+        { status: 400 }
+      )
+    }
+
     // 合集外键是 onDelete: SetNull —— 直接删会让下面的文章（含已发布）
     // 静默变成「无合集」，破坏"已发布必有合集"的约定，所以先迁移再删除
     const articleCount = await prisma.article.count({

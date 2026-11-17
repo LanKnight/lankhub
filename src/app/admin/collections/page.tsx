@@ -102,6 +102,7 @@ export default async function AdminCollectionsPage() {
                       </Link>
                       <DeleteButton
                         collectionId={c.id}
+                        name={c.name}
                         articleCount={c._count.articles}
                         isFallback={isUncategorizedCollection(c)}
                       />
