@@ -17,7 +17,7 @@
  */
 
 /** 公告版本：改动它会让大家重新看到一次公告（建议用日期） */
-export const ANNOUNCEMENT_VERSION = "2026-11-13"
+export const ANNOUNCEMENT_VERSION = "2026-11-17"
 
 /** localStorage 的键：只存"看过的版本号"一个字符串 */
 export const ANNOUNCEMENT_STORAGE_KEY = "lankhub.announcement.seen"
@@ -43,7 +43,7 @@ export interface Announcement {
 
 export const ANNOUNCEMENT: Announcement = {
   version: ANNOUNCEMENT_VERSION,
-  updatedAt: "2026-11-13",
+  updatedAt: "2026-11-17",
   title: "欢迎来到 lankHub",
   lead: "这是一个人的长期笔记：记录成长，也分享技术与生活。站点有较大改动时，这里会更新一次。",
   sections: [
@@ -60,8 +60,8 @@ export const ANNOUNCEMENT: Announcement = {
       title: "最近更新",
       // 最多两条，直接写内容，不加「本次/上次」前缀（规则见文件顶部注释）
       list: [
+        "写文章时插入的图片、简历头像都会先压缩再上传：原来超过约 1MB 的图传不上去，现在能正常传，文章页也更轻",
         "动态里的图片改成瀑布流：一张都不裁，横图竖图混着传也能排整齐，点开可以看大图（多图能左右翻）",
-        "相册和诗句都搬进了博客的「动态」栏，动态也能评论；音乐改成右下角常驻按钮，点开就能切歌（第一次是随机播放），双击进歌单",
       ],
     },
   ],

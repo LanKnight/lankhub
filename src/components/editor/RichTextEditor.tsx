@@ -26,6 +26,7 @@ import {
   type Ref,
 } from "react"
 import { isSafeUrl } from "@/lib/utils"
+import { uploadImageCompressed } from "@/lib/upload-image"
 import { useToast } from "@/components/ui/Toast"
 
 export interface RichTextEditorHandle {
@@ -321,28 +322,18 @@ export default function RichTextEditor({
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file || !editor) return
 
-      const formData = new FormData()
-      formData.append("file", file)
-
+      /*
+       * 先压缩再上传。原图基本都超过反向代理约 1MB 的上限，
+       * 不压的话这里会直接失败（以前就是这样，只是没提示清楚）。
+       * 压缩档位 inline = 长边 1600 / 目标 900KB，见 src/lib/image-compress.ts。
+       */
       try {
-        const res = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        })
-
-        const data = await safeJson(res)
-
-        if (!res.ok) {
-          toast(data?.error || `上传失败 (${res.status})`, "error")
-          return
-        }
-
-        if (data?.url) {
-          editor.chain().focus().setImage({ src: data.url }).run()
-          toast("图片上传成功", "success")
-        }
-      } catch {
-        toast("网络错误：图片上传失败，请检查网络连接后重试", "error")
+        toast("正在压缩并上传图片…", "info")
+        const uploaded = await uploadImageCompressed(file, "inline")
+        editor.chain().focus().setImage({ src: uploaded.url }).run()
+        toast("图片已插入", "success")
+      } catch (error) {
+        toast(error instanceof Error ? error.message : "图片上传失败", "error")
       }
     }
     input.click()

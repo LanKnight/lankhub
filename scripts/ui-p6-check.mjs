@@ -59,12 +59,12 @@ try {
   const announcementSrc = readFileSync("src/lib/announcement.ts", "utf8")
   check(
     "公告版本号已更新",
-    /ANNOUNCEMENT_VERSION\s*=\s*"2026-11-13"/.test(announcementSrc)
+    /ANNOUNCEMENT_VERSION\s*=\s*"2026-11-17"/.test(announcementSrc)
   )
   check(
     "公告含新的两条最近更新",
-    announcementSrc.includes("动态里的图片改成瀑布流") &&
-      announcementSrc.includes("相册和诗句都搬进了博客")
+    announcementSrc.includes("写文章时插入的图片") &&
+      announcementSrc.includes("动态里的图片改成瀑布流")
   )
   const listBlock = announcementSrc.match(/list:\s*\[([\s\S]*?)\]/)
   const listItems = listBlock ? listBlock[1].split("\n").filter((line) => line.trim().startsWith('"')) : []

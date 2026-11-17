@@ -21,6 +21,13 @@ export const COMPRESS_PRESETS = {
   cover: { maxEdge: 1880, quality: 0.82, targetBytes: 900 * 1024 },
   /** 相册照片：lightbox 会放大看，长边 2560 */
   photo: { maxEdge: 2560, quality: 0.82, targetBytes: 900 * 1024 },
+  /**
+   * 文章正文插图：正文栏宽约 720px，2 倍屏 1600 足够清晰；
+   * 再大只会让文章页变慢（一篇文章常有多张图）。
+   */
+  inline: { maxEdge: 1600, quality: 0.82, targetBytes: 900 * 1024 },
+  /** 简历头像：实际显示 68px，512 已过采样（2 倍屏也够） */
+  avatar: { maxEdge: 512, quality: 0.86, targetBytes: 300 * 1024 },
 } as const
 
 export type CompressPresetName = keyof typeof COMPRESS_PRESETS

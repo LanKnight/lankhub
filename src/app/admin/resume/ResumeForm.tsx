@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, Save, Plus, Trash2, ChevronDown, ChevronUp, Upload } from "lucide-react"
 import { uploadWithProgress } from "@/lib/upload"
+import { uploadImageCompressed } from "@/lib/upload-image"
 import type { ResumeProfileData } from "@/lib/resume-helpers"
 
 interface SkillItem {
@@ -282,31 +283,21 @@ export default function ResumeForm({ initialData }: ResumeFormProps) {
     setAvatarProgress(0)
     setError("")
 
-    const formData = new FormData()
-    formData.append("file", file)
-
+    /*
+     * 先压缩再上传（avatar 档：长边 512 / 目标 300KB）。
+     * 头像实际只显示 68px，原图直传不仅浪费流量，超过约 1MB 还会被反向代理挡掉。
+     */
     try {
-      const res = await uploadWithProgress(
-        "/api/upload",
-        formData,
-        setAvatarProgress
-      )
-      const data = await res.json().catch(() => null)
+      const uploaded = await uploadImageCompressed(file, "avatar", {
+        onProgress: setAvatarProgress,
+      })
 
-      if (!res.ok) {
-        setError(data?.error || "头像上传失败")
-        setAvatarUploading(false)
-        return
-      }
-
-      if (data?.url) {
-        updateProfile("avatar", data.url)
-        setSuccess(true)
-        if (successTimer.current) clearTimeout(successTimer.current)
-        successTimer.current = setTimeout(() => setSuccess(false), 3000)
-      }
-    } catch {
-      setError("头像上传失败，请重试")
+      updateProfile("avatar", uploaded.url)
+      setSuccess(true)
+      if (successTimer.current) clearTimeout(successTimer.current)
+      successTimer.current = setTimeout(() => setSuccess(false), 3000)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "头像上传失败，请重试")
     } finally {
       setAvatarUploading(false)
       e.target.value = ""

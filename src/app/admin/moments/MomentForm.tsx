@@ -6,7 +6,7 @@ import Link from "next/link"
 import { ImagePlus, Loader2, Trash2 } from "lucide-react"
 
 import { PHOTO_CATEGORIES } from "@/lib/photo-categories"
-import { COMPRESS_PRESETS, compressImage, toUploadFile } from "@/lib/image-compress"
+import { uploadImageCompressed } from "@/lib/upload-image"
 
 interface MomentImageState {
   url: string
@@ -72,29 +72,19 @@ export default function MomentForm({ initial }: { initial?: MomentFormValue }) {
         setUploadLabel(`处理中 ${index + 1}/${picked.length}`)
 
         /*
-         * 先压缩再上传（不能省）。
-         * 反向代理的请求体上限约 1MB，原图基本都超过 —— 不压的话大图会被 413 挡掉，
-         * 表现就是"上传失败"或者卡很久。压缩统一走 src/lib/image-compress.ts，
-         * 与文章封面/编辑器插图用的是同一套参数。
+         * 压缩 + 上传统一走 uploadImageCompressed（photo 档：长边 2560 / 目标 900KB）。
+         * 反向代理的请求体上限约 1MB，原图基本都超 —— 不压会被 413 挡掉。
          */
-        const result = await compressImage(file, COMPRESS_PRESETS.photo)
-        if (result.size > 1020 * 1024) {
-          setError(`「${file.name}」压缩后仍有 ${(result.size / 1024 / 1024).toFixed(2)}MB，超过上传上限，换小一点的图`)
-          continue
+        try {
+          const uploaded = await uploadImageCompressed(file, "photo")
+          added.push({
+            url: uploaded.url,
+            width: uploaded.width,
+            height: uploaded.height,
+          })
+        } catch (error) {
+          setError(error instanceof Error ? error.message : `「${file.name}」上传失败`)
         }
-
-        const uploadFile = toUploadFile(result, file.name)
-        const form = new FormData()
-        form.append("file", uploadFile)
-        const res = await fetch("/api/upload", { method: "POST", body: form })
-        const data = await res.json().catch(() => null)
-        if (!res.ok || !data?.url) {
-          setError(data?.error || `「${file.name}」上传失败`)
-          continue
-        }
-
-        // 记压缩后的真实宽高：瀑布流靠它预留位置，避免加载时页面跳动
-        added.push({ url: data.url, width: result.width, height: result.height })
       }
       setImages((prev) => [...prev, ...added])
     } finally {
