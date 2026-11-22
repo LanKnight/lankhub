@@ -12,7 +12,7 @@
  *
  * 用法：npx tsx scripts/upstream-shape-test.mts
  */
-import { getPlayUrl, getCoverUrl, getLyric } from "../src/lib/music-api"
+import { getGdPlayUrl, getCoverUrl, getLyric } from "../src/lib/music-api"
 
 let pass = 0
 const fail: string[] = []
@@ -55,7 +55,7 @@ try {
   console.log("\n【1】正常形态：应返回地址")
   {
     mockJson({ url: "https://example.test/a.mp3" })
-    const r = await getPlayUrl(nextId())
+    const r = await getGdPlayUrl(nextId())
     check("拿到地址", r.ok && r.data.startsWith("https://"), r.ok ? r.data : r.error)
     restore()
   }
@@ -64,7 +64,7 @@ try {
   {
     // 实测 kuwo / joox 就是这形态
     mockJson({ url: "", br: -1 })
-    const r = await getPlayUrl(nextId())
+    const r = await getGdPlayUrl(nextId())
     check("判为失败", !r.ok)
     check("★ code = url_unavailable（永久，前端换歌）", !r.ok && r.code === "url_unavailable", !r.ok ? String(r.code) : "")
     restore()
@@ -74,7 +74,7 @@ try {
   {
     // 这一条是本轮修的重点：以前会被误判成「没版权」
     mockJson({ br: 320 })
-    const r = await getPlayUrl(nextId())
+    const r = await getGdPlayUrl(nextId())
     check("判为失败", !r.ok)
     check("★ code = upstream_error（暂时，值得重试）", !r.ok && r.code === "upstream_error", !r.ok ? String(r.code) : "")
     check(
@@ -88,7 +88,7 @@ try {
   console.log("\n【4】返回数组（形状完全不对）")
   {
     mockJson([{ url: "https://example.test/a.mp3" }])
-    const r = await getPlayUrl(nextId())
+    const r = await getGdPlayUrl(nextId())
     check("数组被判为失败", !r.ok)
     check("code = upstream_error", !r.ok && r.code === "upstream_error", !r.ok ? String(r.code) : "")
     restore()
@@ -97,7 +97,7 @@ try {
   console.log("\n【5】返回 null")
   {
     mockJson(null)
-    const r = await getPlayUrl(nextId())
+    const r = await getGdPlayUrl(nextId())
     check("null 被判为失败", !r.ok)
     check("code = upstream_error", !r.ok && r.code === "upstream_error", !r.ok ? String(r.code) : "")
     restore()
@@ -106,7 +106,7 @@ try {
   console.log("\n【6】url 字段类型不对（数字）")
   {
     mockJson({ url: 12345 })
-    const r = await getPlayUrl(nextId())
+    const r = await getGdPlayUrl(nextId())
     check("类型不对被判为失败", !r.ok)
     /*
      * 字段**存在**但类型不对：既不是「空地址」也不是「缺字段」。
@@ -120,7 +120,7 @@ try {
   console.log("\n【7】上游 5xx → upstream_error")
   {
     mockJson({ message: "boom" }, 503)
-    const r = await getPlayUrl(nextId())
+    const r = await getGdPlayUrl(nextId())
     check("5xx 被判为失败", !r.ok)
     check("code = upstream_error", !r.ok && r.code === "upstream_error", !r.ok ? String(r.code) : "")
     restore()

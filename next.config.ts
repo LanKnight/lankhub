@@ -66,12 +66,21 @@ const nextConfig: NextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
-              // 歌单的封面直连网易云 CDN（/music 页面）
-              "img-src 'self' data: blob: https://*.music.126.net",
-              // 音频直连 CDN：<audio src> 不受同源策略约束，所以不需要服务器代理音频，
-              // 也就不必让 ECS 承担全部音频流量。音频与封面同属一个域名通配符。
-              // JSON 接口仍然走自己的 /api/music/* 代理，所以 connect-src 保持 'self'。
-              "media-src 'self' https://*.music.126.net",
+              // 歌单的封面直连 CDN（/music 页面）：网易云、QQ 音乐
+              "img-src 'self' data: blob: https://*.music.126.net https://y.gtimg.cn",
+              /*
+               * 音频直连 CDN：<audio src> 不受同源策略约束，所以不需要服务器代理音频，
+               * 也就不必让 ECS 承担全部音频流量。
+               *
+               * 现在音频来自多个源（见 src/lib/music-resolve.ts）：
+               *  - 网易云 *.music.126.net（GD 取到的直链）
+               *  - Meting 公共实例 api.injahow.cn（它直接回音频流）
+               *  - QQ 音乐 *.stream.qqmusic.qq.com
+               * 少放行哪一个，对应那条线路在浏览器里就会被 CSP 静默拦掉。
+               *
+               * JSON 接口仍然走自己的 /api/music/* 代理，所以 connect-src 保持 'self'。
+               */
+              "media-src 'self' https://*.music.126.net https://api.injahow.cn https://*.stream.qqmusic.qq.com",
               "connect-src 'self'",
               "frame-ancestors 'none'",
               "base-uri 'self'",

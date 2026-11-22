@@ -9,6 +9,7 @@ import {
   searchSongs,
   type ApiSong,
 } from "@/lib/music-api"
+import { getQqPlayUrls } from "@/lib/music-qq"
 import { SongBindSchema } from "@/lib/validations"
 
 /**
@@ -72,6 +73,8 @@ export async function POST(req: NextRequest) {
       continue
     }
 
+    const isTencent = item.source === "tencent"
+
     /*
      * 校验提交上来的版本确实来自当前搜索结果。
      *
@@ -81,25 +84,51 @@ export async function POST(req: NextRequest) {
      *
      * 反过来说，合法的入口（搜索添加、单首绑定）提交的 apiId 本来就来自
      * 刚刚那次搜索，所以在结果里一定能找到，不会误伤。
+     *
+     * QQ 源不走这段：它的 apiId 是 song_mid，在网易云的搜索结果里当然找不到，
+     * 改用「取 QQ 详情能拿到播放地址」来验证（见下面的分支）。
      */
-    const cacheKey = `${song.title}\u0000${song.artist}`
-    let candidates = candidateCache.get(cacheKey)
-    if (!candidates) {
-      const searched = await searchSongs(song.title, song.artist)
-      candidates = searched.ok ? searched.data : []
-      candidateCache.set(cacheKey, candidates)
+    if (!isTencent) {
+      const cacheKey = `${song.title}\u0000${song.artist}`
+      let candidates = candidateCache.get(cacheKey)
+      if (!candidates) {
+        const searched = await searchSongs(song.title, song.artist)
+        candidates = searched.ok ? searched.data : []
+        candidateCache.set(cacheKey, candidates)
+      }
+      if (!candidates.some((c) => c.apiId === item.apiId)) {
+        failed.push({
+          songId: item.songId,
+          error: "这个版本已不在当前搜索结果里（可能已下架，或歌名歌手被改过），请重新搜索",
+        })
+        continue
+      }
     }
-    if (!candidates.some((c) => c.apiId === item.apiId)) {
-      failed.push({
-        songId: item.songId,
-        error: "这个版本已不在当前搜索结果里（可能已下架，或歌名歌手被改过），请重新搜索",
-      })
-      continue
+
+    /*
+     * 「校验 apiId 确实属于这首歌」在 QQ 源上换个做法：
+     * 网易云那边是搜一遍看结果里有没有这个 id；QQ 这边直接取详情，
+     * 取得到且有播放地址才算通过（顺带拿到封面）。
+     */
+    let qqCoverUrl: string | null = null
+    if (isTencent) {
+      const detail = await getQqPlayUrls(item.apiId, song.title)
+      if (!detail.ok) {
+        failed.push({
+          songId: item.songId,
+          error:
+            detail.errorKind === "not_found"
+              ? "QQ 音乐上找不到这首歌的播放地址"
+              : `QQ 音乐接口暂时不可用：${detail.error}`,
+        })
+        continue
+      }
+      qqCoverUrl = detail.data.coverUrl
     }
 
     // 封面与歌词各自独立失败，互不影响
-    let coverUrl: string | null = null
-    if (item.picId) {
+    let coverUrl: string | null = qqCoverUrl
+    if (!coverUrl && item.picId) {
       const cover = await getCoverUrl(item.picId)
       if (cover.ok) coverUrl = cover.data
       else warnings.push({ songId: item.songId, error: `封面：${cover.error}` })
@@ -110,13 +139,37 @@ export async function POST(req: NextRequest) {
       const result = await getLyric(item.lyricId)
       if (result.ok) lyric = result.data
       else warnings.push({ songId: item.songId, error: `歌词：${result.error}` })
+    } else if (isTencent) {
+      /*
+       * QQ 源没有「歌词 id」这个入口，但网易云通常仍存着这首歌的歌词
+       * （版权只影响播放，不影响歌词）。所以按歌名歌手去网易云搜一次，有就抓。
+       * 属于锦上添花：失败只记 warning，不影响绑定。
+       */
+      const searched = await searchSongs(song.title, song.artist)
+      if (searched.ok) {
+        const artistKey = song.artist.toLowerCase().replace(/\s+/g, "")
+        const match = searched.data.find((candidate) => {
+          const singer = candidate.artist.toLowerCase().replace(/\s+/g, "")
+          return candidate.title.trim() === song.title.trim() && singer.includes(artistKey)
+        })
+        if (match?.lyricId) {
+          const result = await getLyric(match.lyricId)
+          if (result.ok) {
+            lyric = result.data
+            // 记下网易云的歌词 id，后续刷新歌词时不用再搜一遍
+            item.lyricId = match.lyricId
+          } else {
+            warnings.push({ songId: item.songId, error: `歌词：${result.error}` })
+          }
+        }
+      }
     }
 
     try {
       const updated = await prisma.song.update({
         where: { id: item.songId },
         data: {
-          source: MUSIC_SOURCE,
+          source: isTencent ? "tencent" : MUSIC_SOURCE,
           apiId: item.apiId,
           picId: item.picId ?? null,
           lyricId: item.lyricId ?? null,

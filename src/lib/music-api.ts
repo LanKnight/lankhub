@@ -19,16 +19,6 @@ const API_BASE = "https://music-api.gdstudio.xyz/api.php"
 export const MUSIC_SOURCE = "netease"
 const TIMEOUT_MS = 8000
 
-/**
- * 播放地址的缓存时长。签名 URL 有有效期，所以只短缓存。
- *
- * 取 5 分钟而不是更长：签名地址的有效期约 1 小时（URL 里带时间戳），
- * 但「拿到就一定能播」这件事没有保证，短缓存能让换绑 / 服务端轮换签名后
- * 更快自愈。播放器那边还有「失败即绕过缓存重取一次」的兜底，见 getPlayUrl。
- */
-const PLAY_URL_TTL_MS = 5 * 60 * 1000
-/** 缓存条目上限，避免长时间运行后无限增长 */
-const PLAY_URL_CACHE_MAX = 500
 
 /**
  * 失败原因的分类码。
@@ -102,8 +92,6 @@ interface RawSearchItem {
   lyric_id?: string
 }
 
-const playUrlCache = new Map<string, { url: string; expiresAt: number }>()
-
 /*
  * 自我配额：官方限流是 60 次 / 5 分钟。
  *
@@ -176,7 +164,28 @@ async function callApi(params: Record<string, string>): Promise<ApiResult<unknow
         // 4xx/5xx 都归到上游异常：对我们来说都是「第三方现在给不了」
         return { ok: false, error: `音乐接口返回 ${res.status}`, code: "upstream_error" }
       }
-      return { ok: true, data: await res.json() }
+      /*
+       * ★ 上游偶尔返回 HTML 错误页（不是 JSON）：实测同一批 12 次请求里有 4 次如此。
+       * 直接 res.json() 会抛 "Unexpected token '<'"，被归成网络异常，看不出真因；
+       * 而且 HTML 页面可能是个验证/限流页 —— 这是"暂时性"明确信号，值得让调用方重试/换源。
+       */
+      const contentType = (res.headers.get("content-type") ?? "").toLowerCase()
+      const text = await res.text()
+      if (text.trimStart().startsWith("<")) {
+        return {
+          ok: false,
+          error: "音乐接口返回了网页而不是数据（可能被限流或加了验证）",
+          code: "upstream_error",
+        }
+      }
+      if (!contentType.includes("json") && text.trim().length === 0) {
+        return { ok: false, error: "音乐接口返回了空响应", code: "upstream_error" }
+      }
+      try {
+        return { ok: true, data: JSON.parse(text) }
+      } catch {
+        return { ok: false, error: "音乐接口返回的数据无法解析", code: "upstream_error" }
+      }
     } catch (error) {
       const reason =
         error instanceof Error && error.name === "TimeoutError"
@@ -224,24 +233,15 @@ export async function searchSongs(
 }
 
 /**
- * 取播放地址（带短缓存）。
+ * 取 GD（网易云）的播放地址，**不带缓存**。
  *
- * 注意空字符串也是失败：joox 就是这个形态（`{"url":"","br":-1}`），
- * 不判空的话会拿到一个空 src，前端静默播不出声音，很难排查。
+ * 缓存与多源回退都在 src/lib/music-resolve.ts 里做 —— 那里要对多个来源
+ * 逐个候选探活，缓存粒度也从"按 apiId"变成了"按歌曲 + 源"。
  *
- * `force` 用于播放器「播到一半地址失效」的场景：跳过缓存重新取一次，
- * 否则会拿到那条已经坏掉的缓存地址，重试变成原地打转。
+ * `br` 指定音质：999（24bit，常回 948）/ 740（16bit 无损）/ 320 / 192 / 128。
  */
-export async function getPlayUrl(
-  apiId: string,
-  options: { force?: boolean } = {}
-): Promise<ApiResult<string>> {
-  const cached = playUrlCache.get(apiId)
-  if (!options.force && cached && cached.expiresAt > Date.now()) {
-    return { ok: true, data: cached.url }
-  }
-
-  const result = await callApi({ types: "url", id: apiId, br: "320" })
+export async function getGdPlayUrl(apiId: string, br = "999"): Promise<ApiResult<string>> {
+  const result = await callApi({ types: "url", id: apiId, br })
   if (!result.ok) return result
 
   /*
@@ -286,13 +286,6 @@ export async function getPlayUrl(
     return { ok: false, error: "这首歌暂时拿不到播放地址", code: "url_unavailable" }
   }
 
-  // 简单的容量控制：超上限就丢掉最早插入的一条
-  if (playUrlCache.size >= PLAY_URL_CACHE_MAX) {
-    const oldest = playUrlCache.keys().next().value
-    if (oldest !== undefined) playUrlCache.delete(oldest)
-  }
-  playUrlCache.set(apiId, { url, expiresAt: Date.now() + PLAY_URL_TTL_MS })
-
   return { ok: true, data: url }
 }
 
@@ -301,7 +294,7 @@ export async function getCoverUrl(picId: string): Promise<ApiResult<string>> {
   const result = await callApi({ types: "pic", id: picId, size: "300" })
   if (!result.ok) return result
 
-  // 与 getPlayUrl 同样的理由：字段缺失说明上游协议变了，不是「没这张图」
+  // 与取播放地址同样的理由：字段缺失说明上游协议变了，不是「没这张图」
   if (typeof result.data !== "object" || result.data === null) {
     return { ok: false, error: "音乐接口返回了预料之外的数据", code: "upstream_error" }
   }

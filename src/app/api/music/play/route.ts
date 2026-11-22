@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/auth-helpers"
-import { getPlayUrl } from "@/lib/music-api"
+import { resolvePlayUrl } from "@/lib/music-resolve"
 import { rateLimit, getClientIp } from "@/lib/rate-limit"
 import { IdSchema } from "@/lib/validations"
 
@@ -107,7 +107,8 @@ export async function GET(req: NextRequest) {
 
   const song = await prisma.song.findUnique({
     where: { id: parsed.data },
-    select: { apiId: true },
+    // 多源回退要按「歌名 + 歌手」去别的源里找，所以这几个字段一起取
+    select: { id: true, title: true, artist: true, apiId: true, source: true },
   })
 
   if (!song) {
@@ -131,7 +132,19 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  const result = await getPlayUrl(song.apiId, { force })
+  /*
+   * 交给多源解析：GD（网易云）→ Meting → QQ 音乐，逐个候选探活。
+   * 哪个源服务了这首歌会写进日志，方便排查"某首歌突然放不出"。
+   */
+  const result = await resolvePlayUrl(
+    { id: song.id, title: song.title, artist: song.artist, apiId: song.apiId, source: song.source },
+    { force }
+  )
+  if (result.ok) {
+    console.info(
+      `[music] ${song.title} - ${song.artist} 由 ${result.data.provider} 服务（${result.data.quality}）`
+    )
+  }
   if (!result.ok) {
     /*
      * 把上游的 code 透传给播放器（它据此决定「立刻换歌」还是「退避重试」）。

@@ -194,6 +194,11 @@ export const SONG_BIND_BATCH_MAX = 6
 export const SongBindItemSchema = z.object({
   songId: z.number().int().positive(),
   apiId: z.string().trim().min(1, "缺少播放 ID").max(200),
+  /*
+   * 音源。默认 netease（GD 的网易云），tencent（QQ 音乐）用于补网易云没有的版本
+   * （例如周杰伦原版）。两者的 apiId 含义不同：netease 是曲目 id，tencent 是 song_mid。
+   */
+  source: z.enum(["netease", "tencent"]).optional(),
   picId: z.string().trim().max(200).optional().nullable(),
   lyricId: z.string().trim().max(200).optional().nullable(),
   album: z.string().trim().max(200).optional().nullable(),
