@@ -48,8 +48,10 @@ npx tsx scripts/migrate-moments.mts --commit  # 确认后写入
 - **截断的图片**：严格解码失败的（例如导出中断的 JPEG）会用 `failOn:"none"` 容错解码，
   并在结果里给出警告，不直接中断发布
 - **查重**：按标题翻页扫全部文章，已有同名文章直接报错退出，**不覆盖线上内容**
-- **发布通道**：走站点自己的 `POST /api/admin/articles`，复用线上校验
-  （slug 唯一、发布必须有合集）；身份用服务器 `.env.local` 里的 `AUTH_SECRET` 现签
+- **发布通道**：走站点自己的 `POST /api/admin/articles`，复用线上校验（slug 唯一、发布必须有合集）
+- **认证**：站点新增「发布令牌」旁路 —— 请求头 `x-publish-token` 对服务器环境变量
+  `PUBLISH_TOKEN` 做定长比较，未配置则整条旁路关闭。发布只需要这把「只能发文章」的令牌，
+  不必把 `AUTH_SECRET`（能伪造任何登录）放在本机；本地开发没有令牌时可退回伪造会话
 - 上传限流对站长放宽到 120 次/分钟（一篇文章常二三十张图，原来的 10 次/分钟要传四分钟）
 
 另有 MCP 工具 `ops_publish_article`（在 `lankhub-ops` 侧车里）作为薄封装，参数
