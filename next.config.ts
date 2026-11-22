@@ -6,6 +6,15 @@ const nextConfig: NextConfig = {
   // 隐藏 X-Powered-By 头
   poweredByHeader: false,
 
+  /*
+   * 构建目录可切换（部署脚本 scripts/deploy-build.sh 用）。
+   *
+   * 部署时先构建到 .next-new，成功后才停服换名 —— 否则新产物会写进正在被旧进程
+   * 使用的 .next，构建期间旧进程引用到的 chunk 被覆盖，线上就 ChunkLoadError。
+   * 平时（本地开发、`next start`）不设这个变量，仍用默认的 .next。
+   */
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+
   // 旧地址重定向
   async redirects() {
     return [
