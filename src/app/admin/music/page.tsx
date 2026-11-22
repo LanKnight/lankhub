@@ -23,6 +23,8 @@ export default async function AdminMusicPage() {
       artist: true,
       favorite: true,
       apiId: true,
+      // 音源：界面上要标出这首歌走的是网易云还是 QQ 音乐
+      source: true,
       matchStatus: true,
       coverUrl: true,
       picId: true,

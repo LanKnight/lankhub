@@ -32,6 +32,8 @@ interface AdminSong {
   artist: string
   favorite: boolean
   apiId: string | null
+  /** 音源：netease（网易云经 GD）或 tencent（QQ 音乐）。界面新建的临时行可能没有 */
+  source?: string | null
   matchStatus: string | null
   coverUrl: string | null
   picId: string | null
@@ -873,14 +875,14 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
 
                       <span className="text-sm text-gray-900 truncate">{song.title}</span>
 
-                      {/* 绑定状态徽标：已绑定 / 无原版 / 待绑定 */}
+                      {/* 绑定状态徽标：已绑定（带音源）/ 无原版 / 待绑定 */}
                       {song.apiId ? (
                         <span className="shrink-0 rounded bg-green-50 px-1.5 py-0.5 text-[10px] text-green-600">
-                          已绑定
+                          {song.source === "tencent" ? "已绑定 · QQ" : "已绑定 · 网易云"}
                         </span>
                       ) : song.matchStatus === "nomatch" ? (
                         <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">
-                          源站无原版
+                          两个源都无原版
                         </span>
                       ) : (
                         <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] text-gray-400 ring-1 ring-gray-200">
