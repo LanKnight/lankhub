@@ -40,7 +40,12 @@ interface BindResponse {
  * （理由是防止歌名歌手被改过之后、旧对话框还拿着过期结果提交），
  * 因此这里传的 item 必须是搜索接口刚返回的结果。
  */
-export async function bindSong(songId: number, item: ApiSongItem): Promise<BindResult> {
+export async function bindSong(
+  songId: number,
+  item: ApiSongItem,
+  /** 音源：netease（默认，GD 网易云）或 tencent（QQ 音乐） */
+  source: "netease" | "tencent" = "netease"
+): Promise<BindResult> {
   try {
     const res = await fetch("/api/admin/music/bind", {
       method: "POST",
@@ -53,6 +58,7 @@ export async function bindSong(songId: number, item: ApiSongItem): Promise<BindR
             picId: item.picId,
             lyricId: item.lyricId,
             album: item.album,
+            source,
           },
         ],
       }),

@@ -40,13 +40,16 @@ export default function BindDialog({ song, onClose, onBound }: Props) {
   // 进来就开始搜，所以初始就是 searching
   const [searching, setSearching] = useState(true)
   const [bindingId, setBindingId] = useState<string | null>(null)
+  // 单首重绑固定走网易云；要绑 QQ 版本请用「搜索添加」切到 QQ音乐，
+  // 或走自动匹配（match 接口会给出 QQ 候选）
+  const source = "netease" as const
   const [remaining, setRemaining] = useState<number | null>(null)
 
   async function runSearch(query: string) {
     if (!query.trim()) return
     setSearching(true)
     try {
-      const res = await fetch(`/api/admin/music/search?q=${encodeURIComponent(query)}`)
+      const res = await fetch(`/api/admin/music/search?q=${encodeURIComponent(query)}&source=${source}`)
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         toast(data.error || "搜索失败", "error")
@@ -72,7 +75,7 @@ export default function BindDialog({ song, onClose, onBound }: Props) {
     void (async () => {
       try {
         const query = `${song.title} ${song.artist}`.trim()
-        const res = await fetch(`/api/admin/music/search?q=${encodeURIComponent(query)}`)
+        const res = await fetch(`/api/admin/music/search?q=${encodeURIComponent(query)}&source=${source}`)
         const data = await res.json().catch(() => ({}))
         if (cancelled) return
         setResults(data.songs ?? [])
@@ -102,6 +105,7 @@ export default function BindDialog({ song, onClose, onBound }: Props) {
               picId: item.picId,
               lyricId: item.lyricId,
               album: item.album,
+              source,
             },
           ],
         }),

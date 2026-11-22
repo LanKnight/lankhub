@@ -58,6 +58,8 @@ export default function SearchAddDialog({ onClose, onAdded }: Props) {
   const [searching, setSearching] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [remaining, setRemaining] = useState<number | null>(null)
+  /** 搜哪个源：netease（GD 网易云）或 tencent（QQ 音乐） */
+  const [source, setSource] = useState<"netease" | "tencent">("netease")
   /** 本次对话框里已加入歌单的条数，用来提示「还可以继续搜」 */
   const [addedCount, setAddedCount] = useState(0)
 
@@ -70,6 +72,7 @@ export default function SearchAddDialog({ onClose, onAdded }: Props) {
     try {
       const query = new URLSearchParams({ q: title.trim() })
       if (artist.trim()) query.set("artist", artist.trim())
+      query.set("source", source)
       const res = await fetch(`/api/admin/music/search?${query.toString()}`)
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -125,7 +128,7 @@ export default function SearchAddDialog({ onClose, onAdded }: Props) {
           picId: item.picId,
           lyricId: item.lyricId,
         }
-        const bind = await bindSong(addData.songId, item_)
+        const bind = await bindSong(addData.songId, item_, source)
         if (!bind.ok) {
           // 记录已经建好了，只是没绑上 —— 如实说明，别让用户以为整条都失败
           const prefix = addData.existed ? "这首歌已在歌单" : "已加入歌单"
@@ -188,7 +191,30 @@ export default function SearchAddDialog({ onClose, onAdded }: Props) {
         </div>
 
         {/* 搜索条件 */}
-        <div className="flex flex-wrap gap-2 border-b border-gray-100 px-5 py-3">
+        <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-5 py-3">
+          {/* 源切换：网易云搜不到的（例如周杰伦原版）到 QQ 音乐找 */}
+          <div className="flex shrink-0 overflow-hidden rounded-lg border border-gray-200 text-xs">
+            {(
+              [
+                ["netease", "网易云"],
+                ["tencent", "QQ音乐"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setSource(value)}
+                aria-pressed={source === value}
+                className={
+                  source === value
+                    ? "bg-gray-900 px-2.5 py-1.5 font-medium text-white"
+                    : "px-2.5 py-1.5 text-gray-500 transition-colors hover:text-gray-900"
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
