@@ -36,6 +36,19 @@ npx tsx scripts/migrate-moments.mts --commit  # 确认后写入
 
 旧表 `Photo` / `Poem` 原样保留，迁移只是复制；出问题删掉 `Moment` 数据即可回到原状。
 
+### 音乐：多源播放 + QQ 音乐源 + 双语歌词
+
+- **多源播放**：网易云歌曲走 GD（999 → 740 → 320 降档）→ Meting → QQ；QQ 源的歌走 QQ（SQ → PQ → m4a）。
+  每个候选地址都真取 2KB 探活（200/206 + audio/*），命中才用，缓存 5 分钟
+- **永久失败与暂时失败分开**：「这个源没有」→ 跳过；「这个源坏了」→ 退避重试。
+  之前混在一起，Tang 限流一次就会把能播的歌永久判死
+- **QQ 音乐源**：新增 `src/lib/music-qq.ts`（搜索/详情/自限流/失败重试），
+  后台绑定接口支持 `source=tencent`，按 song_mid 绑定
+- **补齐周杰伦**：12 首未绑定歌里 11 首用 QQ 源补上，全部 SQ 无损
+- **双语歌词**：`Song.lyricTrans` 存 tlyric，按时间戳对齐合并（容差 0.35s），
+  歌词面板「译」开关、沉浸式全屏双语显示
+- 新增 `POST /api/admin/music/refresh-lyric` 与补数据脚本，给存量外语歌补译文
+- 顺手修了一个真 bug：播放接口把整个解析结果塞进 `url` 字段，导致响应变成 `{"url":{"url":...}}`
 ### 本地 Markdown 一键发布（npm run publish:article）
 
 站长在本地写 `md`，一条命令发到站点：`node scripts/publish-article.mjs --dir <目录> --collection <合集名>`。

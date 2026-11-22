@@ -17,7 +17,7 @@
  */
 
 /** 公告版本：改动它会让大家重新看到一次公告（建议用日期） */
-export const ANNOUNCEMENT_VERSION = "2026-11-17"
+export const ANNOUNCEMENT_VERSION = "2026-11-22"
 
 /** localStorage 的键：只存"看过的版本号"一个字符串 */
 export const ANNOUNCEMENT_STORAGE_KEY = "lankhub.announcement.seen"
@@ -43,7 +43,7 @@ export interface Announcement {
 
 export const ANNOUNCEMENT: Announcement = {
   version: ANNOUNCEMENT_VERSION,
-  updatedAt: "2026-11-17",
+  updatedAt: "2026-11-22",
   title: "欢迎来到 lankHub",
   lead: "这是一个人的长期笔记：记录成长，也分享技术与生活。站点有较大改动时，这里会更新一次。",
   sections: [
@@ -60,8 +60,8 @@ export const ANNOUNCEMENT: Announcement = {
       title: "最近更新",
       // 最多两条，直接写内容，不加「本次/上次」前缀（规则见文件顶部注释）
       list: [
-        "写文章时插入的图片、简历头像都会先压缩再上传：原来超过约 1MB 的图传不上去，现在能正常传，文章页也更轻",
-        "动态里的图片改成瀑布流：一张都不裁，横图竖图混着传也能排整齐，点开可以看大图（多图能左右翻）",
+        "清弦补上了周杰伦的原版：网易云没有版权的那 11 首改用 QQ 音乐源，全部是无损音质",
+        "播放不容易断了：三个音源在后台自动轮换，一个取不到地址就换下一个；外语歌的歌词现在能显示中文译文（点歌词面板右上角的「译」）",
       ],
     },
   ],

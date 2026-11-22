@@ -36,11 +36,21 @@ const rows = ssh(
     return { id: Number(id), title, artist, lyricId, lyricLen: Number(lyricLen) }
   })
 
-// 判断"是否外语歌"：从库里取歌词，算中日韩字符占比
+/**
+ * 判断"是否外语歌"。
+ *
+ * 注意不能直接对整段歌词算比例：LRC 里全是 `[00:12.34]` 时间标签和
+ * `作词 : xxx` 这类元信息，全是 ASCII，会把中文歌也压到很低的比例。
+ * 先剥掉时间标签与首尾元信息，再只看正文里的中日韩字符占比。
+ */
 function cjkRatio(text: string): number {
-  if (text.length === 0) return 1
-  const cjk = text.match(/[\u4e00-\u9fff]/g)?.length ?? 0
-  return cjk / text.length
+  const body = text
+    .replace(/\[[^\]]*\]/g, " ") // 时间标签
+    .replace(/^(作词|作曲|编曲|制作人|混音|母带|和声|监制|出品|发行|统筹|录音|吉他|贝斯|鼓|键盘|弦乐|策划|视觉|封面)[^:：]*[:：].*$/gm, " ")
+    .replace(/\s+/g, "")
+  if (body.length === 0) return 1
+  const cjk = body.match(/[\u4e00-\u9fff]/g)?.length ?? 0
+  return cjk / body.length
 }
 
 const candidates: typeof rows = []
@@ -48,7 +58,7 @@ for (const row of rows) {
   // 只取一小段判断语言，避免读整库
   const sample = ssh(`cd /root/lankhub && sqlite3 dev.db "select substr(ifnull(lyric,''),1,600) from Song where id=${row.id};"`)
   const ratio = cjkRatio(sample)
-  if (ratio < 0.5) candidates.push(row)
+  if (ratio < 0.3) candidates.push(row)
 }
 
 console.log(`有歌词 id 的歌：${rows.length} 首；看起来是外语歌：${candidates.length} 首；本次处理上限：${limit}`)
