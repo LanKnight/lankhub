@@ -157,5 +157,14 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  return NextResponse.json({ url: result.data })
+  /*
+   * `url` 必须是字符串（播放器直接塞给 <audio src>）。
+   * provider / quality 是这轮新加的诊断信息：前端可以忽略，
+   * 但排障时能立刻看出"这歌是谁在服务、什么音质"。
+   */
+  return NextResponse.json({
+    url: result.data.url,
+    provider: result.data.provider,
+    quality: result.data.quality,
+  })
 }
