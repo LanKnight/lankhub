@@ -26,6 +26,7 @@ export async function GET() {
         favorite: true,
         apiId: true,
         lyric: true,
+        lyricTrans: true,
       },
     })
 

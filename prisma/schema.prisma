@@ -285,6 +285,8 @@ model Song {
   /// 这样前台渲染卡片墙与歌词是零 API 调用（官方限流 60 次/5 分钟）
   coverUrl  String?
   lyric     String?
+  /// 歌词译文（网易云 tlyric 原文）：外语歌才有，用于双语歌词显示
+  lyricTrans String?
   album     String?
   /// 自动匹配的结论：为空=没试过；"nomatch"=试过但没有原版（如网易云无周杰伦版权）。
   /// 记下来是为了不反复搜索这些歌、白耗第三方配额

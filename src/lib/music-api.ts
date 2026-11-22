@@ -310,6 +310,21 @@ export async function getCoverUrl(picId: string): Promise<ApiResult<string>> {
 
 /** 取歌词（LRC 原文）。只在绑定时调用一次，结果入库 */
 export async function getLyric(lyricId: string): Promise<ApiResult<string>> {
+  const result = await getLyricWithTranslation(lyricId)
+  if (!result.ok) return result
+  return { ok: true, data: result.data.lyric }
+}
+
+/**
+ * 取歌词 + 译文。
+ *
+ * 网易云的 `tlyric` 是中文翻译（外语歌才有，中文歌通常为空字符串）。
+ * 两者可以独立缺失，所以不把它们绑成一个"成功/失败"：
+ * 只要原文拿到就算成功，译文空就是没有。
+ */
+export async function getLyricWithTranslation(
+  lyricId: string
+): Promise<ApiResult<{ lyric: string; translation: string | null }>> {
   const result = await callApi({ types: "lyric", id: lyricId })
   if (!result.ok) return result
 
@@ -317,12 +332,16 @@ export async function getLyric(lyricId: string): Promise<ApiResult<string>> {
   if (typeof result.data !== "object" || result.data === null) {
     return { ok: false, error: "音乐接口返回了预料之外的数据", code: "upstream_error" }
   }
-  const payload = result.data as { lyric?: unknown }
+  const payload = result.data as { lyric?: unknown; tlyric?: unknown }
   if (!("lyric" in payload)) {
     return { ok: false, error: "音乐接口返回的数据里没有歌词字段", code: "upstream_error" }
   }
   const lyric = typeof payload.lyric === "string" ? payload.lyric : ""
   if (lyric.trim().length === 0) return { ok: false, error: "这首歌没有歌词" }
 
-  return { ok: true, data: lyric }
+  const rawTranslation = typeof payload.tlyric === "string" ? payload.tlyric : ""
+  // 只有时间标签没有正文的译文等于没有
+  const translation = rawTranslation.replace(/\[[^\]]*\]/g, "").trim().length > 0 ? rawTranslation : null
+
+  return { ok: true, data: { lyric, translation } }
 }

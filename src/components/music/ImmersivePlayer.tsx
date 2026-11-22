@@ -12,7 +12,7 @@ import {
   SkipBack,
   SkipForward,
 } from "lucide-react"
-import { findLyricIndex, parseLrc } from "@/lib/lrc"
+import { findLyricIndex, mergeTranslation, parseLrc } from "@/lib/lrc"
 import { usePlayer } from "./player-context"
 import ImmersiveClock from "./ImmersiveClock"
 import ModeButton from "./ModeButton"
@@ -69,7 +69,10 @@ export default function ImmersivePlayer({
   /** 播放列表抽屉是否打开（在沉浸层**内部**，不再退回原页面） */
   const [queueOpen, setQueueOpen] = useState(false)
 
-  const lyricLines = useMemo(() => parseLrc(current?.lyric), [current?.lyric])
+  const lyricLines = useMemo(
+    () => mergeTranslation(parseLrc(current?.lyric), current?.lyricTrans),
+    [current?.lyric, current?.lyricTrans]
+  )
   const activeIndex = findLyricIndex(lyricLines, currentTime)
 
   /** 量出歌词容器的高度 */

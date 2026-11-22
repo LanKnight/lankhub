@@ -42,6 +42,7 @@ export default async function MusicPage() {
       favorite: true,
       coverUrl: true,
       lyric: true,
+      lyricTrans: true,
       apiId: true,
     },
   })
@@ -71,6 +72,7 @@ export default async function MusicPage() {
       album: song.album,
       coverUrl: song.coverUrl,
       lyric: song.lyric,
+      lyricTrans: song.lyricTrans,
       favorite: song.favorite,
       apiId: song.apiId,
     })),

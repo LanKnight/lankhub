@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react"
 import { usePlayer } from "./player-context"
-import { findLyricIndex, parseLrc } from "@/lib/lrc"
+import { findLyricIndex, mergeTranslation, parseLrc } from "@/lib/lrc"
 import LyricsDrawer from "./LyricsDrawer"
 import QueuePanel from "./QueuePanel"
 import ModeButton from "./ModeButton"
@@ -72,6 +72,12 @@ export default function PlayerBar() {
   const [panel, setPanel] = useState<"lyrics" | "queue" | null>(null)
   /** 沉浸式全屏层是否打开 */
   const [immersive, setImmersive] = useState(false)
+  /**
+   * 歌词是否显示译文（双语）。
+   * 默认开：外语歌有译文时直接中英并列，比"先看不到再点开关"更好；
+   * 中文歌没有译文，按钮也不会出现，所以默认开不会影响常规歌词。
+   */
+  const [showTranslation, setShowTranslation] = useState(true)
 
   const lyricBoxRef = useRef<HTMLDivElement | null>(null)
 
@@ -101,8 +107,13 @@ export default function PlayerBar() {
   const currentTime = progress.songId === (current?.id ?? -1) ? progress.time : 0
   const duration = progress.songId === (current?.id ?? -1) ? progress.duration : 0
 
-  const lyricLines = useMemo(() => parseLrc(current?.lyric), [current?.lyric])
+  const lyricLines = useMemo(
+    () => mergeTranslation(parseLrc(current?.lyric), current?.lyricTrans),
+    [current?.lyric, current?.lyricTrans]
+  )
   const activeIndex = findLyricIndex(lyricLines, currentTime)
+  /** 这首歌是否真有译文：没有就不显示「译」按钮，免得点了没变化 */
+  const hasTranslation = lyricLines.some((line) => Boolean(line.translation))
 
   /**
    * 当前歌词行滚到中间（底部抽屉）。
@@ -160,6 +171,9 @@ export default function PlayerBar() {
         lines={lyricLines}
         activeIndex={activeIndex}
         boxRef={lyricBoxRef}
+        showTranslation={showTranslation}
+        hasTranslation={hasTranslation}
+        onToggleTranslation={() => setShowTranslation((value) => !value)}
       />
 
       {/* 播放列表：歌词开着时抬高，避免两个面板重叠 */}

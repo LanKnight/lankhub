@@ -19,8 +19,8 @@ const TIMEOUT_MS = 8000
 
 const RATE_WINDOW_MS = 5 * 60 * 1000
 /** 自设上限：这是公共接口，没有官方配额承诺，别把它当主力打 */
-const RATE_BUDGET = 30
-const CALL_GAP_MS = 1000
+const RATE_BUDGET = 18
+const CALL_GAP_MS = 1200
 const calls: number[] = []
 let lastAt = 0
 

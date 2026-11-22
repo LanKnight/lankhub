@@ -18,6 +18,9 @@ export default function LyricsDrawer({
   lines,
   activeIndex,
   boxRef,
+  showTranslation,
+  hasTranslation,
+  onToggleTranslation,
 }: {
   open: boolean
   onClose: () => void
@@ -26,24 +29,46 @@ export default function LyricsDrawer({
   lines: LyricLine[]
   activeIndex: number
   boxRef: RefObject<HTMLDivElement | null>
+  /** 是否显示译文（外语歌才有内容） */
+  showTranslation: boolean
+  /** 这首歌是否真的有译文：没有就不显示切换按钮，免得点了没反应 */
+  hasTranslation: boolean
+  onToggleTranslation: () => void
 }) {
   if (!open) return null
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 mb-[68px] px-3 md:px-6">
       <div className="mx-auto max-w-3xl rounded-t-2xl border border-b-0 border-gray-200 bg-white/95 shadow-xl backdrop-blur">
-        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-2.5">
+        <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-2.5">
           <span className="truncate text-xs text-gray-400">
             {title} · {artist}
           </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="shrink-0 rounded-lg p-1.5 text-gray-400 transition-colors hover:text-gray-900"
-            aria-label="收起歌词"
-          >
-            <ChevronDown size={16} />
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            {hasTranslation && (
+              <button
+                type="button"
+                onClick={onToggleTranslation}
+                aria-pressed={showTranslation}
+                title={showTranslation ? "只看原文" : "显示译文"}
+                className={
+                  showTranslation
+                    ? "rounded-md px-1.5 py-1 text-[11px] font-medium text-gray-900 ring-1 ring-gray-300"
+                    : "rounded-md px-1.5 py-1 text-[11px] text-gray-400 transition-colors hover:text-gray-900"
+                }
+              >
+                译
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:text-gray-900"
+              aria-label="收起歌词"
+            >
+              <ChevronDown size={16} />
+            </button>
+          </div>
         </div>
         {/*
           上下留白约等于容器高度的一半（h-56 = 224px → py 各 112px），
@@ -75,6 +100,17 @@ export default function LyricsDrawer({
                     }
                   >
                     {line.text}
+                    {showTranslation && line.translation && (
+                      <span
+                        className={
+                          index === activeIndex
+                            ? "mt-0.5 block text-xs font-normal text-gray-500"
+                            : "mt-0.5 block text-xs text-gray-300"
+                        }
+                      >
+                        {line.translation}
+                      </span>
+                    )}
                   </p>
                 ))}
               </div>

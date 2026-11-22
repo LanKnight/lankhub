@@ -50,6 +50,8 @@ export interface PlayerSong {
   album: string | null
   coverUrl: string | null
   lyric: string | null
+  /** 歌词译文（外语歌才有）；与 lyric 分开存，界面可切换 */
+  lyricTrans: string | null
   favorite: boolean
   /** 为空表示还没绑定到音乐接口，前台会置灰不可点 */
   apiId: string | null

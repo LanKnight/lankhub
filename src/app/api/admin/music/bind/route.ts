@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { requireOwnerUser } from "@/lib/auth-helpers"
 import {
   getCoverUrl,
-  getLyric,
+  getLyricWithTranslation,
   MUSIC_SOURCE,
   musicApiBudget,
   searchSongs,
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
    * 为什么不能只回 bound 计数：封面与歌词各自独立失败，界面若只乐观地
    * 记住「点了绑定」，就没法分辨某首歌的封面到底抓到了没有。
    */
-  const loaded: { songId: number; coverUrl: string | null; lyric: boolean }[] = []
+  const loaded: { songId: number; coverUrl: string | null; lyric: boolean; lyricTrans: boolean }[] = []
 
   /*
    * 同一批里如果有多首同名同歌手的歌，只搜一次。
@@ -135,10 +135,19 @@ export async function POST(req: NextRequest) {
     }
 
     let lyric: string | null = null
+    let lyricTrans: string | null = null
+    const loadLyric = async (lyricId: string) => {
+      const result = await getLyricWithTranslation(lyricId)
+      if (result.ok) {
+        lyric = result.data.lyric
+        lyricTrans = result.data.translation
+      } else {
+        warnings.push({ songId: item.songId, error: `歌词：${result.error}` })
+      }
+    }
+
     if (item.lyricId) {
-      const result = await getLyric(item.lyricId)
-      if (result.ok) lyric = result.data
-      else warnings.push({ songId: item.songId, error: `歌词：${result.error}` })
+      await loadLyric(item.lyricId)
     } else if (isTencent) {
       /*
        * QQ 源没有「歌词 id」这个入口，但网易云通常仍存着这首歌的歌词
@@ -153,13 +162,10 @@ export async function POST(req: NextRequest) {
           return candidate.title.trim() === song.title.trim() && singer.includes(artistKey)
         })
         if (match?.lyricId) {
-          const result = await getLyric(match.lyricId)
-          if (result.ok) {
-            lyric = result.data
+          await loadLyric(match.lyricId)
+          if (lyric) {
             // 记下网易云的歌词 id，后续刷新歌词时不用再搜一遍
             item.lyricId = match.lyricId
-          } else {
-            warnings.push({ songId: item.songId, error: `歌词：${result.error}` })
           }
         }
       }
@@ -179,13 +185,15 @@ export async function POST(req: NextRequest) {
           // 之前抓到过就保留，避免这次失败反而把已有的清掉
           ...(coverUrl ? { coverUrl } : {}),
           ...(lyric ? { lyric } : {}),
+          ...(lyricTrans ? { lyricTrans } : {}),
         },
-        select: { coverUrl: true, lyric: true },
+        select: { coverUrl: true, lyric: true, lyricTrans: true },
       })
       loaded.push({
         songId: item.songId,
         coverUrl: updated.coverUrl,
         lyric: Boolean(updated.lyric),
+        lyricTrans: Boolean(updated.lyricTrans),
       })
       bound += 1
     } catch (error) {

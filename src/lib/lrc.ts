@@ -9,6 +9,8 @@
 export interface LyricLine {
   time: number
   text: string
+  /** 译文（可选）：外语歌的中文翻译，按时间戳与原文合并 */
+  translation?: string
 }
 
 const TIME_TAG = /\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]/g
@@ -34,6 +36,27 @@ export function parseLrc(raw: string | null | undefined): LyricLine[] {
   }
 
   return lines.sort((a, b) => a.time - b.time)
+}
+
+/**
+ * 把译文合并进原文歌词（按时间戳对齐，误差 0.35 秒内算同一句）。
+ *
+ * 为什么按时间戳而不是按行号：网易云的 tlyric 行数与原文常常不等
+ * （纯音乐段落、重复段落处理不同），按行号对齐会整段错位。
+ * 合并失败（译文对不上）时宁可不显示，也不要显示错位的译文。
+ */
+export function mergeTranslation(
+  lines: LyricLine[],
+  translationRaw: string | null | undefined
+): LyricLine[] {
+  const translated = parseLrc(translationRaw)
+  if (translated.length === 0) return lines
+
+  const TOLERANCE = 0.35
+  return lines.map((line) => {
+    const hit = translated.find((item) => Math.abs(item.time - line.time) <= TOLERANCE)
+    return hit && hit.text !== line.text ? { ...line, translation: hit.text } : line
+  })
 }
 
 /** 当前时间对应的歌词行下标（二分查找）；还没有到第一句时返回 -1 */
