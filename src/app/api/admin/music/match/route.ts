@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireOwnerUser } from "@/lib/auth-helpers"
 import { musicApiBudget, searchSongs, type ApiSong } from "@/lib/music-api"
+import { searchQqSongs } from "@/lib/music-qq"
 import { matchSong } from "@/lib/music-match"
 
 /** 回传给界面供人工挑选的候选条数。实测可信原版最靠后的一例排在第 8 位，
@@ -83,6 +84,45 @@ export async function POST(req: NextRequest) {
 
     const outcome = matchSong(result.data, song.title, song.artist)
     const matchedId = outcome.match?.apiId
+
+    /*
+     * 网易云搜不到可信版本时，再问一次 QQ 音乐。
+     *
+     * 为什么必须补这一步：周杰伦那批歌网易云没有版权，自动匹配只会得出
+     * 「无原版」并把 matchStatus 标成 nomatch —— 之后即使有了 QQ 源也不会再试。
+     * 现在两个源都没有，才真的算「没有原版」。
+     */
+    if (!outcome.match) {
+      const qq = await searchQqSongs(song.title, song.artist)
+      if (qq.ok) {
+        const artistKey = song.artist.toLowerCase().replace(/\s+/g, "")
+        const hit = qq.data.find((item) => {
+          const singer = item.artist.toLowerCase().replace(/\s+/g, "")
+          return item.title === song.title.trim() && singer.includes(artistKey)
+        })
+        if (hit) {
+          const candidate = {
+            apiId: hit.apiId,
+            title: hit.title,
+            artist: hit.artist,
+            album: hit.album,
+            picId: "",
+            lyricId: "",
+          }
+          proposals.push({
+            songId: song.id,
+            title: song.title,
+            artist: song.artist,
+            source: "tencent" as const,
+            matched: candidate,
+            confidence: "high" as const,
+            candidates: [candidate],
+            titleMatches: [] as ApiSong[],
+          })
+          continue
+        }
+      }
+    }
 
     // 可信候选排最前，方便界面把它们和「歌名相同但歌手对不上」的分开呈现
     const candidates = matchedId

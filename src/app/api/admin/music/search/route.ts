@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireOwnerUser } from "@/lib/auth-helpers"
 import { musicApiBudget, searchSongs } from "@/lib/music-api"
+import { searchQqSongs } from "@/lib/music-qq"
 import { isCredibleArtistName, isTitleExact } from "@/lib/music-match"
 
 /**
@@ -33,7 +34,30 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "关键词过长" }, { status: 400 })
   }
 
-  const result = await searchSongs(keyword, artist)
+  /*
+   * 源切换：netease（GD 网易云）或 tencent（QQ 音乐）。
+   * 两者返回形状统一成 ApiSong，后面的可信度/是否已收录判断完全复用。
+   */
+  const sourceParam = new URL(req.url).searchParams.get("source")
+  const useQq = sourceParam === "tencent"
+
+  const result = useQq 
+    ? await searchQqSongs(keyword, artist).then((r) =>
+        r.ok
+          ? {
+              ok: true as const,
+              data: r.data.map((item) => ({
+                apiId: item.apiId,
+                title: item.title,
+                artist: item.artist,
+                album: item.album,
+                picId: "",
+                lyricId: "",
+              })),
+            }
+          : { ok: false as const, error: r.error }
+      )
+    : await searchSongs(keyword, artist)
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 502 })
   }
@@ -66,5 +90,5 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  return NextResponse.json({ songs, budget: musicApiBudget() })
+  return NextResponse.json({ songs, source: useQq ? "tencent" : "netease", budget: musicApiBudget() })
 }
