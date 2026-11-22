@@ -7,6 +7,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  RefreshCw,
   Search,
   Sparkles,
   Star,
@@ -123,6 +124,9 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
   // 手动搜索绑定
   const [bindTarget, setBindTarget] = useState<AdminSong | null>(null)
 
+  /** 正在刷新歌词的歌（只用于按钮禁用与文案） */
+  const [refreshingLyricId, setRefreshingLyricId] = useState<number | null>(null)
+
   // 批量自动匹配
   const [matching, setMatching] = useState(false)
   const [matchTotal, setMatchTotal] = useState(0)
@@ -224,6 +228,38 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
     if (ok) {
       setEditingId(null)
       toast("已保存", "success")
+    }
+  }
+
+  /**
+   * 刷新一首歌的歌词（含译文）。
+   *
+   * 为什么需要手动入口：歌词是绑定时抓的，那一刻可能失败（例如 QQ 源不给歌词 id，
+   * 回网易云搜也没搜到）。播放不受影响，所以不该让它阻断绑定；但作者需要能补一次。
+   */
+  async function handleRefreshLyric(song: AdminSong) {
+    setRefreshingLyricId(song.id)
+    try {
+      const res = await fetch("/api/admin/music/refresh-lyric", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ songIds: [song.id] }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast(data.error || "刷新歌词失败", "error")
+        return
+      }
+      if (data.updated > 0) {
+        toast("歌词已更新", "success")
+      } else {
+        const reason = data.skipped?.find((s: { songId: number }) => s.songId === song.id)?.reason
+        toast(reason || "没有拿到歌词", "error")
+      }
+    } catch {
+      toast("网络错误，请稍后重试", "error")
+    } finally {
+      setRefreshingLyricId(null)
     }
   }
 
@@ -891,6 +927,22 @@ export default function SongManager({ initialSongs }: { initialSongs: AdminSong[
                       )}
 
                       <span className="ml-auto flex items-center gap-1 shrink-0">
+                        {song.apiId ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleRefreshLyric(song)}
+                            disabled={refreshingLyricId === song.id}
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs text-gray-400 transition-colors hover:text-gray-900 disabled:opacity-50"
+                            aria-label={`刷新「${song.title}」的歌词`}
+                            title="重新抓一次歌词与译文"
+                          >
+                            <RefreshCw
+                              size={13}
+                              className={refreshingLyricId === song.id ? "animate-spin" : undefined}
+                            />
+                            刷新歌词
+                          </button>
+                        ) : null}
                         {song.apiId ? (
                           <button
                             type="button"

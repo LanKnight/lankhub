@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { requireOwnerUser } from "@/lib/auth-helpers"
-import { getLyricWithTranslation } from "@/lib/music-api"
+import { getLyricWithTranslation, searchSongs } from "@/lib/music-api"
 import { prisma } from "@/lib/prisma"
 
 /**
@@ -40,12 +40,30 @@ export async function POST(req: NextRequest) {
   const skipped: { songId: number; reason: string }[] = []
 
   for (const song of songs) {
-    if (!song.lyricId) {
-      skipped.push({ songId: song.id, reason: "这首歌没有歌词 id（未绑定或没有歌词）" })
+    /*
+     * 没有 lyricId 的歌（典型：QQ 源绑定的，QQ 不给歌词 id）不直接跳过 ——
+     * 先按「歌名 + 歌手」去网易云找一次，找到就把 id 记下来再抓歌词。
+     * 这正是"周杰伦原版用 QQ 播放、歌词借网易云"的情形：版权只影响播放，不影响歌词。
+     */
+    let lyricId = song.lyricId
+    if (!lyricId) {
+      const searched = await searchSongs(song.title, song.artist)
+      if (searched.ok) {
+        const artistKey = song.artist.toLowerCase().replace(/\s+/g, "")
+        const match = searched.data.find((candidate) => {
+          const singer = candidate.artist.toLowerCase().replace(/\s+/g, "")
+          return candidate.title.trim() === song.title.trim() && singer.includes(artistKey)
+        })
+        if (match?.lyricId) lyricId = match.lyricId
+      }
+    }
+
+    if (!lyricId) {
+      skipped.push({ songId: song.id, reason: "网易云上也没有这首歌的歌词" })
       continue
     }
 
-    const result = await getLyricWithTranslation(song.lyricId)
+    const result = await getLyricWithTranslation(lyricId)
     if (!result.ok) {
       skipped.push({ songId: song.id, reason: result.error })
       continue
@@ -54,6 +72,7 @@ export async function POST(req: NextRequest) {
     await prisma.song.update({
       where: { id: song.id },
       data: {
+        lyricId,
         lyric: result.data.lyric,
         // 译文为空就写 null：避免把上一次的旧译文留在库里
         lyricTrans: result.data.translation,
