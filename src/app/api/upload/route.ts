@@ -18,9 +18,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "无权限上传" }, { status: 403 })
   }
 
-  // 频率限制：每用户每分钟最多 10 次上传
+  /*
+   * 频率限制：默认每 IP 每分钟 10 次；站长放宽到 120 次。
+   *
+   * 为什么给站长开口子：一篇文章常常二三十张配图，本地批量发布时
+   * 10 次/分钟要传四分多钟；而这个限制本来防的是匿名/低权限滥用，
+   * 站长自己是可信的。
+   */
   const ip = getClientIp(req.headers)
-  const limitResult = rateLimit(`upload:${ip}`, 10, 60 * 1000)
+  const perMinute = user.role === "OWNER" ? 120 : 10
+  const limitResult = rateLimit(`upload:${ip}`, perMinute, 60 * 1000)
   if (!limitResult.allowed) {
     return NextResponse.json(
       { error: "上传过于频繁，请稍后再试" },

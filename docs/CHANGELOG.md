@@ -36,6 +36,25 @@ npx tsx scripts/migrate-moments.mts --commit  # 确认后写入
 
 旧表 `Photo` / `Poem` 原样保留，迁移只是复制；出问题删掉 `Moment` 数据即可回到原状。
 
+### 本地 Markdown 一键发布（npm run publish:article）
+
+站长在本地写 `md`，一条命令发到站点：`node scripts/publish-article.mjs --dir <目录> --collection <合集名>`。
+
+- **格式转换**：用 `@tiptap/markdown` 的 `MarkdownManager`（与编辑器同一套扩展）把 md
+  转成站点存储的 TipTap JSON，标题/引用/列表/代码块/表格/图片、加粗斜体链接都保真
+- **标题与摘要**：取 `# 标题` 与 `> 摘要：…`；没有摘要就取正文开头 120 字
+- **图片**：正文里的本地图片用 sharp 压缩（长边 1600 / WebP / 目标 900KB，与站内一致）
+  后上传，替换成 `/api/images/*.webp`；`cover.*` 按封面档（1880）处理
+- **截断的图片**：严格解码失败的（例如导出中断的 JPEG）会用 `failOn:"none"` 容错解码，
+  并在结果里给出警告，不直接中断发布
+- **查重**：按标题翻页扫全部文章，已有同名文章直接报错退出，**不覆盖线上内容**
+- **发布通道**：走站点自己的 `POST /api/admin/articles`，复用线上校验
+  （slug 唯一、发布必须有合集）；身份用服务器 `.env.local` 里的 `AUTH_SECRET` 现签
+- 上传限流对站长放宽到 120 次/分钟（一篇文章常二三十张图，原来的 10 次/分钟要传四分钟）
+
+另有 MCP 工具 `ops_publish_article`（在 `lankhub-ops` 侧车里）作为薄封装，参数
+`dir` / `collection`（可选 `file` / `title` / `cover` / `draft` / `base`）。
+
 ### 删除文章 / 合集需要手写标题确认
 
 后台的删除原来只是「点垃圾桶 → 点确认」两步，列表一行行挨着，很容易点错。

@@ -43,6 +43,7 @@
     "editor:markdown-test": "tsx scripts/markdown-paste-test.mts",
     "editor:markdown-ui": "tsx scripts/editor-markdown-ui-check.mts",
     "editor:mermaid-check": "node scripts/mermaid-check.mjs",
+    "publish:article": "node scripts/publish-article.mjs",
     "music:shuffle-test": "tsx scripts/shuffle-start-test.mts",
     "music:upstream-test": "tsx scripts/upstream-shape-test.mts",
     "ui:check": "node scripts/ui-check.mjs",
