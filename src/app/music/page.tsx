@@ -118,8 +118,8 @@ export default async function MusicPage() {
 
           {/* 来源标注：第三方接口要求注明数据来源 */}
           <p className="mt-12 text-center text-xs leading-relaxed text-gray-400">
-            音乐数据来源于第三方免费接口 GD音乐台，仅供个人学习与欣赏，
-            版权归原始版权方所有 ·{" "}
+            音乐数据来源于第三方免费接口（网易云经 GD音乐台、QQ 音乐经 Tang），
+            仅供个人学习与欣赏，版权归原始版权方所有 ·{" "}
             <Link
               href="/music/disclaimer"
               className="underline transition-colors hover:text-gray-600"

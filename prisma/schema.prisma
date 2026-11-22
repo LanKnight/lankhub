@@ -271,12 +271,12 @@ model Song {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // ---- 在线播放（GD音乐台 API）。实测结论见 docs/music-plan.md ----
-  // 只有 netease 是真正能播的音源：kuwo 被服务端直接拒绝，
-  // joox 能搜到但取不到播放链接，其余音源全部 400。
-  /// 音源，目前固定为 netease
+  // ---- 在线播放。多源方案见 docs/music/music-plan.md 第八节 ----
+  // source=netease：走 GD 音乐台的网易云线路；source=tencent：走 QQ 音乐（Tang 接口）。
+  // 网易云没有原版的歌（如周杰伦）用 tencent 补，播放解析还会再退到 Meting 公共实例。
+  /// 音源：netease（默认）| tencent
   source    String   @default("netease")
-  /// 播放用的 url_id；为空表示这首歌还没绑定到 API
+  /// 播放用的 ID：netease 是曲目 id，tencent 是 song_mid；为空表示还没绑定
   apiId     String?
   /// 取封面与歌词用的 ID
   picId     String?
