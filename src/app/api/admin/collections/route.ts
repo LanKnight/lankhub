@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireOwner } from "@/lib/auth-helpers"
+import { getPublishTokenOwner } from "@/lib/publish-token"
 import { generateSlug } from "@/lib/utils"
 import { CollectionSchema } from "@/lib/validations"
 
 export async function GET(req: NextRequest) {
-  const authError = await requireOwner()
+  /*
+   * 发布令牌可以**只读**这里：本地发布要把「合集名」换成 id。
+   * 合集名与 id 本来就是公开页面（/blog/collections）上能看到的信息，
+   * 所以按只读放开不扩大暴露面；新建/修改/删除合集仍然只认站长会话。
+   */
+  const authError = (await getPublishTokenOwner()) ? null : await requireOwner()
   if (authError) return authError
 
   const collections = await prisma.collection.findMany({

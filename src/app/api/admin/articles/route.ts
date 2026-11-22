@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requirePermission } from "@/lib/auth-helpers"
+import { getPublishTokenOwner } from "@/lib/publish-token"
 import { generateSlug } from "@/lib/utils"
 import { validationErrorResponse } from "@/lib/api-validation"
 import {
@@ -10,7 +11,7 @@ import {
 } from "@/lib/validations"
 
 export async function GET(req: NextRequest) {
-  const user = await requirePermission("article")
+  const user = (await getPublishTokenOwner()) ?? (await requirePermission("article"))
   if (user instanceof NextResponse) return user
 
   const { searchParams } = new URL(req.url)
@@ -60,7 +61,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requirePermission("article")
+  /*
+   * 发布令牌只能走「列表 + 新建」这两条路（本地批量发布用）。
+   * 修改/删除文章在 [id] 路由里，仍然只认真实登录会话。
+   */
+  const user = (await getPublishTokenOwner()) ?? (await requirePermission("article"))
   if (user instanceof NextResponse) return user
 
   try {
