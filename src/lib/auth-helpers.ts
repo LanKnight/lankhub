@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { getPublishTokenOwner } from "@/lib/publish-token"
 import {
   type PermissionCode,
   userHasPermission,
@@ -92,6 +93,10 @@ export function hasPermission(
 }
 
 export async function requireOwnerUser() {
+  // 本地批量发布用的发布令牌，等同站长身份（不产生会话）
+  const tokenUser = await getPublishTokenOwner()
+  if (tokenUser) return tokenUser
+
   const user = await getCurrentUser()
   if (!user) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 })
@@ -103,6 +108,8 @@ export async function requireOwnerUser() {
 }
 
 export async function requireOwner() {
+  if (await getPublishTokenOwner()) return null
+
   const user = await getCurrentUser()
   if (!user) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 })
@@ -118,6 +125,10 @@ export async function requireOwner() {
  * 通过时返回 user（供记录操作者），未通过返回 NextResponse。
  */
 export async function requirePermission(perm: PermissionCode) {
+  // 发布令牌等同站长，拥有全部内容权限
+  const tokenUser = await getPublishTokenOwner()
+  if (tokenUser) return tokenUser
+
   const user = await getCurrentUser()
   if (!user) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 })

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCurrentUser, hasPermission } from "@/lib/auth-helpers"
+import { getPublishTokenOwner } from "@/lib/publish-token"
 import { writeFile, mkdir } from "fs/promises"
 import path from "path"
 import crypto from "crypto"
@@ -7,13 +8,17 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit"
 import { isAllowedImage } from "@/lib/file-type"
 
 export async function POST(req: NextRequest) {
-  // 站长或拥有任一内容权限（文章 / 动态）的读者可上传图片
-  const user = await getCurrentUser()
+  // 站长或拥有任一内容权限（文章 / 动态）的读者可上传图片；
+  // 本地批量发布时用发布令牌（等同站长）。
+  const tokenUser = await getPublishTokenOwner()
+  const user = tokenUser ?? (await getCurrentUser())
   if (!user) {
     return NextResponse.json({ error: "请先登录" }, { status: 401 })
   }
   const hasContentPerm =
-    hasPermission(user, "article") || hasPermission(user, "moment")
+    Boolean(tokenUser) ||
+    hasPermission(user, "article") ||
+    hasPermission(user, "moment")
   if (!hasContentPerm) {
     return NextResponse.json({ error: "无权限上传" }, { status: 403 })
   }
@@ -26,7 +31,7 @@ export async function POST(req: NextRequest) {
    * 站长自己是可信的。
    */
   const ip = getClientIp(req.headers)
-  const perMinute = user.role === "OWNER" ? 120 : 10
+  const perMinute = tokenUser || user.role === "OWNER" ? 120 : 10
   const limitResult = rateLimit(`upload:${ip}`, perMinute, 60 * 1000)
   if (!limitResult.allowed) {
     return NextResponse.json(

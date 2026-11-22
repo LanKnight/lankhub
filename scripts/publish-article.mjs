@@ -102,6 +102,9 @@ function readSecret() {
   return secret
 }
 
+/** 发布令牌：站点配置了 PUBLISH_TOKEN 时用它，不需要任何会话密钥 */
+const publishToken = (process.env.LANKHUB_PUBLISH_TOKEN || "").trim()
+
 const isHttps = base.startsWith("https://")
 const cookieName = isHttps ? "__Secure-authjs.session-token" : "authjs.session-token"
 
@@ -109,6 +112,7 @@ let cachedSecret = null
 
 async function ownerCookie() {
   // 延迟读取：--output（只转换不发布）时不需要密钥
+  if (publishToken) throw new Error("已有发布令牌，不应再走会话密钥")
   if (!cachedSecret) cachedSecret = readSecret()
   const token = await encode({
     token: { sub: "1", id: "1", role: "OWNER", permissions: null },
@@ -177,6 +181,12 @@ const manager = new MarkdownManager({
   extensions: [StarterKit, ImageExtension, TableKit],
 })
 
+/** 发布请求的认证头：优先发布令牌，其次本地伪造的站长会话 */
+async function authHeaders() {
+  if (publishToken) return { "x-publish-token": publishToken }
+  return { cookie: await ownerCookie() }
+}
+
 /* ------------------------------ 图片 ------------------------------ */
 
 async function compressImage(file, preset) {
@@ -229,12 +239,12 @@ function uploadName(file) {
   return `${base}.webp`
 }
 
-async function uploadImage(buffer, name, cookie) {
+async function uploadImage(buffer, name) {
   const form = new FormData()
   form.append("file", new File([buffer], name, { type: "image/webp" }))
   const res = await fetch(`${base}/api/upload`, {
     method: "POST",
-    headers: { cookie },
+    headers: await authHeaders(),
     body: form,
   })
   const data = await res.json().catch(() => null)
@@ -246,8 +256,8 @@ async function uploadImage(buffer, name, cookie) {
 
 /* ------------------------------ API ------------------------------ */
 
-async function apiGet(pathname, cookie) {
-  const res = await fetch(`${base}${pathname}`, { headers: { cookie } })
+async function apiGet(pathname) {
+  const res = await fetch(`${base}${pathname}`, { headers: await authHeaders() })
   const data = await res.json().catch(() => null)
   if (!res.ok) throw new Error(`${pathname} 失败（HTTP ${res.status}）${data?.error ? "：" + data.error : ""}`)
   return data
@@ -311,10 +321,8 @@ async function main() {
     return
   }
 
-  const cookie = await ownerCookie()
-
   // 合集
-  const collections = await apiGet("/api/admin/collections", cookie)
+  const collections = await apiGet("/api/admin/collections")
   const collection = (Array.isArray(collections) ? collections : []).find(
     (item) => item.name.trim() === argv.collection.trim()
   )
@@ -330,7 +338,7 @@ async function main() {
   let total = Infinity
   let duplicate = null
   while (scanned < total && page <= 50 && !duplicate) {
-    const list = await apiGet(`/api/admin/articles?limit=50&page=${page}`, cookie)
+    const list = await apiGet(`/api/admin/articles?limit=50&page=${page}`)
     const articles = list?.articles ?? []
     total = Number(list?.total ?? 0)
     scanned += articles.length
@@ -362,7 +370,7 @@ async function main() {
     if (compressed.data.length > UPLOAD_SAFE_LIMIT) {
       fail("image", `「${item.src}」压缩后仍有 ${(compressed.data.length / 1024 / 1024).toFixed(2)}MB，超过上传上限`)
     }
-    const url = await uploadImage(compressed.data, uploadName(localPath), cookie)
+    const url = await uploadImage(compressed.data, uploadName(localPath))
     if (!url.startsWith("/api/images/")) throw new Error(`上传返回异常：${url}`)
 
     item.node.attrs.src = url
@@ -384,7 +392,7 @@ async function main() {
     if (compressed.data.length > UPLOAD_SAFE_LIMIT) {
       fail("image", `封面压缩后仍有 ${(compressed.data.length / 1024 / 1024).toFixed(2)}MB，超过上传上限`)
     }
-    coverUrl = await uploadImage(compressed.data, uploadName(coverFile), cookie)
+    coverUrl = await uploadImage(compressed.data, uploadName(coverFile))
     log(`  封面 ${path.basename(coverFile)} → ${(compressed.data.length / 1024).toFixed(0)}KB`)
   } else {
     log("  没有找到封面（cover.png/jpg/webp），将不带封面")
@@ -417,7 +425,7 @@ async function main() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      cookie,
+      ...(await authHeaders()),
     },
     body: JSON.stringify(payload),
   })
