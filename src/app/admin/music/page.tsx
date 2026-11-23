@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { getCurrentUser } from "@/lib/auth-helpers"
 import SongManager from "./SongManager"
+import SourcePanel from "./SongSourcePanel"
 
 export const metadata: Metadata = {
   title: "歌单管理 - 管理后台",
@@ -40,6 +41,12 @@ export default async function AdminMusicPage() {
           歌手与封面会自动带出来；保存后前台立即生效
         </p>
       </div>
+
+      {/* 音源状态：源挂了要能一眼看到，而不是靠翻日志 */}
+      <section className="rounded-xl border border-gray-100 p-4">
+        <h2 className="mb-3 text-sm font-semibold text-gray-900">音源状态</h2>
+        <SourcePanel />
+      </section>
 
       <SongManager initialSongs={songs} />
     </div>

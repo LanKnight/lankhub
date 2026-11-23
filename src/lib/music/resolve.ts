@@ -1,3 +1,4 @@
+import { recordFailure, recordSuccess } from "./health"
 import { BUDGETS, PLAY_ORDER, PROVIDERS } from "./registry"
 import { probeAudio } from "./probe"
 import type { ApiResult, MusicErrorCode, ProviderId, ResolvableSongLike } from "./types"
@@ -90,9 +91,11 @@ export async function resolvePlayUrl(
     if (!provider.playUrls) continue
 
     // 自限流：预算用完就跳过这个源，而不是硬撞上游
+    const attemptStarted = Date.now()
     const budgetOk = await BUDGETS[providerId].take()
     if (!budgetOk) {
       dbg("budget exhausted", providerId)
+      recordFailure(providerId, "自限流：窗口配额已用完")
       anyErrored = true
       continue
     }
@@ -106,9 +109,14 @@ export async function resolvePlayUrl(
         artist: song.artist,
       })
       candidates = result.candidates
-      if (result.errored) anyErrored = true
+      if (result.errored) {
+        recordFailure(providerId, "接口返回异常（限流或上游故障）")
+        anyErrored = true
+      }
     } catch (error) {
-      dbg("provider threw", providerId, (error as Error).message.slice(0, 60))
+      const reason = (error as Error).message.slice(0, 60)
+      dbg("provider threw", providerId, reason)
+      recordFailure(providerId, reason)
       anyErrored = true
       continue
     }
@@ -119,6 +127,7 @@ export async function resolvePlayUrl(
       dbg("probe", providerId, candidate.quality, playable)
       if (!playable) continue
 
+      recordSuccess(providerId, Date.now() - attemptStarted)
       const ok: ApiResult<ResolvedPlayUrl> = {
         ok: true,
         data: { url: candidate.url, provider: providerId, quality: candidate.quality },
