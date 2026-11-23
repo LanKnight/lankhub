@@ -11,7 +11,7 @@ import type { MusicProvider, PlayCandidate, Track } from "../types"
 export const tangProvider: MusicProvider = {
   id: "tang",
   label: "QQ 音乐（Tang）",
-  capabilities: ["search", "playUrl", "cover"],
+  capabilities: ["search", "playUrl", "cover", "lyric"],
   budget: { limit: 18, windowMs: 5 * 60 * 1000, gapMs: 1200 },
   mediaHosts: ["https://*.stream.qqmusic.qq.com", "https://y.gtimg.cn"],
 
@@ -45,6 +45,28 @@ export const tangProvider: MusicProvider = {
   async cover(track) {
     const result = await getQqPlayUrls(track.apiId, track.title)
     return result.ok ? result.data.coverUrl : null
+  },
+
+  /**
+   * 歌词：详情接口里的 song_lyric（标准 LRC）。QQ 没有译文，translation 恒为 null。
+   * 这条路对"网易云没有原版"的歌尤其重要 —— 它们本来就没有网易云歌词可取。
+   */
+  async lyrics(track) {
+    const result = await getQqPlayUrls(track.apiId, track.title)
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: result.error,
+        code: result.errorKind === "upstream" ? "upstream_error" : "url_unavailable",
+      }
+    }
+    if (!result.data.lyric) {
+      return { ok: false, error: "QQ 音乐没有这首歌的歌词", code: "url_unavailable" }
+    }
+    return {
+      ok: true,
+      data: { lyric: result.data.lyric, translation: null, provider: "tang" },
+    }
   },
 }
 

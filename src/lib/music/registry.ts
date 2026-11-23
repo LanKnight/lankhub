@@ -35,16 +35,14 @@ export const SOURCE_LABELS: Record<SourceId, string> = {
 }
 
 /**
- * 播放时的尝试顺序。
- * - netease 的歌先问 GD（能拿 999/948），再退 Meting，最后按歌名去 QQ 找
- * - tencent 的歌先问 QQ（能拿 SQ），再退 Meting（按 id 通常不适用，交给 provider 自己判断）
- *
- * QQ 放最后而不是最前：Tang 是公共接口，没有配额承诺，且批量请求会节流，
- * 不该让它承担主力流量。
+ * 播放时的尝试顺序（见下方注释：Tang 已退为备用）。歌词的顺序另见 lyrics.ts。
  */
 export const PLAY_ORDER: Record<SourceId, ProviderId[]> = {
-  netease: ["gd", "meting", "tang"],
-  tencent: ["tang", "meting"],
+  // Tang 实测不稳（多次整段超时），站长要求它退出网易云主力链，只作备用。
+  // 网易云的歌本来也不该按歌名去 QQ 碰运气（容易落到翻唱）。
+  netease: ["gd", "meting"],
+  // QQ 源的歌只有 Tang 能放（Meting 按网易云 id 取流，拿不到这些原版）
+  tencent: ["tang"],
 }
 
 /** 后台搜索用的源（数据层视角：netease 搜 GD，tencent 搜 Tang） */

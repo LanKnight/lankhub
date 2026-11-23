@@ -287,6 +287,8 @@ model Song {
   lyric     String?
   /// 歌词译文（网易云 tlyric 原文）：外语歌才有，用于双语歌词显示
   lyricTrans String?
+  /// 歌词是哪个接口给的（gd / tang / meting）：排障与「刷新歌词」时能看出差异
+  lyricSource String?
   album     String?
   /// 自动匹配的结论：为空=没试过；"nomatch"=试过但没有原版（如网易云无周杰伦版权）。
   /// 记下来是为了不反复搜索这些歌、白耗第三方配额

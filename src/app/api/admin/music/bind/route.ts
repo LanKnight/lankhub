@@ -3,12 +3,12 @@ import { prisma } from "@/lib/prisma"
 import { requireOwnerUser } from "@/lib/auth-helpers"
 import {
   getCoverUrl,
-  getLyricWithTranslation,
   MUSIC_SOURCE,
   musicApiBudget,
   searchSongs,
   type ApiSong,
 } from "@/lib/music-api"
+import { fetchLyrics } from "@/lib/music/lyrics"
 import { getQqPlayUrls } from "@/lib/music-qq"
 import { SongBindSchema } from "@/lib/validations"
 
@@ -134,41 +134,32 @@ export async function POST(req: NextRequest) {
       else warnings.push({ songId: item.songId, error: `封面：${cover.error}` })
     }
 
+    /*
+     * 歌词统一交给 fetchLyrics：先本源（QQ 歌→Tang 的 song_lyric；网易云歌→GD 带译文），
+     * 再兜底（Meting）。以前这里写了一段、刷新接口又写一段、还各自抄了遍"回网易云搜歌"，
+     * 现在只有一处规则。
+     *
+     * 失败只记 warning：播放不该因为没有歌词而失败。
+     */
     let lyric: string | null = null
     let lyricTrans: string | null = null
-    const loadLyric = async (lyricId: string) => {
-      const result = await getLyricWithTranslation(lyricId)
-      if (result.ok) {
-        lyric = result.data.lyric
-        lyricTrans = result.data.translation
-      } else {
-        warnings.push({ songId: item.songId, error: `歌词：${result.error}` })
-      }
-    }
+    let lyricSource: string | null = null
 
-    if (item.lyricId) {
-      await loadLyric(item.lyricId)
-    } else if (isTencent) {
-      /*
-       * QQ 源没有「歌词 id」这个入口，但网易云通常仍存着这首歌的歌词
-       * （版权只影响播放，不影响歌词）。所以按歌名歌手去网易云搜一次，有就抓。
-       * 属于锦上添花：失败只记 warning，不影响绑定。
-       */
-      const searched = await searchSongs(song.title, song.artist)
-      if (searched.ok) {
-        const artistKey = song.artist.toLowerCase().replace(/\s+/g, "")
-        const match = searched.data.find((candidate) => {
-          const singer = candidate.artist.toLowerCase().replace(/\s+/g, "")
-          return candidate.title.trim() === song.title.trim() && singer.includes(artistKey)
-        })
-        if (match?.lyricId) {
-          await loadLyric(match.lyricId)
-          if (lyric) {
-            // 记下网易云的歌词 id，后续刷新歌词时不用再搜一遍
-            item.lyricId = match.lyricId
-          }
-        }
-      }
+    const fetchedLyrics = await fetchLyrics(
+      {
+        title: song.title,
+        artist: song.artist,
+        apiId: item.apiId,
+        source: isTencent ? "tencent" : "netease",
+      },
+      { lyricId: item.lyricId }
+    )
+    if (fetchedLyrics.ok) {
+      lyric = fetchedLyrics.data.lyric
+      lyricTrans = fetchedLyrics.data.translation
+      lyricSource = fetchedLyrics.data.provider
+    } else {
+      warnings.push({ songId: item.songId, error: `歌词：${fetchedLyrics.error}` })
     }
 
     try {
@@ -186,6 +177,7 @@ export async function POST(req: NextRequest) {
           ...(coverUrl ? { coverUrl } : {}),
           ...(lyric ? { lyric } : {}),
           ...(lyricTrans ? { lyricTrans } : {}),
+          ...(lyricSource ? { lyricSource } : {}),
         },
         select: { coverUrl: true, lyric: true, lyricTrans: true },
       })

@@ -143,6 +143,11 @@ export interface QqPlayUrls {
   /** 标准 m4a */
   m4a: string | null
   coverUrl: string | null
+  /**
+   * 歌词（标准 LRC）。Tang 详情里的 `song_lyric`（优先）或 `lyric`。
+   * 有了它，QQ 源的歌不用再回网易云碰运气 —— 网易云常常没有这些原版的歌词。
+   */
+  lyric: string | null
 }
 
 /** 取详情里的播放直链（已 https 化） */
@@ -158,11 +163,16 @@ export async function getQqPlayUrls(apiId: string, title: string): Promise<QqRes
   const info = raw as Record<string, unknown>
   const pick = (field: string) => toHttps(info[field])
 
+  const lyricRaw = typeof info.song_lyric === "string" ? info.song_lyric : typeof info.lyric === "string" ? info.lyric : ""
+  // 只有时间标签没有正文的"歌词"等于没有
+  const lyric = lyricRaw.replace(/\[[^\]]*\]/g, "").trim().length > 0 ? lyricRaw : null
+
   const urls: QqPlayUrls = {
     sq: pick("song_play_url_sq"),
     pq: pick("song_play_url_pq"),
     m4a: pick("song_play_url"),
     coverUrl: pick("album_pic"),
+    lyric,
   }
   if (!urls.sq && !urls.pq && !urls.m4a) {
     return { ok: false, error: "这首歌在 QQ 音乐上也没有可播地址", errorKind: "not_found" }
