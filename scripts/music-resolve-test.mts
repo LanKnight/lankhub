@@ -62,11 +62,11 @@ async function runSong(song: ResolvableSong, label: string, expect?: ProviderNam
 
 console.log("=== 1) 网易云歌曲（默认链：GD → Meting → QQ）===")
 for (const song of neteaseSongs) {
-  await runSong(song, `${song.title}`, ["gd", "meting", "qq"])
+  await runSong(song, `${song.title}`, ["gd", "meting", "tang"])
 }
 
 console.log("\n=== 2) QQ 源歌曲（应命中 QQ，且优先 SQ）===")
-await runSong(tencentSong, "晴天（QQ源）", ["qq"])
+await runSong(tencentSong, "晴天（QQ源）", ["tang"])
 
 console.log("\n=== 3) 故障注入：禁用 GD，网易云歌曲应自动回退 ===")
 process.env.MUSIC_DISABLED_PROVIDERS = "gd"
