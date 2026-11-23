@@ -36,6 +36,18 @@ npx tsx scripts/migrate-moments.mts --commit  # 确认后写入
 
 旧表 `Photo` / `Poem` 原样保留，迁移只是复制；出问题删掉 `Moment` 数据即可回到原状。
 
+### 音乐模块框架重整（源清单单一来源）
+
+- 新增 src/lib/music/：types / budget / probe / registry / providers(gd·tang·meting) / resolve / lyrics / health
+- sources.ts 成为唯一真相源（零依赖）：源清单、能力、CSP 域名、免责文案；
+  next.config 的 media-src/img-src、绑定校验枚举、后台搜索 tab、免责与公告文案都由它派生
+- 歌词统一到 lyrics.ts：先本源再兜底；Tang 详情支持 song_lyric；
+  修正「网易云曲目 id 即歌词 id」（不再多搜一次，避免拿错版本）
+- Tang 从网易云主力链退出（实测多次整段超时），仅保留为 QQ 源歌曲的播放/歌词本源
+- 新增音源健康计数与后台「音源状态」面板（成功/失败、预算余量、最近错误、一键探活）
+- 部署流程改为原子构建：构建到 .next-new → 停服 → 换名 → 重启（修掉部署窗口的 ChunkLoadError）
+- 删除 src/lib/music-resolve.ts 薄壳
+
 ### 音乐：多源播放 + QQ 音乐源 + 双语歌词
 
 - **多源播放**：网易云歌曲走 GD（999 → 740 → 320 降档）→ Meting → QQ；QQ 源的歌走 QQ（SQ → PQ → m4a）。
