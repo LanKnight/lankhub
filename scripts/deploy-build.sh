@@ -23,6 +23,9 @@ echo "==> 构建到 ${NEW_DIR}（线上继续用旧的 .next）"
 rm -rf "${NEW_DIR}"
 NEXT_DIST_DIR="${NEW_DIR}" npm run build
 
+# next build 会顺手重排 tsconfig.json / 改写 next-env.d.ts（格式化，不影响语义）。
+# 不还原的话服务器工作区一直是脏的，部署守卫会拒绝下一次部署。
+git checkout -- tsconfig.json next-env.d.ts 2>/dev/null || true
 if [ ! -d "${NEW_DIR}/server" ]; then
   echo "!! 构建产物不完整（缺少 ${NEW_DIR}/server），放弃切换" >&2
   exit 1
