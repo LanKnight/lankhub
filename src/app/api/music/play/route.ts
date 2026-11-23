@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { requireAuth } from "@/lib/auth-helpers"
-import { resolvePlayUrl } from "@/lib/music-resolve"
+import { resolvePlayUrl } from "@/lib/music/resolve"
 import { rateLimit, getClientIp } from "@/lib/rate-limit"
 import { IdSchema } from "@/lib/validations"
 

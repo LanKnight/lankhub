@@ -1,4 +1,5 @@
 import { z } from "zod"
+import { SOURCE_IDS, type SourceId } from "@/lib/music/sources"
 
 /*
  * 让 zod 内置的类型错误也说中文。
@@ -198,7 +199,7 @@ export const SongBindItemSchema = z.object({
    * 音源。默认 netease（GD 的网易云），tencent（QQ 音乐）用于补网易云没有的版本
    * （例如周杰伦原版）。两者的 apiId 含义不同：netease 是曲目 id，tencent 是 song_mid。
    */
-  source: z.enum(["netease", "tencent"]).optional(),
+  source: z.enum(SOURCE_IDS as [SourceId, ...SourceId[]]).optional(),
   picId: z.string().trim().max(200).optional().nullable(),
   lyricId: z.string().trim().max(200).optional().nullable(),
   album: z.string().trim().max(200).optional().nullable(),

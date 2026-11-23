@@ -10,10 +10,12 @@ export const metadata: Metadata = {
 }
 
 /** 声明正文。侵权联系方式单独从简历资料里取，见下方注释 */
+import { SOURCE_DISCLAIMER } from "@/lib/music/sources"
+
 const CLAUSES: { title: string; body: string }[] = [
   {
     title: "数据来源",
-    body: "本站音乐数据来自第三方免费接口，共三条线路：网易云音乐经「GD音乐台」（music.gdstudio.xyz）、QQ 音乐经「Tang」公开接口、以及 Meting 公共实例作为备用。本站仅将其用于个人学习与技术演示，不存储、不制作、不传播任何音频文件，播放时由浏览器直接向接口返回的地址取流；一个来源取不到时会自动尝试下一个。歌词中文译文同样取自上述接口，仅作理解辅助。",
+    body: `本站音乐数据来自第三方免费接口，共三条线路：${SOURCE_DISCLAIMER}。本站仅将其用于个人学习与技术演示，不存储、不制作、不传播任何音频文件，播放时由浏览器直接向接口返回的地址取流；一个来源取不到时会自动尝试下一个。歌词中文译文同样取自上述接口，仅作理解辅助。`,
   },
   {
     title: "版权归属",

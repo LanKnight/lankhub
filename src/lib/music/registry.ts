@@ -2,6 +2,7 @@ import { createBudget } from "./budget"
 import { gdProvider } from "./providers/gd"
 import { metingProvider } from "./providers/meting"
 import { tangProvider } from "./providers/tang"
+import { MEDIA_HOSTS, MUSIC_SOURCES, SOURCE_IDS as SOURCE_ID_LIST, sourceLabel } from "./sources"
 import type { Capability, MusicProvider, ProviderId, SourceId } from "./types"
 
 /**
@@ -26,12 +27,12 @@ export const PROVIDERS: Record<ProviderId, MusicProvider> = {
 /** 后台/文档里展示的顺序 */
 export const SOURCE_LIST: MusicProvider[] = [gdProvider, tangProvider, metingProvider]
 
-/** 数据层音源（Song.source 的值域）与展示名 */
-export const SOURCE_IDS: SourceId[] = ["netease", "tencent"]
+/** 数据层音源（Song.source 的值域）与展示名 —— 统一来自 sources.ts */
+export const SOURCE_IDS: SourceId[] = SOURCE_ID_LIST
 
 export const SOURCE_LABELS: Record<SourceId, string> = {
-  netease: "网易云",
-  tencent: "QQ音乐",
+  netease: sourceLabel("netease"),
+  tencent: sourceLabel("tencent"),
 }
 
 /**
@@ -45,17 +46,16 @@ export const PLAY_ORDER: Record<SourceId, ProviderId[]> = {
   tencent: ["tang"],
 }
 
-/** 后台搜索用的源（数据层视角：netease 搜 GD，tencent 搜 Tang） */
-export const SEARCH_TABS: { source: SourceId; label: string; provider: ProviderId }[] = [
-  { source: "netease", label: "网易云", provider: "gd" },
-  { source: "tencent", label: "QQ音乐", provider: "tang" },
-]
+/** 后台搜索用的源（由 sources.ts 派生，加源只改那一处） */
+export const SEARCH_TABS: { source: SourceId; label: string; provider: ProviderId }[] = MUSIC_SOURCES.filter(
+  (item) => item.searchable
+).map((item) => ({ source: item.id, label: item.label, provider: item.provider }))
 
 /**
  * CSP 里要放行的媒体/图片域名（next.config.ts 从这里生成）。
  * 少放行一个，对应线路在浏览器里会被 CSP 静默拦掉。
  */
-export const MEDIA_HOSTS: string[] = [...new Set(SOURCE_LIST.flatMap((p) => p.mediaHosts))]
+export const PROVIDER_MEDIA_HOSTS: string[] = [...new Set(SOURCE_LIST.flatMap((p) => p.mediaHosts))]
 
 /** 每个源一个限流闸门（进程内） */
 export const BUDGETS: Record<ProviderId, ReturnType<typeof createBudget>> = {

@@ -16,6 +16,8 @@
  *    不要加「本次：」「上次：」这类前缀。完整历史在 docs/CHANGELOG.md 里。
  */
 
+import { SOURCE_DISCLAIMER } from "@/lib/music/sources"
+
 /** 公告版本：改动它会让大家重新看到一次公告（建议用日期） */
 export const ANNOUNCEMENT_VERSION = "2026-11-22"
 
@@ -53,7 +55,7 @@ export const ANNOUNCEMENT: Announcement = {
     },
     {
       title: "免责说明",
-      body: "文章均为个人观点与原创记录，引用会注明来源；音乐试听数据来自三条第三方免费线路（网易云经 GD音乐台、QQ 音乐经 Tang、Meting 公共实例备用），一个取不到会换下一个。本站不存储、不制作、不传播音频文件，版权归原始版权方所有。若认为某处内容侵权，请用下方邮箱联系，核实后立即处理。",
+      body: `文章均为个人观点与原创记录，引用会注明来源；音乐试听数据来自三条第三方免费线路（${SOURCE_DISCLAIMER}），一个取不到会换下一个。本站不存储、不制作、不传播音频文件，版权归原始版权方所有。若认为某处内容侵权，请用下方邮箱联系，核实后立即处理。`,
       link: { href: "/disclaimer", label: "阅读完整免责声明" },
     },
     {

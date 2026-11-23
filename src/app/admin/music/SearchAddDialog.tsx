@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Check, Loader2, Music4, Plus, Search, TriangleAlert, X } from "lucide-react"
 import { useToast } from "@/components/ui/Toast"
+import { MUSIC_SOURCES, type SourceId } from "@/lib/music/sources"
 import { bindSong, type ApiSongItem } from "@/lib/music-bind-client"
 
 /** 「只加入歌单」按钮的悬停说明 */
@@ -59,7 +60,7 @@ export default function SearchAddDialog({ onClose, onAdded }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [remaining, setRemaining] = useState<number | null>(null)
   /** 搜哪个源：netease（GD 网易云）或 tencent（QQ 音乐） */
-  const [source, setSource] = useState<"netease" | "tencent">("netease")
+  const [source, setSource] = useState<SourceId>("netease")
   /** 本次对话框里已加入歌单的条数，用来提示「还可以继续搜」 */
   const [addedCount, setAddedCount] = useState(0)
 
@@ -194,24 +195,19 @@ export default function SearchAddDialog({ onClose, onAdded }: Props) {
         <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-5 py-3">
           {/* 源切换：网易云搜不到的（例如周杰伦原版）到 QQ 音乐找 */}
           <div className="flex shrink-0 overflow-hidden rounded-lg border border-gray-200 text-xs">
-            {(
-              [
-                ["netease", "网易云"],
-                ["tencent", "QQ音乐"],
-              ] as const
-            ).map(([value, label]) => (
+            {MUSIC_SOURCES.map((item) => (
               <button
-                key={value}
+                key={item.id}
                 type="button"
-                onClick={() => setSource(value)}
-                aria-pressed={source === value}
+                onClick={() => setSource(item.id)}
+                aria-pressed={source === item.id}
                 className={
-                  source === value
+                  source === item.id
                     ? "bg-gray-900 px-2.5 py-1.5 font-medium text-white"
                     : "px-2.5 py-1.5 text-gray-500 transition-colors hover:text-gray-900"
                 }
               >
-                {label}
+                {item.label}
               </button>
             ))}
           </div>

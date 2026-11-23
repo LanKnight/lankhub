@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 
+// 相对路径：next.config 由 Next 自己加载，tsconfig 的 @/ 别名在这里不生效
+import { MEDIA_HOSTS } from "./src/lib/music/sources";
+
 const nextConfig: NextConfig = {
   // better-sqlite3 是 C++ 原生模块，必须标记为外部包
   serverExternalPackages: ["better-sqlite3", "@prisma/adapter-better-sqlite3"],
@@ -76,7 +79,7 @@ const nextConfig: NextConfig = {
               "script-src 'self' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
               // 歌单的封面直连 CDN（/music 页面）：网易云、QQ 音乐
-              "img-src 'self' data: blob: https://*.music.126.net https://y.gtimg.cn",
+              `img-src 'self' data: blob: ${MEDIA_HOSTS.image.join(" ")}`,
               /*
                * 音频直连 CDN：<audio src> 不受同源策略约束，所以不需要服务器代理音频，
                * 也就不必让 ECS 承担全部音频流量。
@@ -89,7 +92,7 @@ const nextConfig: NextConfig = {
                *
                * JSON 接口仍然走自己的 /api/music/* 代理，所以 connect-src 保持 'self'。
                */
-              "media-src 'self' https://*.music.126.net https://api.injahow.cn https://*.stream.qqmusic.qq.com",
+              `media-src 'self' ${MEDIA_HOSTS.media.join(" ")}`,
               "connect-src 'self'",
               "frame-ancestors 'none'",
               "base-uri 'self'",

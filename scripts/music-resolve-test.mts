@@ -7,7 +7,8 @@
  * 用 MUSIC_DISABLED_PROVIDERS 模拟"某个源挂了"，验证回退是否真的生效。
  */
 
-import { resolvePlayUrl, type ProviderName, type ResolvableSong } from "../src/lib/music-resolve"
+import { resolvePlayUrl } from "../src/lib/music/resolve"
+import type { ProviderId as ProviderName, ResolvableSongLike as ResolvableSong } from "../src/lib/music/types"
 
 const neteaseSongs: ResolvableSong[] = [
   { id: 153, title: "Counting Stars", artist: "OneRepublic", apiId: "26060065", source: "netease" },
@@ -71,7 +72,7 @@ await runSong(tencentSong, "晴天（QQ源）", ["tang"])
 console.log("\n=== 3) 故障注入：禁用 GD，网易云歌曲应自动回退 ===")
 process.env.MUSIC_DISABLED_PROVIDERS = "gd"
 // 需要重新 import 才能让模块读到新的环境变量（模块顶层已读过一次）
-const fresh = await import(`../src/lib/music-resolve.ts?disabled=${Date.now()}`)
+const fresh = await import(`../src/lib/music/resolve.ts?disabled=${Date.now()}`)
 for (const song of neteaseSongs.slice(0, 2)) {
   const started = Date.now()
   const result = await fresh.resolvePlayUrl(song, { force: true })
