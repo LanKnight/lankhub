@@ -25,7 +25,10 @@ NEXT_DIST_DIR="${NEW_DIR}" npm run build
 
 # next build 会顺手重排 tsconfig.json / 改写 next-env.d.ts（格式化，不影响语义）。
 # 不还原的话服务器工作区一直是脏的，部署守卫会拒绝下一次部署。
-git checkout -- tsconfig.json next-env.d.ts 2>/dev/null || true
+# 注意：必须分开写。git checkout 只要有一个 pathspec 不匹配（next-env.d.ts 未被跟踪）
+# 就会整体报错、什么都不还原 —— 配 `|| true` 还会静默失败，tsconfig 就一直脏着。
+git checkout -- tsconfig.json 2>/dev/null || true
+git checkout -- next-env.d.ts 2>/dev/null || true
 if [ ! -d "${NEW_DIR}/server" ]; then
   echo "!! 构建产物不完整（缺少 ${NEW_DIR}/server），放弃切换" >&2
   exit 1
